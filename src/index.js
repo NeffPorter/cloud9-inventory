@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const path = require('path');
 
 dotenv.config();
 
@@ -9,7 +10,12 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Routes
+// Page routes
+app.get('/dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/dashboard.html'));
+});
+
+// API Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/inventory', require('./routes/inventory'));
 app.use('/api/pos', require('./routes/pos'));
@@ -17,7 +23,7 @@ app.use('/api/sales', require('./routes/sales'));
 
 // Health check
 app.get('/', (req, res) => {
-  res.json({ message: '✅ Cloud 9 Inventory API is running!' });
+  res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
 const PORT = process.env.PORT || 3000;
