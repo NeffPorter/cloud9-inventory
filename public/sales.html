@@ -196,10 +196,10 @@
         <div class="page-subtitle" id="periodLabel">Loading...</div>
       </div>
       <div class="date-controls">
-        <button class="preset-btn" onclick="setPreset('today')">Today</button>
-        <button class="preset-btn" onclick="setPreset('week')">This Week</button>
-        <button class="preset-btn active" onclick="setPreset('month')">This Month</button>
-        <button class="preset-btn" onclick="setPreset('quarter')">This Quarter</button>
+        <button class="preset-btn" onclick="setPreset('today', this)">Today</button>
+<button class="preset-btn" onclick="setPreset('week', this)">This Week</button>
+<button class="preset-btn active" onclick="setPreset('month', this)">This Month</button>
+<button class="preset-btn" onclick="setPreset('quarter', this)">This Quarter</button>
         <input type="date" id="startDate" class="date-input" onchange="setCustom()">
         <span style="color:#999">to</span>
         <input type="date" id="endDate" class="date-input" onchange="setCustom()">
@@ -290,33 +290,33 @@
       el.className = `stat-change ${up ? colorUp : colorDown}`;
     }
 
-    function setPreset(preset) {
-      activePreset = preset;
-      document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
-      event.target.classList.add('active');
+    function setPreset(preset, btnEl) {
+  activePreset = preset;
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
 
-      const now = new Date();
-      let start, end;
+  const now = new Date();
+  let start, end;
 
-      if (preset === 'today') {
-        start = new Date(now); start.setHours(0,0,0,0);
-        end = new Date(now); end.setHours(23,59,59,999);
-      } else if (preset === 'week') {
-        start = new Date(now); start.setDate(now.getDate() - now.getDay()); start.setHours(0,0,0,0);
-        end = new Date(now); end.setHours(23,59,59,999);
-      } else if (preset === 'month') {
-        start = new Date(now.getFullYear(), now.getMonth(), 1);
-        end = new Date(now); end.setHours(23,59,59,999);
-      } else if (preset === 'quarter') {
-        const q = Math.floor(now.getMonth() / 3);
-        start = new Date(now.getFullYear(), q * 3, 1);
-        end = new Date(now); end.setHours(23,59,59,999);
-      }
+  if (preset === 'today') {
+    start = new Date(now); start.setHours(0,0,0,0);
+    end = new Date(now); end.setHours(23,59,59,999);
+  } else if (preset === 'week') {
+    start = new Date(now); start.setDate(now.getDate() - now.getDay()); start.setHours(0,0,0,0);
+    end = new Date(now); end.setHours(23,59,59,999);
+  } else if (preset === 'month') {
+    start = new Date(now.getFullYear(), now.getMonth(), 1);
+    end = new Date(now); end.setHours(23,59,59,999);
+  } else if (preset === 'quarter') {
+    const q = Math.floor(now.getMonth() / 3);
+    start = new Date(now.getFullYear(), q * 3, 1);
+    end = new Date(now); end.setHours(23,59,59,999);
+  }
 
-      currentStart = start;
-      currentEnd = end;
-      loadSales();
-    }
+  currentStart = start;
+  currentEnd = end;
+  loadSales();
+}
 
     function setCustom() {
       const s = document.getElementById('startDate').value;
@@ -513,7 +513,7 @@
 
     // Init
     loadStoreFilter();
-    setPreset('month');
+setPreset('month', document.querySelector('.preset-btn.active'));
   </script>
 
 </body>
