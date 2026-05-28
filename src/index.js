@@ -17,6 +17,9 @@ app.get('/dashboard', (req, res) => {
 app.get('/stores', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/stores.html'));
 });
+app.get('/users', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/users.html'));
+});
 
 // API Routes
 app.use('/api/auth', require('./routes/auth'));

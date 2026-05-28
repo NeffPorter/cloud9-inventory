@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloud 9 - Users</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      min-height: 100vh;
+    }
+    .navbar {
+      background: #1a1a2e;
+      padding: 0 24px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .navbar h1 { color: white; font-size: 20px; font-weight: 800; }
+    .navbar-right { display: flex; align-items: center; gap: 16px; }
+    .user-badge {
+      background: #2f5597;
+      color: white;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .back-btn {
+      background: transparent;
+      color: #aaa;
+      border: 1px solid #444;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .back-btn:hover { color: white; border-color: white; }
+    .container { max-width: 900px; margin: 0 auto; padding: 32px 24px; }
+    .page-title { font-size: 24px; font-weight: 700; color: #1a1a2e; margin-bottom: 8px; }
+    .page-subtitle { color: #666; font-size: 14px; margin-bottom: 32px; }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 32px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      margin-bottom: 24px;
+    }
+    .card-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .form-group { margin-bottom: 16px; }
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: #444;
+      margin-bottom: 6px;
+    }
+    input, select {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 15px;
+      outline: none;
+      transition: border-color 0.2s;
+      background: white;
+    }
+    input:focus, select:focus { border-color: #2f5597; }
+    .submit-btn {
+      background: #2f5597;
+      color: white;
+      border: none;
+      padding: 12px 28px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .submit-btn:hover { background: #1e3a6e; }
+    .submit-btn:disabled { background: #999; cursor: not-allowed; }
+    .error {
+      background: #fee;
+      color: #c00;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-top: 16px;
+      display: none;
+    }
+    .success {
+      background: #efe;
+      color: #060;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-top: 16px;
+      display: none;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    th {
+      text-align: left;
+      font-size: 12px;
+      font-weight: 600;
+      color: #999;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 8px 12px;
+      border-bottom: 2px solid #f0f0f0;
+    }
+    td {
+      padding: 14px 12px;
+      border-bottom: 1px solid #f0f0f0;
+      font-size: 14px;
+      color: #333;
+    }
+    tr:last-child td { border-bottom: none; }
+    .role-badge {
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .role-admin { background: #dce8f8; color: #2f5597; }
+    .role-manager { background: #d9ead3; color: #38761d; }
+    .action-btns { display: flex; gap: 8px; }
+    .edit-btn {
+      background: #f0f0f0;
+      color: #444;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .delete-btn {
+      background: #fee;
+      color: #c00;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .empty { color: #999; font-size: 14px; text-align: center; padding: 24px 0; }
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+      background: white;
+      border-radius: 12px;
+      padding: 32px;
+      width: 100%;
+      max-width: 480px;
+      margin: 20px;
+    }
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 24px;
+    }
+    .modal-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: flex-end;
+      margin-top: 24px;
+    }
+    .cancel-btn {
+      background: #f0f0f0;
+      color: #444;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <h1>☁️ Cloud 9 Inventory</h1>
+    <div class="navbar-right">
+      <span class="user-badge" id="userBadge">Loading...</span>
+      <button class="back-btn" onclick="window.location.href='/dashboard'">← Dashboard</button>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="page-title">User Management</div>
+    <div class="page-subtitle">Create accounts and assign store access</div>
+
+    <!-- Add User Form -->
+    <div class="card">
+      <div class="card-title">➕ Add New User</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Full Name</label>
+          <input type="text" id="newName" placeholder="Jane Smith">
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="newEmail" placeholder="jane@cloud9.com">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="newPassword" placeholder="••••••••">
+        </div>
+        <div class="form-group">
+          <label>Role</label>
+          <select id="newRole" onchange="toggleStoreSelect('newStore', this.value)">
+            <option value="manager">Manager</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group" id="newStoreGroup">
+        <label>Assigned Store</label>
+        <select id="newStore">
+          <option value="">— Select a store —</option>
+        </select>
+      </div>
+      <button class="submit-btn" onclick="createUser()" id="createBtn">Create User</button>
+      <div class="error" id="createError"></div>
+      <div class="success" id="createSuccess"></div>
+    </div>
+
+    <!-- Users Table -->
+    <div class="card">
+      <div class="card-title">👥 All Users</div>
+      <div id="usersTable"><div class="empty">Loading users...</div></div>
+    </div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div class="modal-overlay" id="editModal">
+    <div class="modal">
+      <div class="modal-title">✏️ Edit User</div>
+      <input type="hidden" id="editId">
+      <div class="form-group">
+        <label>Full Name</label>
+        <input type="text" id="editName">
+      </div>
+      <div class="form-group">
+        <label>Role</label>
+        <select id="editRole" onchange="toggleStoreSelect('editStore', this.value)">
+          <option value="manager">Manager</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div class="form-group" id="editStoreGroup">
+        <label>Assigned Store</label>
+        <select id="editStore">
+          <option value="">— Select a store —</option>
+        </select>
+      </div>
+      <div class="error" id="editError"></div>
+      <div class="modal-actions">
+        <button class="cancel-btn" onclick="closeModal()">Cancel</button>
+        <button class="submit-btn" onclick="saveEdit()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+    if (!token) window.location.href = '/';
+    if (user.role !== 'admin') window.location.href = '/dashboard';
+
+    document.getElementById('userBadge').textContent = user.name || user.email;
+
+    let stores = [];
+    let users = [];
+
+    function toggleStoreSelect(selectId, role) {
+      const groupId = selectId === 'newStore' ? 'newStoreGroup' : 'editStoreGroup';
+      document.getElementById(groupId).style.display = role === 'admin' ? 'none' : 'block';
+    }
+
+    async function loadStores() {
+      const res = await fetch('/api/inventory/stores', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const data = await res.json();
+      stores = data.stores || [];
+
+      ['newStore', 'editStore'].forEach(id => {
+        const sel = document.getElementById(id);
+        sel.innerHTML = '<option value="">— Select a store —</option>';
+        stores.forEach(s => {
+          sel.innerHTML += `<option value="${s.id}">${s.name}</option>`;
+        });
+      });
+    }
+
+    async function loadUsers() {
+      const res = await fetch('/api/auth/users', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const data = await res.json();
+      users = data.users || [];
+
+      const table = document.getElementById('usersTable');
+      if (users.length === 0) {
+        table.innerHTML = '<div class="empty">No users yet</div>';
+        return;
+      }
+
+      table.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Role</th>
+              <th>Store</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${users.map(u => {
+              const store = stores.find(s => s.id === u.store_id);
+              const isMe = u.id === user.id;
+              return `
+                <tr>
+                  <td><strong>${u.name}</strong>${isMe ? ' <span style="color:#999;font-size:11px">(you)</span>' : ''}</td>
+                  <td>${u.email}</td>
+                  <td><span class="role-badge role-${u.role}">${u.role}</span></td>
+                  <td>${store ? store.name : u.role === 'admin' ? 'All Stores' : '—'}</td>
+                  <td>
+                    <div class="action-btns">
+                      <button class="edit-btn" onclick="openEdit('${u.id}')">Edit</button>
+                      ${!isMe ? `<button class="delete-btn" onclick="deleteUser('${u.id}', '${u.name}')">Remove</button>` : ''}
+                    </div>
+                  </td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>`;
+    }
+
+    async function createUser() {
+      const name = document.getElementById('newName').value.trim();
+      const email = document.getElementById('newEmail').value.trim();
+      const password = document.getElementById('newPassword').value;
+      const role = document.getElementById('newRole').value;
+      const store_id = document.getElementById('newStore').value;
+      const btn = document.getElementById('createBtn');
+      const errorEl = document.getElementById('createError');
+      const successEl = document.getElementById('createSuccess');
+
+      errorEl.style.display = 'none';
+      successEl.style.display = 'none';
+
+      if (!name || !email || !password) {
+        errorEl.textContent = 'Name, email and password are required.';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      if (role === 'manager' && !store_id) {
+        errorEl.textContent = 'Please assign a store to this manager.';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Creating...';
+
+      try {
+        const res = await fetch('/api/auth/users', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({ name, email, password, role, store_id })
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          successEl.textContent = `✅ Account created for ${name}!`;
+          successEl.style.display = 'block';
+          document.getElementById('newName').value = '';
+          document.getElementById('newEmail').value = '';
+          document.getElementById('newPassword').value = '';
+          loadUsers();
+        } else {
+          errorEl.textContent = data.error || 'Failed to create user.';
+          errorEl.style.display = 'block';
+        }
+      } catch (err) {
+        errorEl.textContent = 'Could not connect to server.';
+        errorEl.style.display = 'block';
+      }
+
+      btn.disabled = false;
+      btn.textContent = 'Create User';
+    }
+
+    function openEdit(userId) {
+      const u = users.find(x => x.id === userId);
+      if (!u) return;
+      document.getElementById('editId').value = u.id;
+      document.getElementById('editName').value = u.name;
+      document.getElementById('editRole').value = u.role;
+      document.getElementById('editStore').value = u.store_id || '';
+      document.getElementById('editError').style.display = 'none';
+      toggleStoreSelect('editStore', u.role);
+      document.getElementById('editModal').classList.add('active');
+    }
+
+    function closeModal() {
+      document.getElementById('editModal').classList.remove('active');
+    }
+
+    async function saveEdit() {
+      const id = document.getElementById('editId').value;
+      const name = document.getElementById('editName').value.trim();
+      const role = document.getElementById('editRole').value;
+      const store_id = document.getElementById('editStore').value;
+      const errorEl = document.getElementById('editError');
+
+      errorEl.style.display = 'none';
+
+      if (role === 'manager' && !store_id) {
+        errorEl.textContent = 'Please assign a store to this manager.';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/auth/users/${id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({ name, role, store_id })
+        });
+
+        if (res.ok) {
+          closeModal();
+          loadUsers();
+        } else {
+          const data = await res.json();
+          errorEl.textContent = data.error || 'Failed to update user.';
+          errorEl.style.display = 'block';
+        }
+      } catch (err) {
+        errorEl.textContent = 'Could not connect to server.';
+        errorEl.style.display = 'block';
+      }
+    }
+
+    async function deleteUser(id, name) {
+      if (!confirm(`Remove ${name}? They will lose access immediately.`)) return;
+      try {
+        await fetch(`/api/auth/users/${id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        loadUsers();
+      } catch (err) {
+        alert('Error removing user');
+      }
+    }
+
+    // Also need to add auth middleware to auth routes
+    const authMiddleware = require('../middleware/auth');
+
+    loadStores();
+    loadUsers();
+  </script>
+
+</body>
+</html>
