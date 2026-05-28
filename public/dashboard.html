@@ -207,7 +207,10 @@
 
     <div class="section-header">
       <div class="section-title">Your Stores</div>
-      <button class="add-store-btn" id="addStoreBtn" onclick="window.location.href='/stores'" style="display:none">+ Add Store</button>
+      <div style="display:flex; gap:12px;">
+  <button class="add-store-btn" id="addStoreBtn" onclick="window.location.href='/stores'" style="display:none">+ Add Store</button>
+  <button class="add-store-btn" id="manageUsersBtn" onclick="window.location.href='/users'" style="display:none; background:#38761d">👥 Manage Users</button>
+</div>
     </div>
 
     <div id="storesContainer" class="loading">Loading stores...</div>
@@ -223,8 +226,9 @@
     document.getElementById('pageSubtitle').textContent = `Welcome back, ${user.name || 'there'}!`;
 
     if (user.role === 'admin') {
-      document.getElementById('addStoreBtn').style.display = 'block';
-    }
+  document.getElementById('addStoreBtn').style.display = 'block';
+  document.getElementById('manageUsersBtn').style.display = 'block';
+}
 
     async function loadStores() {
       try {
