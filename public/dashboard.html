@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloud 9 - Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      min-height: 100vh;
+    }
+    .navbar {
+      background: #1a1a2e;
+      padding: 0 24px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .navbar h1 {
+      color: white;
+      font-size: 20px;
+      font-weight: 800;
+    }
+    .navbar-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .user-badge {
+      background: #2f5597;
+      color: white;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .logout-btn {
+      background: transparent;
+      color: #aaa;
+      border: 1px solid #444;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .logout-btn:hover { color: white; border-color: white; }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px 24px;
+    }
+    .page-title {
+      font-size: 24px;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 8px;
+    }
+    .page-subtitle {
+      color: #666;
+      font-size: 14px;
+      margin-bottom: 32px;
+    }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .stat-card {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .stat-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: #999;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    .stat-value {
+      font-size: 28px;
+      font-weight: 800;
+      color: #1a1a2e;
+    }
+    .stat-value.green { color: #38761d; }
+    .stores-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .store-card {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      border-left: 4px solid #2f5597;
+    }
+    .store-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    }
+    .store-name {
+      font-size: 16px;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 4px;
+    }
+    .store-mid {
+      font-size: 12px;
+      color: #999;
+      margin-bottom: 16px;
+    }
+    .store-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .action-btn {
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.2s;
+    }
+    .action-btn:hover { opacity: 0.8; }
+    .btn-blue { background: #dce8f8; color: #2f5597; }
+    .btn-green { background: #d9ead3; color: #38761d; }
+    .btn-orange { background: #fce8b2; color: #c55a11; }
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #999;
+    }
+    .empty-state h3 { font-size: 18px; margin-bottom: 8px; color: #666; }
+    .add-store-btn {
+      background: #2f5597;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 16px;
+    }
+    .loading {
+      text-align: center;
+      padding: 60px;
+      color: #999;
+      font-size: 16px;
+    }
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1a1a2e;
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <h1>☁️ Cloud 9 Inventory</h1>
+    <div class="navbar-right">
+      <span class="user-badge" id="userBadge">Loading...</span>
+      <button class="logout-btn" onclick="logout()">Logout</button>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="page-title">Dashboard</div>
+    <div class="page-subtitle" id="pageSubtitle">Welcome back!</div>
+
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card">
+        <div class="stat-label">Total Stores</div>
+        <div class="stat-value" id="totalStores">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Active POs</div>
+        <div class="stat-value" id="activePOs">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Suggested Orders</div>
+        <div class="stat-value" id="suggestedOrders">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Low Stock Items</div>
+        <div class="stat-value" id="lowStock">—</div>
+      </div>
+    </div>
+
+    <div class="section-header">
+      <div class="section-title">Your Stores</div>
+      <button class="add-store-btn" id="addStoreBtn" onclick="window.location.href='/stores'" style="display:none">+ Add Store</button>
+    </div>
+
+    <div id="storesContainer" class="loading">Loading stores...</div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+    if (!token) window.location.href = '/';
+
+    document.getElementById('userBadge').textContent = user.name || user.email || 'User';
+    document.getElementById('pageSubtitle').textContent = `Welcome back, ${user.name || 'there'}!`;
+
+    if (user.role === 'admin') {
+      document.getElementById('addStoreBtn').style.display = 'block';
+    }
+
+    async function loadStores() {
+      try {
+        const response = await fetch('/api/inventory/stores', {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+
+        if (response.status === 401) {
+          window.location.href = '/';
+          return;
+        }
+
+        const data = await response.json();
+        const stores = data.stores || [];
+
+        document.getElementById('totalStores').textContent = stores.length;
+        document.getElementById('activePOs').textContent = '—';
+        document.getElementById('suggestedOrders').textContent = '—';
+        document.getElementById('lowStock').textContent = '—';
+
+        const container = document.getElementById('storesContainer');
+
+        if (stores.length === 0) {
+          container.innerHTML = `
+            <div class="empty-state">
+              <h3>No stores yet</h3>
+              <p>Add your first store to get started</p>
+              ${user.role === 'admin' ? '<button class="add-store-btn" onclick="window.location.href=\'/stores\'">+ Add Store</button>' : ''}
+            </div>`;
+          return;
+        }
+
+        container.innerHTML = '';
+        container.className = 'stores-grid';
+
+        stores.forEach(store => {
+          const card = document.createElement('div');
+          card.className = 'store-card';
+          card.innerHTML = `
+            <div class="store-name">${store.name}</div>
+            <div class="store-mid">MID: ${store.merchant_id}</div>
+            <div class="store-actions">
+              <button class="action-btn btn-blue" onclick="goTo('/inventory?store=${store.id}')">📦 Inventory</button>
+              <button class="action-btn btn-orange" onclick="goTo('/pos?store=${store.id}')">🛒 POs</button>
+              <button class="action-btn btn-green" onclick="goTo('/suggested?store=${store.id}')">📋 Suggested</button>
+            </div>`;
+          container.appendChild(card);
+        });
+
+      } catch (err) {
+        document.getElementById('storesContainer').innerHTML = '<div class="empty-state"><h3>Error loading stores</h3></div>';
+      }
+    }
+
+    function goTo(path) {
+      window.location.href = path;
+    }
+
+    function logout() {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/';
+    }
+
+    loadStores();
+  </script>
+
+</body>
+</html>
