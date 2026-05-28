@@ -14,6 +14,9 @@ app.use(express.static('public'));
 app.get('/dashboard', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/dashboard.html'));
 });
+app.get('/stores', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/stores.html'));
+});
 
 // API Routes
 app.use('/api/auth', require('./routes/auth'));
