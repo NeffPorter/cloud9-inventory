@@ -1,6 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
+const { createClient } = require('@supabase/supabase-js');
+const { fetchFullOrder, fetchOrderRefunds, fetchItem, pushStockToClover, extractLineItems, extractRefundedItems } = require('../services/clover');
+const { calculateSuggestedOrder } = require('../services/suggested');
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_ANON_KEY
+);
 // Clover webhook verification + receiver
 router.get('/webhook', (req, res) => {
   // Clover sends a verification challenge
