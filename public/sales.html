@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloud 9 - Sales</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      min-height: 100vh;
+    }
+    .navbar {
+      background: #1a1a2e;
+      padding: 0 24px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .navbar h1 { color: white; font-size: 20px; font-weight: 800; }
+    .navbar-right { display: flex; align-items: center; gap: 16px; }
+    .user-badge {
+      background: #2f5597;
+      color: white;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .back-btn {
+      background: transparent;
+      color: #aaa;
+      border: 1px solid #444;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .back-btn:hover { color: white; border-color: white; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .page-title { font-size: 24px; font-weight: 700; color: #1a1a2e; }
+    .page-subtitle { color: #666; font-size: 14px; margin-top: 4px; }
+    .date-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .preset-btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 2px solid #e0e0e0;
+      background: white;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: #444;
+    }
+    .preset-btn:hover, .preset-btn.active {
+      border-color: #2f5597;
+      background: #2f5597;
+      color: white;
+    }
+    .date-input {
+      padding: 8px 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 13px;
+      outline: none;
+    }
+    .date-input:focus { border-color: #2f5597; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .stat-card {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .stat-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #999;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    .stat-value {
+      font-size: 24px;
+      font-weight: 800;
+      color: #1a1a2e;
+      margin-bottom: 6px;
+    }
+    .stat-change {
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .stat-change.up { color: #38761d; }
+    .stat-change.down { color: #c00; }
+    .stat-change.neutral { color: #999; }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      margin-bottom: 24px;
+    }
+    .card-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 20px;
+    }
+    .chart-container { position: relative; height: 300px; }
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 600;
+      color: #999;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 8px 12px;
+      border-bottom: 2px solid #f0f0f0;
+    }
+    td {
+      padding: 12px;
+      border-bottom: 1px solid #f0f0f0;
+      font-size: 13px;
+      color: #333;
+    }
+    tr:last-child td { border-bottom: none; }
+    .grand-total td {
+      font-weight: 700;
+      background: #f8f9ff;
+      color: #1a1a2e;
+    }
+    .margin-good { color: #38761d; font-weight: 600; }
+    .margin-ok { color: #c55a11; font-weight: 600; }
+    .margin-bad { color: #c00; font-weight: 600; }
+    .loading { text-align: center; padding: 40px; color: #999; }
+    .store-filter {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .store-filter-btn {
+      padding: 6px 14px;
+      border-radius: 20px;
+      border: 2px solid #e0e0e0;
+      background: white;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      color: #444;
+      transition: all 0.2s;
+    }
+    .store-filter-btn:hover, .store-filter-btn.active {
+      border-color: #2f5597;
+      background: #2f5597;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar">
+    <h1>☁️ Cloud 9 Inventory</h1>
+    <div class="navbar-right">
+      <span class="user-badge" id="userBadge">Loading...</span>
+      <button class="back-btn" onclick="window.location.href='/dashboard'">← Dashboard</button>
+    </div>
+  </nav>
+
+  <div class="container">
+    <div class="page-header">
+      <div>
+        <div class="page-title">📊 Sales Overview</div>
+        <div class="page-subtitle" id="periodLabel">Loading...</div>
+      </div>
+      <div class="date-controls">
+        <button class="preset-btn" onclick="setPreset('today')">Today</button>
+        <button class="preset-btn" onclick="setPreset('week')">This Week</button>
+        <button class="preset-btn active" onclick="setPreset('month')">This Month</button>
+        <button class="preset-btn" onclick="setPreset('quarter')">This Quarter</button>
+        <input type="date" id="startDate" class="date-input" onchange="setCustom()">
+        <span style="color:#999">to</span>
+        <input type="date" id="endDate" class="date-input" onchange="setCustom()">
+      </div>
+    </div>
+
+    <!-- Store filter (admin only) -->
+    <div class="store-filter" id="storeFilter"></div>
+
+    <!-- Stats Cards -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Net Sales</div>
+        <div class="stat-value" id="statNet">—</div>
+        <div class="stat-change" id="changeNet">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Gross Profit</div>
+        <div class="stat-value" id="statProfit">—</div>
+        <div class="stat-change" id="changeProfit">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Margin</div>
+        <div class="stat-value" id="statMargin">—</div>
+        <div class="stat-change" id="changeMargin">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Orders</div>
+        <div class="stat-value" id="statOrders">—</div>
+        <div class="stat-change" id="changeOrders">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Avg Ticket</div>
+        <div class="stat-value" id="statAvg">—</div>
+        <div class="stat-change" id="changeAvg">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Refunds</div>
+        <div class="stat-value" id="statRefunds">—</div>
+        <div class="stat-change neutral" id="changeRefunds">vs prev period</div>
+      </div>
+    </div>
+
+    <!-- Chart -->
+    <div class="card">
+      <div class="card-title" id="chartTitle">Sales — This Period vs Previous Period</div>
+      <div class="chart-container">
+        <canvas id="salesChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Per Store Breakdown (admin only) -->
+    <div class="card" id="storeBreakdownCard">
+      <div class="card-title">🏪 By Store</div>
+      <div id="storeBreakdown" class="loading">Loading...</div>
+    </div>
+
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    if (!token) window.location.href = '/';
+
+    document.getElementById('userBadge').textContent = user.name || user.email;
+
+    if (user.role !== 'admin') {
+      document.getElementById('storeBreakdownCard').style.display = 'none';
+    }
+
+    let chart = null;
+    let currentStart = null;
+    let currentEnd = null;
+    let selectedStore = '';
+    let activePreset = 'month';
+
+    function fmt(n) { return '$' + (n || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+    function pct(n) { return (n * 100).toFixed(1) + '%'; }
+
+    function changeBadge(elId, current, previous, isPercent = false, invertColor = false) {
+      const el = document.getElementById(elId);
+      if (!previous || previous === 0) { el.textContent = '— vs prev'; el.className = 'stat-change neutral'; return; }
+      const diff = ((current - previous) / Math.abs(previous)) * 100;
+      const up = diff >= 0;
+      const colorUp = invertColor ? 'down' : 'up';
+      const colorDown = invertColor ? 'up' : 'down';
+      el.textContent = `${up ? '↑' : '↓'} ${Math.abs(diff).toFixed(1)}% vs prev`;
+      el.className = `stat-change ${up ? colorUp : colorDown}`;
+    }
+
+    function setPreset(preset) {
+      activePreset = preset;
+      document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+
+      const now = new Date();
+      let start, end;
+
+      if (preset === 'today') {
+        start = new Date(now); start.setHours(0,0,0,0);
+        end = new Date(now); end.setHours(23,59,59,999);
+      } else if (preset === 'week') {
+        start = new Date(now); start.setDate(now.getDate() - now.getDay()); start.setHours(0,0,0,0);
+        end = new Date(now); end.setHours(23,59,59,999);
+      } else if (preset === 'month') {
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        end = new Date(now); end.setHours(23,59,59,999);
+      } else if (preset === 'quarter') {
+        const q = Math.floor(now.getMonth() / 3);
+        start = new Date(now.getFullYear(), q * 3, 1);
+        end = new Date(now); end.setHours(23,59,59,999);
+      }
+
+      currentStart = start;
+      currentEnd = end;
+      loadSales();
+    }
+
+    function setCustom() {
+      const s = document.getElementById('startDate').value;
+      const e = document.getElementById('endDate').value;
+      if (!s || !e) return;
+      document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+      currentStart = new Date(s);
+      currentEnd = new Date(e); currentEnd.setHours(23,59,59,999);
+      loadSales();
+    }
+
+    async function loadStoreFilter() {
+      if (user.role !== 'admin') return;
+      const res = await fetch('/api/inventory/stores', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const data = await res.json();
+      const stores = data.stores || [];
+      const filter = document.getElementById('storeFilter');
+      filter.innerHTML = `<button class="store-filter-btn active" onclick="filterStore('', this)">All Stores</button>` +
+        stores.map(s => `<button class="store-filter-btn" onclick="filterStore('${s.id}', this)">${s.name}</button>`).join('');
+    }
+
+    function filterStore(storeId, btn) {
+      selectedStore = storeId;
+      document.querySelectorAll('.store-filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('storeBreakdownCard').style.display = storeId ? 'none' : 'block';
+      loadSales();
+    }
+
+    async function loadSales() {
+      const params = new URLSearchParams({
+        start: currentStart.toISOString(),
+        end: currentEnd.toISOString()
+      });
+      if (selectedStore) params.append('store_id', selectedStore);
+
+      const periodDays = Math.round((currentEnd - currentStart) / (1000 * 60 * 60 * 24));
+      document.getElementById('periodLabel').textContent =
+        `${currentStart.toLocaleDateString()} — ${currentEnd.toLocaleDateString()} (${periodDays} days)`;
+
+      try {
+        const res = await fetch(`/api/sales/overview?${params}`, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await res.json();
+        const c = data.current;
+        const p = data.previous;
+
+        document.getElementById('statNet').textContent = fmt(c.net);
+        document.getElementById('statProfit').textContent = fmt(c.grossProfit);
+        document.getElementById('statMargin').textContent = pct(c.margin);
+        document.getElementById('statOrders').textContent = c.orders;
+        document.getElementById('statAvg').textContent = fmt(c.avgTicket);
+        document.getElementById('statRefunds').textContent = fmt(c.refunds);
+
+        changeBadge('changeNet', c.net, p.net);
+        changeBadge('changeProfit', c.grossProfit, p.grossProfit);
+        changeBadge('changeMargin', c.margin, p.margin);
+        changeBadge('changeOrders', c.orders, p.orders);
+        changeBadge('changeAvg', c.avgTicket, p.avgTicket);
+
+        // Build chart
+        const currentDays = Object.keys(data.chartData.current);
+        const prevDays = Object.keys(data.chartData.previous);
+        const allLabels = [...new Set([...currentDays, ...prevDays])].sort();
+
+        const currentVals = allLabels.map(d => data.chartData.current[d] || 0);
+        const prevVals = allLabels.map(d => data.chartData.previous[d] || 0);
+
+        if (chart) chart.destroy();
+        const ctx = document.getElementById('salesChart').getContext('2d');
+        chart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: allLabels,
+            datasets: [
+              {
+                label: 'Current Period',
+                data: currentVals,
+                borderColor: '#2f5597',
+                backgroundColor: 'rgba(47,85,151,0.1)',
+                borderWidth: 2,
+                pointRadius: 4,
+                fill: true,
+                tension: 0.3
+              },
+              {
+                label: 'Previous Period',
+                data: prevVals,
+                borderColor: '#aaa',
+                backgroundColor: 'rgba(170,170,170,0.05)',
+                borderWidth: 2,
+                pointRadius: 4,
+                borderDash: [5,5],
+                fill: false,
+                tension: 0.3
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'top' },
+              tooltip: {
+                callbacks: {
+                  label: ctx => ` ${ctx.dataset.label}: ${fmt(ctx.parsed.y)}`
+                }
+              }
+            },
+            scales: {
+              y: {
+                ticks: {
+                  callback: val => '$' + val.toLocaleString()
+                }
+              }
+            }
+          }
+        });
+
+        // Load store breakdown
+        if (user.role === 'admin' && !selectedStore) loadStoreBreakdown();
+
+      } catch (err) {
+        console.error('Sales load error:', err);
+      }
+    }
+
+    async function loadStoreBreakdown() {
+      const params = new URLSearchParams({
+        start: currentStart.toISOString(),
+        end: currentEnd.toISOString()
+      });
+
+      const res = await fetch(`/api/sales/by-store?${params}`, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const data = await res.json();
+      const stores = data.stores || [];
+
+      const grandNet = stores.reduce((a, s) => a + s.net, 0);
+      const grandProfit = stores.reduce((a, s) => a + s.grossProfit, 0);
+      const grandOrders = stores.reduce((a, s) => a + s.orders, 0);
+      const grandMargin = grandNet > 0 ? grandProfit / grandNet : 0;
+
+      document.getElementById('storeBreakdown').innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Store</th>
+              <th>Gross</th>
+              <th>Discounts</th>
+              <th>Tax</th>
+              <th>Refunds</th>
+              <th>Net Sales</th>
+              <th>Orders</th>
+              <th>Avg Ticket</th>
+              <th>Cost</th>
+              <th>Profit</th>
+              <th>Margin</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${stores.map(s => `
+              <tr>
+                <td><strong>${s.name}</strong></td>
+                <td>${fmt(s.gross)}</td>
+                <td>${fmt(-s.discounts)}</td>
+                <td>${fmt(-s.tax)}</td>
+                <td>${fmt(-s.refunds)}</td>
+                <td>${fmt(s.net)}</td>
+                <td>${s.orders}</td>
+                <td>${fmt(s.avgTicket)}</td>
+                <td>${fmt(s.totalCost)}</td>
+                <td>${fmt(s.grossProfit)}</td>
+                <td class="${s.margin >= 0.4 ? 'margin-good' : s.margin >= 0.2 ? 'margin-ok' : 'margin-bad'}">${pct(s.margin)}</td>
+              </tr>
+            `).join('')}
+            <tr class="grand-total">
+              <td>🌟 GRAND TOTAL</td>
+              <td colspan="4"></td>
+              <td>${fmt(grandNet)}</td>
+              <td>${grandOrders}</td>
+              <td>${fmt(grandOrders > 0 ? grandNet / grandOrders : 0)}</td>
+              <td></td>
+              <td>${fmt(grandProfit)}</td>
+              <td class="${grandMargin >= 0.4 ? 'margin-good' : grandMargin >= 0.2 ? 'margin-ok' : 'margin-bad'}">${pct(grandMargin)}</td>
+            </tr>
+          </tbody>
+        </table>`;
+    }
+
+    // Init
+    loadStoreFilter();
+    setPreset('month');
+  </script>
+
+</body>
+</html>
