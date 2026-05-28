@@ -20,6 +20,12 @@ app.get('/stores', (req, res) => {
 app.get('/users', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/users.html'));
 });
+app.get('/sales', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/sales.html'));
+});
+app.get('/sales', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/sales.html'));
+});
 
 // API Routes
 app.use('/api/auth', require('./routes/auth'));
