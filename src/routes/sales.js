@@ -9,16 +9,15 @@ const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_ANON_KEY
 );
-// Clover webhook verification + receiver
+
+// Webhook verification
 router.get('/webhook', (req, res) => {
-  // Clover sends a verification challenge
   const challenge = req.query.challenge;
-  if (challenge) {
-    return res.send(challenge);
-  }
+  if (challenge) return res.send(challenge);
   res.send('OK');
 });
 
+// Webhook receiver
 router.post('/webhook', async (req, res) => {
   try {
     const payload = req.body;
@@ -33,30 +32,23 @@ router.post('/webhook', async (req, res) => {
         .eq('merchant_id', mid)
         .single();
 
-      if (!store) {
-        console.log('No store found for MID:', mid);
-        continue;
-      }
+      if (!store) { console.log('No store found for MID:', mid); continue; }
 
       for (const event of events) {
         const objectId = event.objectId || '';
         const eventType = (event.type || '').toUpperCase();
-
         const isOrderEvent = objectId.startsWith('O:') || eventType.includes('ORDER');
         const isPaymentEvent = objectId.startsWith('P:');
         const isInventoryEvent = objectId.startsWith('I:');
 
         if (isInventoryEvent) {
-          const itemId = objectId.replace('I:', '');
-          await updateInventoryItem(store, itemId);
+          await updateInventoryItem(store, objectId.replace('I:', ''));
           continue;
         }
-
         if (isOrderEvent) {
           await processOrderEvent(store, objectId);
           continue;
         }
-
         if (isPaymentEvent) {
           const isRefund = eventType.includes('REFUND') || eventType.includes('CREDIT');
           if (isRefund && event.data?.order?.id) {
@@ -65,7 +57,6 @@ router.post('/webhook', async (req, res) => {
         }
       }
     }
-
     res.send('OK');
   } catch (err) {
     console.error('Webhook error:', err);
@@ -93,10 +84,7 @@ async function processOrderEvent(store, orderId) {
                      (fullOrder.refundAmount || 0) > 0 ||
                      (fullOrder.refunds?.elements?.length > 0);
 
-    if (!isRefund && existing) {
-      console.log('Sale already logged:', cleanId);
-      return;
-    }
+    if (!isRefund && existing) { console.log('Sale already logged:', cleanId); return; }
 
     let amount = (fullOrder.total || 0) / 100;
     let tax = 0;
@@ -108,9 +96,7 @@ async function processOrderEvent(store, orderId) {
     });
 
     let gross = 0;
-    (fullOrder.lineItems?.elements || []).forEach(li => {
-      gross += (li.price || 0) / 100;
-    });
+    (fullOrder.lineItems?.elements || []).forEach(li => { gross += (li.price || 0) / 100; });
     if (gross === 0) gross = amount;
 
     let itemMap = {};
@@ -121,12 +107,10 @@ async function processOrderEvent(store, orderId) {
       const latestRefund = refundsData?.elements?.length > 0
         ? refundsData.elements[refundsData.elements.length - 1]
         : fullOrder.refunds?.elements?.[fullOrder.refunds.elements.length - 1];
-
       if (latestRefund) {
         amount = (latestRefund.amount || 0) / 100;
         tax = (latestRefund.taxAmount || 0) / 100;
-        const reason = (latestRefund.reason || '').toLowerCase();
-        if (reason.includes('not restocked')) restockThisRefund = false;
+        if ((latestRefund.reason || '').toLowerCase().includes('not restocked')) restockThisRefund = false;
       }
       itemMap = extractRefundedItems(fullOrder);
     } else {
@@ -143,36 +127,20 @@ async function processOrderEvent(store, orderId) {
     const itemSummary = itemIds.map(id => `${id} x${itemMap[id].qty}`).join(', ') || 'N/A';
 
     let totalCost = 0;
-    if (itemIds.length > 0) {
-      for (const id of itemIds) {
-        const { data: invItem } = await supabase
-          .from('inventory_items')
-          .select('cost')
-          .eq('id', id)
-          .eq('store_id', store.id)
-          .single();
-        if (invItem) {
-          totalCost += (invItem.cost || 0) * itemMap[id].qty * (isRefund ? -1 : 1);
-        }
-      }
+    for (const id of itemIds) {
+      const { data: invItem } = await supabase
+        .from('inventory_items').select('cost')
+        .eq('id', id).eq('store_id', store.id).single();
+      if (invItem) totalCost += (invItem.cost || 0) * itemMap[id].qty * (isRefund ? -1 : 1);
     }
 
-    const grossProfit = finalNet - totalCost;
-    const status = isRefund ? (restockThisRefund ? 'Restocked' : 'Not Restocked') : 'OK';
-
     await supabase.from('sales_log').insert([{
-      store_id: store.id,
-      order_id: cleanId,
-      type,
-      gross: finalGross,
-      net: finalNet,
-      tax: finalTax,
-      discounts: finalDiscounts,
-      tips: finalTips,
-      total_cost: totalCost,
-      gross_profit: grossProfit,
+      store_id: store.id, order_id: cleanId, type,
+      gross: finalGross, net: finalNet, tax: finalTax,
+      discounts: finalDiscounts, tips: finalTips,
+      total_cost: totalCost, gross_profit: finalNet - totalCost,
       item_summary: itemSummary,
-      status
+      status: isRefund ? (restockThisRefund ? 'Restocked' : 'Not Restocked') : 'OK'
     }]);
 
     console.log(`✅ Logged ${type} for store ${store.name}: $${finalNet.toFixed(2)}`);
@@ -183,7 +151,6 @@ async function processOrderEvent(store, orderId) {
       }
       await updateInventoryItem(store, id);
     }
-
   } catch (err) {
     console.error('processOrderEvent error:', err.message);
   }
@@ -199,13 +166,10 @@ async function updateInventoryItem(store, itemId) {
     const price = item.price ? (item.price / 100) : 0;
     const category = item.categories?.elements?.[0]?.name || 'No Category';
     const groupName = item.itemGroup?.name || '';
-    const variantName = item.name;
 
     const { data: settings } = await supabase
-      .from('store_settings')
-      .select('*')
-      .eq('store_id', store.id)
-      .single();
+      .from('store_settings').select('*')
+      .eq('store_id', store.id).single();
 
     const leadTime = settings?.lead_time || 5;
     const bufferDays = settings?.buffer_days || 14;
@@ -214,10 +178,8 @@ async function updateInventoryItem(store, itemId) {
     cutoff.setDate(cutoff.getDate() - 14);
 
     const { data: salesRows } = await supabase
-      .from('sales_log')
-      .select('item_summary, type')
-      .eq('store_id', store.id)
-      .gte('created_at', cutoff.toISOString());
+      .from('sales_log').select('item_summary, type')
+      .eq('store_id', store.id).gte('created_at', cutoff.toISOString());
 
     let unitsSold = 0;
     (salesRows || []).forEach(row => {
@@ -225,66 +187,49 @@ async function updateInventoryItem(store, itemId) {
       row.item_summary.split(',').forEach(part => {
         const match = part.trim().match(/^([A-Z0-9]+)\s+x(\d+\.?\d*)/);
         if (match && match[1] === itemId) {
-          const qty = parseFloat(match[2]) || 1;
-          unitsSold += row.type === 'Refund' ? -qty : qty;
+          unitsSold += row.type === 'Refund' ? -(parseFloat(match[2]) || 1) : (parseFloat(match[2]) || 1);
         }
       });
     });
 
-    unitsSold = Math.max(0, unitsSold);
-    const suggested = calculateSuggestedOrder(cloverQty, unitsSold, leadTime, bufferDays);
+    const suggested = calculateSuggestedOrder(cloverQty, Math.max(0, unitsSold), leadTime, bufferDays);
 
     await supabase.from('inventory_items').upsert([{
-      id: itemId,
-      store_id: store.id,
-      category,
-      group_name: groupName,
-      variant_name: variantName,
-      cost,
-      price,
+      id: itemId, store_id: store.id,
+      category, group_name: groupName,
+      variant_name: item.name, cost, price,
       clover_qty: cloverQty,
       suggested_order: suggested > 0 ? suggested : 0,
       last_synced: new Date().toISOString()
     }], { onConflict: 'id' });
 
     console.log(`📦 Updated item ${itemId} for ${store.name}: qty=${cloverQty}`);
-
   } catch (err) {
     console.error('updateInventoryItem error:', err.message);
   }
 }
-});
 
 router.get('/test', (req, res) => {
   res.json({ message: 'Sales routes working!' });
 });
-// Get sales overview data
+
 router.get('/overview', auth, async (req, res) => {
   try {
     const { start, end, store_id } = req.query;
-
     const startDate = new Date(start || new Date().setHours(0,0,0,0));
     const endDate = new Date(end || new Date().setHours(23,59,59,999));
-
-    // Calculate previous period
     const periodMs = endDate - startDate;
     const prevStart = new Date(startDate - periodMs);
     const prevEnd = new Date(startDate);
 
-    // Build query
-    let query = supabase
-      .from('sales_log')
-      .select('*')
+    let query = supabase.from('sales_log').select('*')
       .gte('created_at', startDate.toISOString())
       .lte('created_at', endDate.toISOString());
 
-    let prevQuery = supabase
-      .from('sales_log')
-      .select('*')
+    let prevQuery = supabase.from('sales_log').select('*')
       .gte('created_at', prevStart.toISOString())
       .lte('created_at', prevEnd.toISOString());
 
-    // Filter by store if manager or if admin selected a store
     if (req.user.role === 'manager' && req.user.store_id) {
       query = query.eq('store_id', req.user.store_id);
       prevQuery = prevQuery.eq('store_id', req.user.store_id);
@@ -293,14 +238,10 @@ router.get('/overview', auth, async (req, res) => {
       prevQuery = prevQuery.eq('store_id', store_id);
     }
 
-    const [{ data: current }, { data: previous }] = await Promise.all([
-      query, prevQuery
-    ]);
+    const [{ data: current }, { data: previous }] = await Promise.all([query, prevQuery]);
 
     const calcTotals = (rows) => {
-      let gross = 0, net = 0, tax = 0, discounts = 0,
-          tips = 0, totalCost = 0, orders = 0, refunds = 0;
-
+      let gross = 0, net = 0, tax = 0, discounts = 0, tips = 0, totalCost = 0, orders = 0, refunds = 0;
       (rows || []).forEach(row => {
         if (row.type === 'Refund') {
           refunds += Math.abs(row.net || 0);
@@ -314,18 +255,12 @@ router.get('/overview', auth, async (req, res) => {
           orders++;
         }
       });
-
       const grossProfit = net - totalCost;
       const margin = net > 0 ? grossProfit / net : 0;
       const avgTicket = orders > 0 ? net / orders : 0;
-
       return { gross, net, tax, discounts, tips, totalCost, orders, refunds, grossProfit, margin, avgTicket };
     };
 
-    const currentTotals = calcTotals(current);
-    const previousTotals = calcTotals(previous);
-
-    // Build daily chart data
     const dailyMap = {};
     const prevDailyMap = {};
 
@@ -344,47 +279,32 @@ router.get('/overview', auth, async (req, res) => {
     });
 
     res.json({
-      current: currentTotals,
-      previous: previousTotals,
-      chartData: {
-        current: dailyMap,
-        previous: prevDailyMap
-      }
+      current: calcTotals(current),
+      previous: calcTotals(previous),
+      chartData: { current: dailyMap, previous: prevDailyMap }
     });
-
   } catch (err) {
     console.error('Sales overview error:', err);
     res.status(500).json({ error: 'Failed to load sales data' });
   }
 });
 
-// Get per-store breakdown
 router.get('/by-store', auth, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
-      return res.status(403).json({ error: 'Admin only' });
-    }
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
 
     const { start, end } = req.query;
     const startDate = new Date(start || new Date().setHours(0,0,0,0));
     const endDate = new Date(end || new Date().setHours(23,59,59,999));
 
     const { data: stores } = await supabase.from('stores').select('*').order('name');
-    const { data: sales } = await supabase
-      .from('sales_log')
-      .select('*')
+    const { data: sales } = await supabase.from('sales_log').select('*')
       .gte('created_at', startDate.toISOString())
       .lte('created_at', endDate.toISOString());
 
     const storeMap = {};
     (stores || []).forEach(s => {
-      storeMap[s.id] = {
-        name: s.name,
-        gross: 0, net: 0, tax: 0,
-        discounts: 0, refunds: 0,
-        tips: 0, totalCost: 0,
-        orders: 0
-      };
+      storeMap[s.id] = { name: s.name, gross: 0, net: 0, tax: 0, discounts: 0, refunds: 0, tips: 0, totalCost: 0, orders: 0 };
     });
 
     (sales || []).forEach(row => {
