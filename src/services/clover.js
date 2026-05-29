@@ -1,6 +1,6 @@
 const axios = require('axios');
 
-const CLOVER_BASE = 'https://sandbox.dev.clover.com/v3/merchants/';
+const CLOVER_BASE = 'https://api.clover.com/v3/merchants/';
 
 async function cloverFetch(endpoint, merchantId, apiToken) {
   const url = `${CLOVER_BASE}${merchantId}/${endpoint}`;
