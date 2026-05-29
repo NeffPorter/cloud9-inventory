@@ -8,7 +8,7 @@ dotenv.config();
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, '../public')));
 
 // Page routes
 app.get('/dashboard', (req, res) => {
@@ -19,9 +19,6 @@ app.get('/stores', (req, res) => {
 });
 app.get('/users', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/users.html'));
-});
-app.get('/sales', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/sales.html'));
 });
 app.get('/sales', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/sales.html'));
