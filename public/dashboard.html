@@ -11,6 +11,8 @@
       background: #f0f2f5;
       min-height: 100vh;
     }
+
+    /* NAVBAR */
     .navbar {
       background: #1a1a2e;
       padding: 0 24px;
@@ -18,17 +20,70 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
     }
-    .navbar h1 {
-      color: white;
-      font-size: 20px;
-      font-weight: 800;
-    }
-    .navbar-right {
+    .navbar-left { display: flex; align-items: center; gap: 8px; }
+    .navbar h1 { color: white; font-size: 20px; font-weight: 800; margin-right: 16px; }
+    .nav-links { display: flex; align-items: center; gap: 4px; }
+    .nav-item { position: relative; }
+    .nav-btn {
+      background: transparent;
+      color: #ccc;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 6px;
     }
+    .nav-btn:hover, .nav-btn.active { background: rgba(255,255,255,0.1); color: white; }
+    .nav-btn .arrow { font-size: 10px; transition: transform 0.2s; }
+    .nav-btn.active .arrow { transform: rotate(180deg); }
+    .dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 0;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+      min-width: 200px;
+      overflow: hidden;
+      z-index: 200;
+    }
+    .dropdown.open { display: block; }
+    .dropdown-header {
+      padding: 10px 16px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #999;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: #f8f9fa;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .dropdown-item {
+      display: block;
+      padding: 12px 16px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #333;
+      cursor: pointer;
+      transition: background 0.15s;
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
+    }
+    .dropdown-item:hover { background: #f0f4ff; color: #2f5597; }
+    .dropdown-divider { height: 1px; background: #f0f0f0; margin: 4px 0; }
+    .navbar-right { display: flex; align-items: center; gap: 12px; }
     .user-badge {
       background: #2f5597;
       color: white;
@@ -47,22 +102,13 @@
       cursor: pointer;
     }
     .logout-btn:hover { color: white; border-color: white; }
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 32px 24px;
-    }
-    .page-title {
-      font-size: 24px;
-      font-weight: 700;
-      color: #1a1a2e;
-      margin-bottom: 8px;
-    }
-    .page-subtitle {
-      color: #666;
-      font-size: 14px;
-      margin-bottom: 32px;
-    }
+
+    /* CONTAINER */
+    .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+    .page-title { font-size: 24px; font-weight: 700; color: #1a1a2e; margin-bottom: 8px; }
+    .page-subtitle { color: #666; font-size: 14px; margin-bottom: 32px; }
+
+    /* STATS */
     .stats-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -83,12 +129,16 @@
       letter-spacing: 0.5px;
       margin-bottom: 8px;
     }
-    .stat-value {
-      font-size: 28px;
-      font-weight: 800;
-      color: #1a1a2e;
+    .stat-value { font-size: 28px; font-weight: 800; color: #1a1a2e; }
+
+    /* STORES */
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
     }
-    .stat-value.green { color: #38761d; }
+    .section-title { font-size: 18px; font-weight: 700; color: #1a1a2e; }
     .stores-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -99,30 +149,30 @@
       border-radius: 12px;
       padding: 24px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-      cursor: pointer;
-      transition: transform 0.2s, box-shadow 0.2s;
       border-left: 4px solid #2f5597;
+      transition: transform 0.2s, box-shadow 0.2s;
     }
     .store-card:hover {
       transform: translateY(-2px);
       box-shadow: 0 8px 24px rgba(0,0,0,0.12);
     }
-    .store-name {
-      font-size: 16px;
-      font-weight: 700;
-      color: #1a1a2e;
-      margin-bottom: 4px;
-    }
-    .store-mid {
-      font-size: 12px;
-      color: #999;
+    .store-name { font-size: 16px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
+    .store-mid { font-size: 12px; color: #999; margin-bottom: 16px; }
+    .store-quick-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
       margin-bottom: 16px;
     }
-    .store-actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
+    .quick-stat {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
     }
+    .quick-stat-value { font-size: 18px; font-weight: 700; color: #1a1a2e; }
+    .quick-stat-label { font-size: 10px; color: #999; font-weight: 600; text-transform: uppercase; margin-top: 2px; }
+    .store-actions { display: flex; gap: 8px; flex-wrap: wrap; }
     .action-btn {
       padding: 6px 12px;
       border-radius: 6px;
@@ -136,46 +186,83 @@
     .btn-blue { background: #dce8f8; color: #2f5597; }
     .btn-green { background: #d9ead3; color: #38761d; }
     .btn-orange { background: #fce8b2; color: #c55a11; }
-    .empty-state {
-      text-align: center;
-      padding: 60px 20px;
-      color: #999;
-    }
+    .empty-state { text-align: center; padding: 60px 20px; color: #999; }
     .empty-state h3 { font-size: 18px; margin-bottom: 8px; color: #666; }
     .add-store-btn {
       background: #2f5597;
       color: white;
       border: none;
-      padding: 12px 24px;
+      padding: 10px 20px;
       border-radius: 8px;
       font-size: 14px;
       font-weight: 600;
       cursor: pointer;
       margin-top: 16px;
     }
-    .loading {
-      text-align: center;
-      padding: 60px;
-      color: #999;
-      font-size: 16px;
-    }
-    .section-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 16px;
-    }
-    .section-title {
-      font-size: 18px;
-      font-weight: 700;
-      color: #1a1a2e;
-    }
+    .loading { text-align: center; padding: 60px; color: #999; }
   </style>
 </head>
 <body>
 
   <nav class="navbar">
-    <h1>☁️ Cloud 9 Inventory</h1>
+    <div class="navbar-left">
+      <h1>☁️ Cloud 9</h1>
+      <div class="nav-links">
+
+        <!-- Inventory Dropdown -->
+        <div class="nav-item">
+          <button class="nav-btn" onclick="toggleDropdown('inventoryDropdown', this)">
+            📦 Inventory <span class="arrow">▼</span>
+          </button>
+          <div class="dropdown" id="inventoryDropdown">
+            <div class="dropdown-header">By Store</div>
+            <div id="inventoryStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
+          </div>
+        </div>
+
+        <!-- POs Dropdown -->
+        <div class="nav-item">
+          <button class="nav-btn" onclick="toggleDropdown('poDropdown', this)">
+            🛒 Purchase Orders <span class="arrow">▼</span>
+          </button>
+          <div class="dropdown" id="poDropdown">
+            <div class="dropdown-header">By Store</div>
+            <div id="poStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
+          </div>
+        </div>
+
+        <!-- Suggested Orders Dropdown -->
+        <div class="nav-item">
+          <button class="nav-btn" onclick="toggleDropdown('suggestedDropdown', this)">
+            📋 Suggested Orders <span class="arrow">▼</span>
+          </button>
+          <div class="dropdown" id="suggestedDropdown">
+            <div class="dropdown-header">By Store</div>
+            <div id="suggestedStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
+          </div>
+        </div>
+
+        <!-- Sales -->
+        <div class="nav-item">
+          <button class="nav-btn" onclick="window.location.href='/sales'">
+            📊 Sales
+          </button>
+        </div>
+
+        <!-- Admin Dropdown -->
+        <div class="nav-item" id="adminMenu">
+          <button class="nav-btn" onclick="toggleDropdown('adminDropdown', this)">
+            ⚙️ Admin <span class="arrow">▼</span>
+          </button>
+          <div class="dropdown" id="adminDropdown">
+            <div class="dropdown-header">Management</div>
+            <button class="dropdown-item" onclick="window.location.href='/stores'">🏪 Manage Stores</button>
+            <button class="dropdown-item" onclick="window.location.href='/users'">👥 Manage Users</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
     <div class="navbar-right">
       <span class="user-badge" id="userBadge">Loading...</span>
       <button class="logout-btn" onclick="logout()">Logout</button>
@@ -186,31 +273,27 @@
     <div class="page-title">Dashboard</div>
     <div class="page-subtitle" id="pageSubtitle">Welcome back!</div>
 
-    <div class="stats-grid" id="statsGrid">
+    <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-label">Total Stores</div>
         <div class="stat-value" id="totalStores">—</div>
       </div>
       <div class="stat-card">
+        <div class="stat-label">Today's Sales</div>
+        <div class="stat-value" id="todaySales">—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Orders Today</div>
+        <div class="stat-value" id="todayOrders">—</div>
+      </div>
+      <div class="stat-card">
         <div class="stat-label">Active POs</div>
         <div class="stat-value" id="activePOs">—</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Suggested Orders</div>
-        <div class="stat-value" id="suggestedOrders">—</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Low Stock Items</div>
-        <div class="stat-value" id="lowStock">—</div>
       </div>
     </div>
 
     <div class="section-header">
       <div class="section-title">Your Stores</div>
-      <div style="display:flex; gap:12px;">
-  <button class="add-store-btn" id="addStoreBtn" onclick="window.location.href='/stores'" style="display:none">+ Add Store</button>
-  <button class="add-store-btn" id="manageUsersBtn" onclick="window.location.href='/users'" style="display:none; background:#38761d">👥 Manage Users</button>
-</div>
     </div>
 
     <div id="storesContainer" class="loading">Loading stores...</div>
@@ -219,38 +302,66 @@
   <script>
     const token = localStorage.getItem('token');
     const user = JSON.parse(localStorage.getItem('user') || '{}');
-
     if (!token) window.location.href = '/';
 
-    document.getElementById('userBadge').textContent = user.name || user.email || 'User';
+    document.getElementById('userBadge').textContent = user.name || user.email;
     document.getElementById('pageSubtitle').textContent = `Welcome back, ${user.name || 'there'}!`;
 
-    if (user.role === 'admin') {
-  document.getElementById('addStoreBtn').style.display = 'block';
-  document.getElementById('manageUsersBtn').style.display = 'block';
-}
+    if (user.role !== 'admin') {
+      document.getElementById('adminMenu').style.display = 'none';
+    }
 
+    // Dropdown logic
+    function toggleDropdown(id, btn) {
+      const dropdown = document.getElementById(id);
+      const isOpen = dropdown.classList.contains('open');
+      closeAllDropdowns();
+      if (!isOpen) {
+        dropdown.classList.add('open');
+        btn.classList.add('active');
+      }
+    }
+
+    function closeAllDropdowns() {
+      document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('open'));
+      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    }
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.nav-item')) closeAllDropdowns();
+    });
+
+    // Load stores into dropdowns and cards
     async function loadStores() {
       try {
-        const response = await fetch('/api/inventory/stores', {
+        const res = await fetch('/api/inventory/stores', {
           headers: { 'Authorization': 'Bearer ' + token }
         });
-
-        if (response.status === 401) {
-          window.location.href = '/';
-          return;
-        }
-
-        const data = await response.json();
+        if (res.status === 401) { window.location.href = '/'; return; }
+        const data = await res.json();
         const stores = data.stores || [];
 
         document.getElementById('totalStores').textContent = stores.length;
-        document.getElementById('activePOs').textContent = '—';
-        document.getElementById('suggestedOrders').textContent = '—';
-        document.getElementById('lowStock').textContent = '—';
 
+        // Fill dropdowns
+        const storeLinks = stores.map(s => `
+          <button class="dropdown-item" onclick="window.location.href='/inventory?store=${s.id}'">${s.name}</button>
+        `).join('');
+
+        const poLinks = stores.map(s => `
+          <button class="dropdown-item" onclick="window.location.href='/pos?store=${s.id}'">${s.name}</button>
+        `).join('');
+
+        const suggestedLinks = stores.map(s => `
+          <button class="dropdown-item" onclick="window.location.href='/suggested?store=${s.id}'">${s.name}</button>
+        `).join('');
+
+        document.getElementById('inventoryStoreList').innerHTML = storeLinks || '<div style="padding:12px 16px;color:#999;font-size:13px">No stores yet</div>';
+        document.getElementById('poStoreList').innerHTML = poLinks || '<div style="padding:12px 16px;color:#999;font-size:13px">No stores yet</div>';
+        document.getElementById('suggestedStoreList').innerHTML = suggestedLinks || '<div style="padding:12px 16px;color:#999;font-size:13px">No stores yet</div>';
+
+        // Store cards
         const container = document.getElementById('storesContainer');
-
         if (stores.length === 0) {
           container.innerHTML = `
             <div class="empty-state">
@@ -261,30 +372,74 @@
           return;
         }
 
-        container.innerHTML = '';
         container.className = 'stores-grid';
-
-        stores.forEach(store => {
-          const card = document.createElement('div');
-          card.className = 'store-card';
-          card.innerHTML = `
-            <div class="store-name">${store.name}</div>
-            <div class="store-mid">MID: ${store.merchant_id}</div>
+        container.innerHTML = stores.map(s => `
+          <div class="store-card">
+            <div class="store-name">${s.name}</div>
+            <div class="store-mid">MID: ${s.merchant_id}</div>
+            <div class="store-quick-stats">
+              <div class="quick-stat">
+                <div class="quick-stat-value" id="sales-${s.id}">—</div>
+                <div class="quick-stat-label">Today's Sales</div>
+              </div>
+              <div class="quick-stat">
+                <div class="quick-stat-value" id="orders-${s.id}">—</div>
+                <div class="quick-stat-label">Orders</div>
+              </div>
+            </div>
             <div class="store-actions">
-              <button class="action-btn btn-blue" onclick="goTo('/inventory?store=${store.id}')">📦 Inventory</button>
-              <button class="action-btn btn-orange" onclick="goTo('/pos?store=${store.id}')">🛒 POs</button>
-              <button class="action-btn btn-green" onclick="goTo('/suggested?store=${store.id}')">📋 Suggested</button>
-            </div>`;
-          container.appendChild(card);
-        });
+              <button class="action-btn btn-blue" onclick="window.location.href='/inventory?store=${s.id}'">📦 Inventory</button>
+              <button class="action-btn btn-orange" onclick="window.location.href='/pos?store=${s.id}'">🛒 POs</button>
+              <button class="action-btn btn-green" onclick="window.location.href='/suggested?store=${s.id}'">📋 Suggested</button>
+            </div>
+          </div>
+        `).join('');
+
+        // Load today's sales for each store
+        loadTodaysSales(stores);
 
       } catch (err) {
         document.getElementById('storesContainer').innerHTML = '<div class="empty-state"><h3>Error loading stores</h3></div>';
       }
     }
 
-    function goTo(path) {
-      window.location.href = path;
+    async function loadTodaysSales(stores) {
+      try {
+        const now = new Date();
+        const start = new Date(now); start.setHours(0,0,0,0);
+        const end = new Date(now); end.setHours(23,59,59,999);
+
+        const res = await fetch(`/api/sales/by-store?start=${start.toISOString()}&end=${end.toISOString()}`, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await res.json();
+        const storeData = data.stores || [];
+
+        let totalSales = 0;
+        let totalOrders = 0;
+
+        storeData.forEach(s => {
+          totalSales += s.net || 0;
+          totalOrders += s.orders || 0;
+        });
+
+        document.getElementById('todaySales').textContent = '$' + totalSales.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        document.getElementById('todayOrders').textContent = totalOrders;
+
+        // Update individual store cards
+        stores.forEach(store => {
+          const storeStats = storeData.find(s => s.name === store.name);
+          if (storeStats) {
+            const salesEl = document.getElementById(`sales-${store.id}`);
+            const ordersEl = document.getElementById(`orders-${store.id}`);
+            if (salesEl) salesEl.textContent = '$' + (storeStats.net || 0).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+            if (ordersEl) ordersEl.textContent = storeStats.orders || 0;
+          }
+        });
+
+      } catch (err) {
+        console.error('Error loading today sales:', err);
+      }
     }
 
     function logout() {
