@@ -8,6 +8,14 @@ dotenv.config();
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// API Routes FIRST
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/inventory', require('./routes/inventory'));
+app.use('/api/pos', require('./routes/pos'));
+app.use('/api/sales', require('./routes/sales'));
+
+// Static files
 app.use(express.static(path.join(__dirname, '../public')));
 
 // Page routes
@@ -26,13 +34,9 @@ app.get('/sales', (req, res) => {
 app.get('/inventory', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/inventory.html'));
 });
-// API Routes
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/inventory', require('./routes/inventory'));
-app.use('/api/pos', require('./routes/pos'));
-app.use('/api/sales', require('./routes/sales'));
-
-// Health check
+app.get('/install', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/install.html'));
+});
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
