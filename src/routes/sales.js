@@ -68,13 +68,11 @@ async function processOrderEvent(store, orderId) {
   try {
     const cleanId = orderId.replace(/^O:/, '');
 
-    const { data: existing } = await supabase
+    const { data: existingSales } = await supabase
       .from('sales_log')
-      .select('id')
+      .select('id, type')
       .eq('store_id', store.id)
-      .eq('order_id', cleanId)
-      .eq('type', 'Sale')
-      .single();
+      .eq('order_id', cleanId);
 
     const fullOrder = await fetchFullOrder(store.merchant_id, store.api_token, cleanId);
 
@@ -84,7 +82,11 @@ async function processOrderEvent(store, orderId) {
                      (fullOrder.refundAmount || 0) > 0 ||
                      (fullOrder.refunds?.elements?.length > 0);
 
-    if (!isRefund && existing) { console.log('Sale already logged:', cleanId); return; }
+    const alreadyLogged = existingSales && existingSales.length > 0;
+    if (!isRefund && alreadyLogged) { console.log('Sale already logged:', cleanId); return; }
+    if (isRefund && existingSales && existingSales.some(r => r.type === 'Refund')) {
+      console.log('Refund already logged:', cleanId); return;
+    }
 
     let amount = (fullOrder.total || 0) / 100;
     let tax = 0;
