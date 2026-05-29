@@ -19,15 +19,240 @@ router.get('/webhook', (req, res) => {
   res.send('OK');
 });
 
-router.post('/webhook', (req, res) => {
+router.post('/webhook', async (req, res) => {
   try {
-    console.log('Webhook received:', JSON.stringify(req.body));
-    // We'll process events here later
+    const payload = req.body;
+    const merchants = payload.merchants || {};
+
+    for (const mid of Object.keys(merchants)) {
+      const events = merchants[mid] || [];
+
+      const { data: store } = await supabase
+        .from('stores')
+        .select('*')
+        .eq('merchant_id', mid)
+        .single();
+
+      if (!store) {
+        console.log('No store found for MID:', mid);
+        continue;
+      }
+
+      for (const event of events) {
+        const objectId = event.objectId || '';
+        const eventType = (event.type || '').toUpperCase();
+
+        const isOrderEvent = objectId.startsWith('O:') || eventType.includes('ORDER');
+        const isPaymentEvent = objectId.startsWith('P:');
+        const isInventoryEvent = objectId.startsWith('I:');
+
+        if (isInventoryEvent) {
+          const itemId = objectId.replace('I:', '');
+          await updateInventoryItem(store, itemId);
+          continue;
+        }
+
+        if (isOrderEvent) {
+          await processOrderEvent(store, objectId);
+          continue;
+        }
+
+        if (isPaymentEvent) {
+          const isRefund = eventType.includes('REFUND') || eventType.includes('CREDIT');
+          if (isRefund && event.data?.order?.id) {
+            await processOrderEvent(store, event.data.order.id);
+          }
+        }
+      }
+    }
+
     res.send('OK');
   } catch (err) {
     console.error('Webhook error:', err);
     res.status(500).send('ERROR');
   }
+});
+
+async function processOrderEvent(store, orderId) {
+  try {
+    const cleanId = orderId.replace(/^O:/, '');
+
+    const { data: existing } = await supabase
+      .from('sales_log')
+      .select('id')
+      .eq('store_id', store.id)
+      .eq('order_id', cleanId)
+      .eq('type', 'Sale')
+      .single();
+
+    const fullOrder = await fetchFullOrder(store.merchant_id, store.api_token, cleanId);
+
+    const isRefund = fullOrder.state === 'refunded' ||
+                     fullOrder.paymentState === 'credited' ||
+                     fullOrder.paymentState === 'PARTIALLY_REFUNDED' ||
+                     (fullOrder.refundAmount || 0) > 0 ||
+                     (fullOrder.refunds?.elements?.length > 0);
+
+    if (!isRefund && existing) {
+      console.log('Sale already logged:', cleanId);
+      return;
+    }
+
+    let amount = (fullOrder.total || 0) / 100;
+    let tax = 0;
+    let tips = 0;
+
+    (fullOrder.payments?.elements || []).forEach(p => {
+      tax += (p.taxAmount || 0) / 100;
+      tips += (p.tipAmount || 0) / 100;
+    });
+
+    let gross = 0;
+    (fullOrder.lineItems?.elements || []).forEach(li => {
+      gross += (li.price || 0) / 100;
+    });
+    if (gross === 0) gross = amount;
+
+    let itemMap = {};
+    let restockThisRefund = true;
+
+    if (isRefund) {
+      const refundsData = await fetchOrderRefunds(store.merchant_id, store.api_token, cleanId);
+      const latestRefund = refundsData?.elements?.length > 0
+        ? refundsData.elements[refundsData.elements.length - 1]
+        : fullOrder.refunds?.elements?.[fullOrder.refunds.elements.length - 1];
+
+      if (latestRefund) {
+        amount = (latestRefund.amount || 0) / 100;
+        tax = (latestRefund.taxAmount || 0) / 100;
+        const reason = (latestRefund.reason || '').toLowerCase();
+        if (reason.includes('not restocked')) restockThisRefund = false;
+      }
+      itemMap = extractRefundedItems(fullOrder);
+    } else {
+      itemMap = extractLineItems(fullOrder);
+    }
+
+    const finalGross = isRefund ? -Math.abs(amount) : gross;
+    const finalNet = isRefund ? -(Math.abs(amount) - tax) : (amount - tax);
+    const finalTax = isRefund ? -Math.abs(tax) : tax;
+    const finalTips = isRefund ? 0 : tips;
+    const finalDiscounts = isRefund ? 0 : Math.max(0, gross - (amount - tax));
+    const type = isRefund ? 'Refund' : 'Sale';
+    const itemIds = Object.keys(itemMap);
+    const itemSummary = itemIds.map(id => `${id} x${itemMap[id].qty}`).join(', ') || 'N/A';
+
+    let totalCost = 0;
+    if (itemIds.length > 0) {
+      for (const id of itemIds) {
+        const { data: invItem } = await supabase
+          .from('inventory_items')
+          .select('cost')
+          .eq('id', id)
+          .eq('store_id', store.id)
+          .single();
+        if (invItem) {
+          totalCost += (invItem.cost || 0) * itemMap[id].qty * (isRefund ? -1 : 1);
+        }
+      }
+    }
+
+    const grossProfit = finalNet - totalCost;
+    const status = isRefund ? (restockThisRefund ? 'Restocked' : 'Not Restocked') : 'OK';
+
+    await supabase.from('sales_log').insert([{
+      store_id: store.id,
+      order_id: cleanId,
+      type,
+      gross: finalGross,
+      net: finalNet,
+      tax: finalTax,
+      discounts: finalDiscounts,
+      tips: finalTips,
+      total_cost: totalCost,
+      gross_profit: grossProfit,
+      item_summary: itemSummary,
+      status
+    }]);
+
+    console.log(`✅ Logged ${type} for store ${store.name}: $${finalNet.toFixed(2)}`);
+
+    for (const id of itemIds) {
+      if (isRefund && restockThisRefund) {
+        await pushStockToClover(store.merchant_id, store.api_token, id, itemMap[id].qty);
+      }
+      await updateInventoryItem(store, id);
+    }
+
+  } catch (err) {
+    console.error('processOrderEvent error:', err.message);
+  }
+}
+
+async function updateInventoryItem(store, itemId) {
+  try {
+    const item = await fetchItem(store.merchant_id, store.api_token, itemId);
+    if (!item || item.hidden || item.deleted || !item.name) return;
+
+    const cloverQty = item.itemStock ? item.itemStock.quantity : 0;
+    const cost = item.cost ? (item.cost / 100) : 0;
+    const price = item.price ? (item.price / 100) : 0;
+    const category = item.categories?.elements?.[0]?.name || 'No Category';
+    const groupName = item.itemGroup?.name || '';
+    const variantName = item.name;
+
+    const { data: settings } = await supabase
+      .from('store_settings')
+      .select('*')
+      .eq('store_id', store.id)
+      .single();
+
+    const leadTime = settings?.lead_time || 5;
+    const bufferDays = settings?.buffer_days || 14;
+
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 14);
+
+    const { data: salesRows } = await supabase
+      .from('sales_log')
+      .select('item_summary, type')
+      .eq('store_id', store.id)
+      .gte('created_at', cutoff.toISOString());
+
+    let unitsSold = 0;
+    (salesRows || []).forEach(row => {
+      if (!row.item_summary || row.item_summary === 'N/A') return;
+      row.item_summary.split(',').forEach(part => {
+        const match = part.trim().match(/^([A-Z0-9]+)\s+x(\d+\.?\d*)/);
+        if (match && match[1] === itemId) {
+          const qty = parseFloat(match[2]) || 1;
+          unitsSold += row.type === 'Refund' ? -qty : qty;
+        }
+      });
+    });
+
+    unitsSold = Math.max(0, unitsSold);
+    const suggested = calculateSuggestedOrder(cloverQty, unitsSold, leadTime, bufferDays);
+
+    await supabase.from('inventory_items').upsert([{
+      id: itemId,
+      store_id: store.id,
+      category,
+      group_name: groupName,
+      variant_name: variantName,
+      cost,
+      price,
+      clover_qty: cloverQty,
+      suggested_order: suggested > 0 ? suggested : 0,
+      last_synced: new Date().toISOString()
+    }], { onConflict: 'id' });
+
+    console.log(`📦 Updated item ${itemId} for ${store.name}: qty=${cloverQty}`);
+
+  } catch (err) {
+    console.error('updateInventoryItem error:', err.message);
+  }
+}
 });
 
 router.get('/test', (req, res) => {
