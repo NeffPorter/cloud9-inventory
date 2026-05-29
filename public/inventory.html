@@ -23,7 +23,7 @@
     }
     .page-title { font-size: 24px; font-weight: 700; color: #1a1a2e; }
     .page-subtitle { color: #666; font-size: 14px; margin-top: 4px; }
-    .header-actions { display: flex; gap: 10px; align-items: center; }
+    .header-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
     .sync-btn {
       background: #2f5597;
       color: white;
@@ -57,9 +57,6 @@
       border-radius: 10px;
       padding: 14px 20px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-      display: flex;
-      align-items: center;
-      gap: 10px;
     }
     .mini-stat-value { font-size: 22px; font-weight: 800; color: #1a1a2e; }
     .mini-stat-label { font-size: 12px; color: #999; font-weight: 600; }
@@ -75,7 +72,9 @@
       justify-content: space-between;
       align-items: center;
       cursor: pointer;
+      user-select: none;
     }
+    .category-header:hover { background: #1e3a6e; }
     .category-count {
       background: rgba(255,255,255,0.2);
       padding: 2px 10px;
@@ -135,9 +134,6 @@
       background: white;
       cursor: pointer;
     }
-    .status-active { color: #38761d; }
-    .status-dropping { color: #c00; }
-    .status-hold { color: #999; }
     .on-hand-input {
       width: 60px;
       padding: 4px 8px;
@@ -149,13 +145,7 @@
     .on-hand-input:focus { outline: none; border-color: #2f5597; }
     .loading { text-align: center; padding: 60px; color: #999; font-size: 16px; }
     .empty { text-align: center; padding: 40px; color: #999; }
-    .sync-status {
-      font-size: 13px;
-      color: #666;
-      padding: 8px 16px;
-      background: #f0f4ff;
-      border-radius: 8px;
-    }
+    .sync-status { font-size: 13px; color: #666; padding: 8px 16px; background: #f0f4ff; border-radius: 8px; }
     .dropping-row td { opacity: 0.5; text-decoration: line-through; }
     .hold-row td { opacity: 0.7; color: #999; }
   </style>
@@ -171,6 +161,7 @@
       <div class="header-actions">
         <input type="text" class="search-input" id="searchInput" placeholder="🔍 Search items..." oninput="filterItems()">
         <span class="sync-status" id="syncStatus"></span>
+        <button class="sync-btn" style="background:#666" onclick="toggleAllCategories()" id="collapseBtn">📂 Collapse All</button>
         <button class="sync-btn" onclick="syncInventory()" id="syncBtn">🔄 Sync from Clover</button>
       </div>
     </div>
@@ -190,6 +181,7 @@
 
     let allItems = [];
     let storeName = '';
+    let allCollapsed = false;
 
     async function loadStoreName() {
       const res = await fetch('/api/inventory/stores', {
@@ -241,28 +233,20 @@
 
       document.getElementById('statsRow').innerHTML = `
         <div class="mini-stat">
-          <div>
-            <div class="mini-stat-value">${total}</div>
-            <div class="mini-stat-label">Total Items</div>
-          </div>
+          <div class="mini-stat-value">${total}</div>
+          <div class="mini-stat-label">Total Items</div>
         </div>
         <div class="mini-stat">
-          <div>
-            <div class="mini-stat-value" style="color:#c55a11">${lowStock}</div>
-            <div class="mini-stat-label">Low Stock</div>
-          </div>
+          <div class="mini-stat-value" style="color:#c55a11">${lowStock}</div>
+          <div class="mini-stat-label">Low Stock</div>
         </div>
         <div class="mini-stat">
-          <div>
-            <div class="mini-stat-value" style="color:#c00">${outOfStock}</div>
-            <div class="mini-stat-label">Out of Stock</div>
-          </div>
+          <div class="mini-stat-value" style="color:#c00">${outOfStock}</div>
+          <div class="mini-stat-label">Out of Stock</div>
         </div>
         <div class="mini-stat">
-          <div>
-            <div class="mini-stat-value" style="color:#c55a11">${suggested}</div>
-            <div class="mini-stat-label">Need Ordering</div>
-          </div>
+          <div class="mini-stat-value" style="color:#c55a11">${suggested}</div>
+          <div class="mini-stat-label">Need Ordering</div>
         </div>
       `;
     }
@@ -276,7 +260,6 @@
             i.category?.toLowerCase().includes(searchTerm))
         : items;
 
-      // Group by category then group
       const categories = {};
       filtered.forEach(item => {
         const cat = item.category || 'No Category';
@@ -296,16 +279,14 @@
       container.innerHTML = Object.keys(categories).sort().map(catName => {
         const groups = categories[catName];
         const itemCount = Object.values(groups).flat().length;
+        const catId = 'cat-' + catName.replace(/[^a-zA-Z0-9]/g, '-');
 
         const rows = Object.keys(groups).sort().map(grpName => {
           const items = groups[grpName];
           let html = '';
 
           if (grpName !== '___standalone') {
-            html += `
-              <tr class="group-row">
-                <td colspan="8">${grpName}</td>
-              </tr>`;
+            html += `<tr class="group-row"><td colspan="7">${grpName}</td></tr>`;
           }
 
           html += items.map(item => {
@@ -327,8 +308,7 @@
                 <td class="${qtyClass}">${qty}</td>
                 <td>${item.suggested_order > 0 ? `<span class="suggested-badge">Order ${item.suggested_order}</span>` : '—'}</td>
                 <td>
-                  <select class="status-select status-${(item.status || 'active').toLowerCase().replace(' ', '')}"
-                    onchange="updateStatus('${item.id}', this.value)">
+                  <select class="status-select" onchange="updateStatus('${item.id}', this.value)">
                     <option value="Active" ${item.status === 'Active' ? 'selected' : ''}>Active</option>
                     <option value="Dropping" ${item.status === 'Dropping' ? 'selected' : ''}>Dropping</option>
                     <option value="On Hold" ${item.status === 'On Hold' ? 'selected' : ''}>On Hold</option>
@@ -342,11 +322,11 @@
 
         return `
           <div class="category-section">
-            <div class="category-header" onclick="toggleCategory('cat-${catName.replace(/\s+/g, '-')}')">
+            <div class="category-header" onclick="toggleCategory('${catId}')">
               ${catName}
               <span class="category-count">${itemCount} items</span>
             </div>
-            <div class="category-body" id="cat-${catName.replace(/\s+/g, '-')}">
+            <div class="category-body" id="${catId}">
               <table>
                 <thead>
                   <tr>
@@ -368,7 +348,17 @@
 
     function toggleCategory(id) {
       const el = document.getElementById(id);
-      el.style.display = el.style.display === 'none' ? '' : 'none';
+      if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
+    }
+
+    let allCollapsedState = false;
+    function toggleAllCategories() {
+      allCollapsedState = !allCollapsedState;
+      document.querySelectorAll('[id^="cat-"]').forEach(el => {
+        el.style.display = allCollapsedState ? 'none' : '';
+      });
+      document.getElementById('collapseBtn').textContent =
+        allCollapsedState ? '📂 Expand All' : '📂 Collapse All';
     }
 
     function filterItems() {
