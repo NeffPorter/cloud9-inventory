@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloud 9 - Inventory</title>
+  <script src="/navbar.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      min-height: 100vh;
+    }
+    .container { max-width: 1400px; margin: 0 auto; padding: 32px 24px; }
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .page-title { font-size: 24px; font-weight: 700; color: #1a1a2e; }
+    .page-subtitle { color: #666; font-size: 14px; margin-top: 4px; }
+    .header-actions { display: flex; gap: 10px; align-items: center; }
+    .sync-btn {
+      background: #2f5597;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .sync-btn:hover { background: #1e3a6e; }
+    .sync-btn:disabled { background: #999; cursor: not-allowed; }
+    .search-input {
+      padding: 10px 16px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      outline: none;
+      width: 250px;
+    }
+    .search-input:focus { border-color: #2f5597; }
+    .stats-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .mini-stat {
+      background: white;
+      border-radius: 10px;
+      padding: 14px 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .mini-stat-value { font-size: 22px; font-weight: 800; color: #1a1a2e; }
+    .mini-stat-label { font-size: 12px; color: #999; font-weight: 600; }
+    .category-section { margin-bottom: 24px; }
+    .category-header {
+      background: #2f5597;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 10px 10px 0 0;
+      font-size: 15px;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+    }
+    .category-count {
+      background: rgba(255,255,255,0.2);
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+    }
+    .category-body {
+      background: white;
+      border-radius: 0 0 10px 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      overflow: hidden;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      color: #999;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 10px 14px;
+      background: #f8f9fa;
+      border-bottom: 2px solid #f0f0f0;
+    }
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid #f8f8f8;
+      font-size: 13px;
+      color: #333;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafbff; }
+    .group-row td {
+      background: #f0f4ff;
+      font-weight: 700;
+      color: #2f5597;
+      font-size: 13px;
+    }
+    .item-name { font-weight: 500; }
+    .stock-good { color: #38761d; font-weight: 700; }
+    .stock-low { color: #c55a11; font-weight: 700; }
+    .stock-out { color: #c00; font-weight: 700; }
+    .stock-negative { color: #800; font-weight: 700; }
+    .suggested-badge {
+      background: #fff2cc;
+      color: #c55a11;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .status-select {
+      padding: 4px 8px;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 12px;
+      background: white;
+      cursor: pointer;
+    }
+    .status-active { color: #38761d; }
+    .status-dropping { color: #c00; }
+    .status-hold { color: #999; }
+    .on-hand-input {
+      width: 60px;
+      padding: 4px 8px;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 13px;
+      text-align: center;
+    }
+    .on-hand-input:focus { outline: none; border-color: #2f5597; }
+    .loading { text-align: center; padding: 60px; color: #999; font-size: 16px; }
+    .empty { text-align: center; padding: 40px; color: #999; }
+    .sync-status {
+      font-size: 13px;
+      color: #666;
+      padding: 8px 16px;
+      background: #f0f4ff;
+      border-radius: 8px;
+    }
+    .dropping-row td { opacity: 0.5; text-decoration: line-through; }
+    .hold-row td { opacity: 0.7; color: #999; }
+  </style>
+</head>
+<body>
+  <script>loadNavbar();</script>
+
+  <div class="container">
+    <div class="page-header">
+      <div>
+        <div class="page-title" id="pageTitle">📦 Inventory</div>
+        <div class="page-subtitle" id="pageSubtitle">Loading...</div>
+      </div>
+      <div class="header-actions">
+        <input type="text" class="search-input" id="searchInput" placeholder="🔍 Search items..." oninput="filterItems()">
+        <span class="sync-status" id="syncStatus"></span>
+        <button class="sync-btn" onclick="syncInventory()" id="syncBtn">🔄 Sync from Clover</button>
+      </div>
+    </div>
+
+    <div class="stats-row" id="statsRow"></div>
+    <div id="inventoryContainer" class="loading">Loading inventory...</div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    if (!token) window.location.href = '/';
+
+    const params = new URLSearchParams(window.location.search);
+    const storeId = params.get('store');
+    if (!storeId) window.location.href = '/dashboard';
+
+    let allItems = [];
+    let storeName = '';
+
+    async function loadStoreName() {
+      const res = await fetch('/api/inventory/stores', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const data = await res.json();
+      const store = (data.stores || []).find(s => s.id === storeId);
+      if (store) {
+        storeName = store.name;
+        document.getElementById('pageTitle').textContent = `📦 ${store.name} — Inventory`;
+      }
+    }
+
+    async function loadInventory() {
+      try {
+        const res = await fetch(`/api/inventory/items?store_id=${storeId}`, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await res.json();
+        allItems = data.items || [];
+
+        if (allItems.length === 0) {
+          document.getElementById('inventoryContainer').innerHTML = `
+            <div class="empty">
+              <h3 style="font-size:18px;color:#666;margin-bottom:8px">No inventory yet</h3>
+              <p style="color:#999">Click "Sync from Clover" to import your inventory</p>
+            </div>`;
+          updateStats([]);
+          return;
+        }
+
+        const lastSync = allItems[0]?.last_synced
+          ? new Date(allItems[0].last_synced).toLocaleString()
+          : '—';
+        document.getElementById('syncStatus').textContent = `Last sync: ${lastSync}`;
+
+        updateStats(allItems);
+        renderInventory(allItems);
+      } catch (err) {
+        document.getElementById('inventoryContainer').innerHTML = '<div class="empty">Error loading inventory</div>';
+      }
+    }
+
+    function updateStats(items) {
+      const total = items.length;
+      const lowStock = items.filter(i => i.clover_qty > 0 && i.clover_qty <= 5 && i.status === 'Active').length;
+      const outOfStock = items.filter(i => i.clover_qty <= 0 && i.status === 'Active').length;
+      const suggested = items.filter(i => i.suggested_order > 0 && i.status === 'Active').length;
+
+      document.getElementById('statsRow').innerHTML = `
+        <div class="mini-stat">
+          <div>
+            <div class="mini-stat-value">${total}</div>
+            <div class="mini-stat-label">Total Items</div>
+          </div>
+        </div>
+        <div class="mini-stat">
+          <div>
+            <div class="mini-stat-value" style="color:#c55a11">${lowStock}</div>
+            <div class="mini-stat-label">Low Stock</div>
+          </div>
+        </div>
+        <div class="mini-stat">
+          <div>
+            <div class="mini-stat-value" style="color:#c00">${outOfStock}</div>
+            <div class="mini-stat-label">Out of Stock</div>
+          </div>
+        </div>
+        <div class="mini-stat">
+          <div>
+            <div class="mini-stat-value" style="color:#c55a11">${suggested}</div>
+            <div class="mini-stat-label">Need Ordering</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderInventory(items) {
+      const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+      const filtered = searchTerm
+        ? items.filter(i =>
+            i.variant_name?.toLowerCase().includes(searchTerm) ||
+            i.group_name?.toLowerCase().includes(searchTerm) ||
+            i.category?.toLowerCase().includes(searchTerm))
+        : items;
+
+      // Group by category then group
+      const categories = {};
+      filtered.forEach(item => {
+        const cat = item.category || 'No Category';
+        if (!categories[cat]) categories[cat] = {};
+        const grp = item.group_name || '___standalone';
+        if (!categories[cat][grp]) categories[cat][grp] = [];
+        categories[cat][grp].push(item);
+      });
+
+      const container = document.getElementById('inventoryContainer');
+
+      if (Object.keys(categories).length === 0) {
+        container.innerHTML = '<div class="empty">No items match your search</div>';
+        return;
+      }
+
+      container.innerHTML = Object.keys(categories).sort().map(catName => {
+        const groups = categories[catName];
+        const itemCount = Object.values(groups).flat().length;
+
+        const rows = Object.keys(groups).sort().map(grpName => {
+          const items = groups[grpName];
+          let html = '';
+
+          if (grpName !== '___standalone') {
+            html += `
+              <tr class="group-row">
+                <td colspan="8">${grpName}</td>
+              </tr>`;
+          }
+
+          html += items.map(item => {
+            const qty = item.clover_qty || 0;
+            const qtyClass = qty < 0 ? 'stock-negative' : qty === 0 ? 'stock-out' : qty <= 5 ? 'stock-low' : 'stock-good';
+            const rowClass = item.status === 'Dropping' ? 'dropping-row' : item.status === 'On Hold' ? 'hold-row' : '';
+
+            return `
+              <tr class="${rowClass}">
+                <td class="item-name">${item.variant_name}</td>
+                <td>$${(item.cost || 0).toFixed(2)}</td>
+                <td>$${(item.price || 0).toFixed(2)}</td>
+                <td>
+                  <input type="number" class="on-hand-input"
+                    value="${item.on_hand_qty || ''}"
+                    placeholder="—"
+                    onchange="updateOnHand('${item.id}', this.value)">
+                </td>
+                <td class="${qtyClass}">${qty}</td>
+                <td>${item.suggested_order > 0 ? `<span class="suggested-badge">Order ${item.suggested_order}</span>` : '—'}</td>
+                <td>
+                  <select class="status-select status-${(item.status || 'active').toLowerCase().replace(' ', '')}"
+                    onchange="updateStatus('${item.id}', this.value)">
+                    <option value="Active" ${item.status === 'Active' ? 'selected' : ''}>Active</option>
+                    <option value="Dropping" ${item.status === 'Dropping' ? 'selected' : ''}>Dropping</option>
+                    <option value="On Hold" ${item.status === 'On Hold' ? 'selected' : ''}>On Hold</option>
+                  </select>
+                </td>
+              </tr>`;
+          }).join('');
+
+          return html;
+        }).join('');
+
+        return `
+          <div class="category-section">
+            <div class="category-header" onclick="toggleCategory('cat-${catName.replace(/\s+/g, '-')}')">
+              ${catName}
+              <span class="category-count">${itemCount} items</span>
+            </div>
+            <div class="category-body" id="cat-${catName.replace(/\s+/g, '-')}">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Item / Variant</th>
+                    <th>Cost</th>
+                    <th>Price</th>
+                    <th>On Hand</th>
+                    <th>Clover Qty</th>
+                    <th>Suggested Order</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    function toggleCategory(id) {
+      const el = document.getElementById(id);
+      el.style.display = el.style.display === 'none' ? '' : 'none';
+    }
+
+    function filterItems() {
+      renderInventory(allItems);
+    }
+
+    async function updateStatus(itemId, status) {
+      try {
+        await fetch(`/api/inventory/items/${itemId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({ status })
+        });
+        const item = allItems.find(i => i.id === itemId);
+        if (item) item.status = status;
+        renderInventory(allItems);
+      } catch (err) {
+        console.error('Update status error:', err);
+      }
+    }
+
+    async function updateOnHand(itemId, value) {
+      try {
+        const on_hand_qty = parseInt(value) || 0;
+        await fetch(`/api/inventory/items/${itemId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({ on_hand_qty })
+        });
+        const item = allItems.find(i => i.id === itemId);
+        if (item) item.on_hand_qty = on_hand_qty;
+      } catch (err) {
+        console.error('Update on hand error:', err);
+      }
+    }
+
+    async function syncInventory() {
+      const btn = document.getElementById('syncBtn');
+      btn.disabled = true;
+      btn.textContent = '🔄 Syncing...';
+
+      try {
+        const res = await fetch(`/api/inventory/sync/${storeId}`, {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+          btn.textContent = `✅ Synced ${data.synced} items!`;
+          setTimeout(() => {
+            btn.textContent = '🔄 Sync from Clover';
+            btn.disabled = false;
+          }, 3000);
+          loadInventory();
+        } else {
+          btn.textContent = '❌ Sync failed';
+          setTimeout(() => {
+            btn.textContent = '🔄 Sync from Clover';
+            btn.disabled = false;
+          }, 3000);
+        }
+      } catch (err) {
+        btn.textContent = '❌ Error';
+        setTimeout(() => {
+          btn.textContent = '🔄 Sync from Clover';
+          btn.disabled = false;
+        }, 3000);
+      }
+    }
+
+    loadStoreName();
+    loadInventory();
+  </script>
+  <script>loadNavbar();</script>
+</body>
+</html>
