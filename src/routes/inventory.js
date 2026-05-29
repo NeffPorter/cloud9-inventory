@@ -13,20 +13,19 @@ router.get('/stores', auth, async (req, res) => {
   try {
     let query = supabase.from('stores').select('*').order('name');
 
-    // Managers only see their store
     if (req.user.role === 'manager' && req.user.store_id) {
       query = query.eq('id', req.user.store_id);
     }
 
     const { data, error } = await query;
     if (error) throw error;
-
     res.json({ stores: data });
   } catch (err) {
     console.error('Get stores error:', err);
     res.status(500).json({ error: 'Failed to load stores' });
   }
 });
+
 // Add a new store (admin only)
 router.post('/stores', auth, async (req, res) => {
   try {
@@ -47,7 +46,6 @@ router.post('/stores', auth, async (req, res) => {
 
     if (error) throw error;
 
-    // Create default settings for the store
     await supabase.from('store_settings').insert([{
       store_id: data.id,
       lead_time: 5,
@@ -60,6 +58,7 @@ router.post('/stores', auth, async (req, res) => {
     res.status(500).json({ error: 'Failed to add store' });
   }
 });
+
 // Delete a store (admin only)
 router.delete('/stores/:id', auth, async (req, res) => {
   try {
@@ -73,13 +72,13 @@ router.delete('/stores/:id', auth, async (req, res) => {
       .eq('id', req.params.id);
 
     if (error) throw error;
-
     res.json({ success: true });
   } catch (err) {
     console.error('Delete store error:', err);
     res.status(500).json({ error: 'Failed to delete store' });
   }
 });
+
 // Get inventory for a store
 router.get('/items', auth, async (req, res) => {
   try {
@@ -144,17 +143,25 @@ router.post('/sync/:store_id', auth, async (req, res) => {
     let allItems = [];
     let offset = 0;
     const limit = 200;
+    let keepGoing = true;
 
-    while (true) {
+    while (keepGoing) {
       const data = await cloverFetch(
         `items?expand=itemStock,categories,itemGroup&limit=${limit}&offset=${offset}`,
         store.merchant_id,
         store.api_token
       );
-      allItems = allItems.concat(data.elements || []);
-      if ((data.elements || []).length < limit) break;
-      offset += limit;
+      const elements = data.elements || [];
+      allItems = allItems.concat(elements);
+      console.log(`Fetched ${allItems.length} items so far...`);
+      if (elements.length < limit) {
+        keepGoing = false;
+      } else {
+        offset += limit;
+      }
     }
+
+    console.log(`Total items fetched: ${allItems.length}`);
 
     const groupsData = await cloverFetch('item_groups?limit=1000', store.merchant_id, store.api_token);
     const groupMap = {};
@@ -193,4 +200,5 @@ router.post('/sync/:store_id', auth, async (req, res) => {
     res.status(500).json({ error: 'Sync failed: ' + err.message });
   }
 });
+
 module.exports = router;
