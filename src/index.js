@@ -26,7 +26,9 @@ app.get('/sales', (req, res) => {
 app.get('/sales', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/sales.html'));
 });
-
+app.get('/inventory', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/inventory.html'));
+});
 // API Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/inventory', require('./routes/inventory'));
