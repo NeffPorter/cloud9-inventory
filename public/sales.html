@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cloud 9 - Sales</title>
+  <script src="/navbar.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -12,34 +13,6 @@
       background: #f0f2f5;
       min-height: 100vh;
     }
-    .navbar {
-      background: #1a1a2e;
-      padding: 0 24px;
-      height: 60px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .navbar h1 { color: white; font-size: 20px; font-weight: 800; }
-    .navbar-right { display: flex; align-items: center; gap: 16px; }
-    .user-badge {
-      background: #2f5597;
-      color: white;
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-size: 13px;
-      font-weight: 600;
-    }
-    .back-btn {
-      background: transparent;
-      color: #aaa;
-      border: 1px solid #444;
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-size: 13px;
-      cursor: pointer;
-    }
-    .back-btn:hover { color: white; border-color: white; }
     .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
     .page-header {
       display: flex;
@@ -107,10 +80,7 @@
       color: #1a1a2e;
       margin-bottom: 6px;
     }
-    .stat-change {
-      font-size: 12px;
-      font-weight: 600;
-    }
+    .stat-change { font-size: 12px; font-weight: 600; }
     .stat-change.up { color: #38761d; }
     .stat-change.down { color: #c00; }
     .stat-change.neutral { color: #999; }
@@ -121,12 +91,7 @@
       box-shadow: 0 2px 8px rgba(0,0,0,0.06);
       margin-bottom: 24px;
     }
-    .card-title {
-      font-size: 16px;
-      font-weight: 700;
-      color: #1a1a2e;
-      margin-bottom: 20px;
-    }
+    .card-title { font-size: 16px; font-weight: 700; color: #1a1a2e; margin-bottom: 20px; }
     .chart-container { position: relative; height: 300px; }
     table { width: 100%; border-collapse: collapse; }
     th {
@@ -146,11 +111,7 @@
       color: #333;
     }
     tr:last-child td { border-bottom: none; }
-    .grand-total td {
-      font-weight: 700;
-      background: #f8f9ff;
-      color: #1a1a2e;
-    }
+    .grand-total td { font-weight: 700; background: #f8f9ff; color: #1a1a2e; }
     .margin-good { color: #38761d; font-weight: 600; }
     .margin-ok { color: #c55a11; font-weight: 600; }
     .margin-bad { color: #c00; font-weight: 600; }
@@ -180,14 +141,7 @@
   </style>
 </head>
 <body>
-
-  <nav class="navbar">
-    <h1>☁️ Cloud 9 Inventory</h1>
-    <div class="navbar-right">
-      <span class="user-badge" id="userBadge">Loading...</span>
-      <button class="back-btn" onclick="window.location.href='/dashboard'">← Dashboard</button>
-    </div>
-  </nav>
+  <script>loadNavbar();</script>
 
   <div class="container">
     <div class="page-header">
@@ -197,19 +151,17 @@
       </div>
       <div class="date-controls">
         <button class="preset-btn" onclick="setPreset('today', this)">Today</button>
-<button class="preset-btn" onclick="setPreset('week', this)">This Week</button>
-<button class="preset-btn active" onclick="setPreset('month', this)">This Month</button>
-<button class="preset-btn" onclick="setPreset('quarter', this)">This Quarter</button>
+        <button class="preset-btn" onclick="setPreset('week', this)">This Week</button>
+        <button class="preset-btn active" onclick="setPreset('month', this)">This Month</button>
+        <button class="preset-btn" onclick="setPreset('quarter', this)">This Quarter</button>
         <input type="date" id="startDate" class="date-input" onchange="setCustom()">
         <span style="color:#999">to</span>
         <input type="date" id="endDate" class="date-input" onchange="setCustom()">
       </div>
     </div>
 
-    <!-- Store filter (admin only) -->
     <div class="store-filter" id="storeFilter"></div>
 
-    <!-- Stats Cards -->
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-label">Net Sales</div>
@@ -243,7 +195,6 @@
       </div>
     </div>
 
-    <!-- Chart -->
     <div class="card">
       <div class="card-title" id="chartTitle">Sales — This Period vs Previous Period</div>
       <div class="chart-container">
@@ -251,20 +202,16 @@
       </div>
     </div>
 
-    <!-- Per Store Breakdown (admin only) -->
     <div class="card" id="storeBreakdownCard">
       <div class="card-title">🏪 By Store</div>
       <div id="storeBreakdown" class="loading">Loading...</div>
     </div>
-
   </div>
 
   <script>
     const token = localStorage.getItem('token');
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     if (!token) window.location.href = '/';
-
-    document.getElementById('userBadge').textContent = user.name || user.email;
 
     if (user.role !== 'admin') {
       document.getElementById('storeBreakdownCard').style.display = 'none';
@@ -274,12 +221,11 @@
     let currentStart = null;
     let currentEnd = null;
     let selectedStore = '';
-    let activePreset = 'month';
 
     function fmt(n) { return '$' + (n || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
     function pct(n) { return (n * 100).toFixed(1) + '%'; }
 
-    function changeBadge(elId, current, previous, isPercent = false, invertColor = false) {
+    function changeBadge(elId, current, previous, invertColor = false) {
       const el = document.getElementById(elId);
       if (!previous || previous === 0) { el.textContent = '— vs prev'; el.className = 'stat-change neutral'; return; }
       const diff = ((current - previous) / Math.abs(previous)) * 100;
@@ -291,32 +237,31 @@
     }
 
     function setPreset(preset, btnEl) {
-  activePreset = preset;
-  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
-  if (btnEl) btnEl.classList.add('active');
+      document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+      if (btnEl) btnEl.classList.add('active');
 
-  const now = new Date();
-  let start, end;
+      const now = new Date();
+      let start, end;
 
-  if (preset === 'today') {
-    start = new Date(now); start.setHours(0,0,0,0);
-    end = new Date(now); end.setHours(23,59,59,999);
-  } else if (preset === 'week') {
-    start = new Date(now); start.setDate(now.getDate() - now.getDay()); start.setHours(0,0,0,0);
-    end = new Date(now); end.setHours(23,59,59,999);
-  } else if (preset === 'month') {
-    start = new Date(now.getFullYear(), now.getMonth(), 1);
-    end = new Date(now); end.setHours(23,59,59,999);
-  } else if (preset === 'quarter') {
-    const q = Math.floor(now.getMonth() / 3);
-    start = new Date(now.getFullYear(), q * 3, 1);
-    end = new Date(now); end.setHours(23,59,59,999);
-  }
+      if (preset === 'today') {
+        start = new Date(now); start.setHours(0,0,0,0);
+        end = new Date(now); end.setHours(23,59,59,999);
+      } else if (preset === 'week') {
+        start = new Date(now); start.setDate(now.getDate() - now.getDay()); start.setHours(0,0,0,0);
+        end = new Date(now); end.setHours(23,59,59,999);
+      } else if (preset === 'month') {
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        end = new Date(now); end.setHours(23,59,59,999);
+      } else if (preset === 'quarter') {
+        const q = Math.floor(now.getMonth() / 3);
+        start = new Date(now.getFullYear(), q * 3, 1);
+        end = new Date(now); end.setHours(23,59,59,999);
+      }
 
-  currentStart = start;
-  currentEnd = end;
-  loadSales();
-}
+      currentStart = start;
+      currentEnd = end;
+      loadSales();
+    }
 
     function setCustom() {
       const s = document.getElementById('startDate').value;
@@ -380,11 +325,9 @@
         changeBadge('changeOrders', c.orders, p.orders);
         changeBadge('changeAvg', c.avgTicket, p.avgTicket);
 
-        // Build chart
         const currentDays = Object.keys(data.chartData.current);
         const prevDays = Object.keys(data.chartData.previous);
         const allLabels = [...new Set([...currentDays, ...prevDays])].sort();
-
         const currentVals = allLabels.map(d => data.chartData.current[d] || 0);
         const prevVals = allLabels.map(d => data.chartData.previous[d] || 0);
 
@@ -430,16 +373,11 @@
               }
             },
             scales: {
-              y: {
-                ticks: {
-                  callback: val => '$' + val.toLocaleString()
-                }
-              }
+              y: { ticks: { callback: val => '$' + val.toLocaleString() } }
             }
           }
         });
 
-        // Load store breakdown
         if (user.role === 'admin' && !selectedStore) loadStoreBreakdown();
 
       } catch (err) {
@@ -511,10 +449,8 @@
         </table>`;
     }
 
-    // Init
     loadStoreFilter();
-setPreset('month', document.querySelector('.preset-btn.active'));
+    setPreset('month', document.querySelector('.preset-btn.active'));
   </script>
-
 </body>
 </html>

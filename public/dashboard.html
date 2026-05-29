@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cloud 9 - Dashboard</title>
+  <script src="/navbar.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -11,104 +12,9 @@
       background: #f0f2f5;
       min-height: 100vh;
     }
-
-    /* NAVBAR */
-    .navbar {
-      background: #1a1a2e;
-      padding: 0 24px;
-      height: 60px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      position: sticky;
-      top: 0;
-      z-index: 100;
-    }
-    .navbar-left { display: flex; align-items: center; gap: 8px; }
-    .navbar h1 { color: white; font-size: 20px; font-weight: 800; margin-right: 16px; }
-    .nav-links { display: flex; align-items: center; gap: 4px; }
-    .nav-item { position: relative; }
-    .nav-btn {
-      background: transparent;
-      color: #ccc;
-      border: none;
-      padding: 8px 14px;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .nav-btn:hover, .nav-btn.active { background: rgba(255,255,255,0.1); color: white; }
-    .nav-btn .arrow { font-size: 10px; transition: transform 0.2s; }
-    .nav-btn.active .arrow { transform: rotate(180deg); }
-    .dropdown {
-      display: none;
-      position: absolute;
-      top: calc(100% + 8px);
-      left: 0;
-      background: white;
-      border-radius: 10px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.15);
-      min-width: 200px;
-      overflow: hidden;
-      z-index: 200;
-    }
-    .dropdown.open { display: block; }
-    .dropdown-header {
-      padding: 10px 16px;
-      font-size: 11px;
-      font-weight: 700;
-      color: #999;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      background: #f8f9fa;
-      border-bottom: 1px solid #f0f0f0;
-    }
-    .dropdown-item {
-      display: block;
-      padding: 12px 16px;
-      font-size: 13px;
-      font-weight: 500;
-      color: #333;
-      cursor: pointer;
-      transition: background 0.15s;
-      border: none;
-      background: none;
-      width: 100%;
-      text-align: left;
-    }
-    .dropdown-item:hover { background: #f0f4ff; color: #2f5597; }
-    .dropdown-divider { height: 1px; background: #f0f0f0; margin: 4px 0; }
-    .navbar-right { display: flex; align-items: center; gap: 12px; }
-    .user-badge {
-      background: #2f5597;
-      color: white;
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-size: 13px;
-      font-weight: 600;
-    }
-    .logout-btn {
-      background: transparent;
-      color: #aaa;
-      border: 1px solid #444;
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-size: 13px;
-      cursor: pointer;
-    }
-    .logout-btn:hover { color: white; border-color: white; }
-
-    /* CONTAINER */
     .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
     .page-title { font-size: 24px; font-weight: 700; color: #1a1a2e; margin-bottom: 8px; }
     .page-subtitle { color: #666; font-size: 14px; margin-bottom: 32px; }
-
-    /* STATS */
     .stats-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -130,15 +36,7 @@
       margin-bottom: 8px;
     }
     .stat-value { font-size: 28px; font-weight: 800; color: #1a1a2e; }
-
-    /* STORES */
-    .section-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 16px;
-    }
-    .section-title { font-size: 18px; font-weight: 700; color: #1a1a2e; }
+    .section-title { font-size: 18px; font-weight: 700; color: #1a1a2e; margin-bottom: 16px; }
     .stores-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -203,71 +101,7 @@
   </style>
 </head>
 <body>
-
-  <nav class="navbar">
-    <div class="navbar-left">
-      <h1>☁️ Cloud 9</h1>
-      <div class="nav-links">
-
-        <!-- Inventory Dropdown -->
-        <div class="nav-item">
-          <button class="nav-btn" onclick="toggleDropdown('inventoryDropdown', this)">
-            📦 Inventory <span class="arrow">▼</span>
-          </button>
-          <div class="dropdown" id="inventoryDropdown">
-            <div class="dropdown-header">By Store</div>
-            <div id="inventoryStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
-          </div>
-        </div>
-
-        <!-- POs Dropdown -->
-        <div class="nav-item">
-          <button class="nav-btn" onclick="toggleDropdown('poDropdown', this)">
-            🛒 Purchase Orders <span class="arrow">▼</span>
-          </button>
-          <div class="dropdown" id="poDropdown">
-            <div class="dropdown-header">By Store</div>
-            <div id="poStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
-          </div>
-        </div>
-
-        <!-- Suggested Orders Dropdown -->
-        <div class="nav-item">
-          <button class="nav-btn" onclick="toggleDropdown('suggestedDropdown', this)">
-            📋 Suggested Orders <span class="arrow">▼</span>
-          </button>
-          <div class="dropdown" id="suggestedDropdown">
-            <div class="dropdown-header">By Store</div>
-            <div id="suggestedStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
-          </div>
-        </div>
-
-        <!-- Sales -->
-        <div class="nav-item">
-          <button class="nav-btn" onclick="window.location.href='/sales'">
-            📊 Sales
-          </button>
-        </div>
-
-        <!-- Admin Dropdown -->
-        <div class="nav-item" id="adminMenu">
-          <button class="nav-btn" onclick="toggleDropdown('adminDropdown', this)">
-            ⚙️ Admin <span class="arrow">▼</span>
-          </button>
-          <div class="dropdown" id="adminDropdown">
-            <div class="dropdown-header">Management</div>
-            <button class="dropdown-item" onclick="window.location.href='/stores'">🏪 Manage Stores</button>
-            <button class="dropdown-item" onclick="window.location.href='/users'">👥 Manage Users</button>
-          </div>
-        </div>
-
-      </div>
-    </div>
-    <div class="navbar-right">
-      <span class="user-badge" id="userBadge">Loading...</span>
-      <button class="logout-btn" onclick="logout()">Logout</button>
-    </div>
-  </nav>
+  <script>loadNavbar();</script>
 
   <div class="container">
     <div class="page-title">Dashboard</div>
@@ -292,10 +126,7 @@
       </div>
     </div>
 
-    <div class="section-header">
-      <div class="section-title">Your Stores</div>
-    </div>
-
+    <div class="section-title">Your Stores</div>
     <div id="storesContainer" class="loading">Loading stores...</div>
   </div>
 
@@ -304,34 +135,8 @@
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     if (!token) window.location.href = '/';
 
-    document.getElementById('userBadge').textContent = user.name || user.email;
     document.getElementById('pageSubtitle').textContent = `Welcome back, ${user.name || 'there'}!`;
 
-    if (user.role !== 'admin') {
-      document.getElementById('adminMenu').style.display = 'none';
-    }
-
-    // Dropdown logic
-    function toggleDropdown(id, btn) {
-      const dropdown = document.getElementById(id);
-      const isOpen = dropdown.classList.contains('open');
-      closeAllDropdowns();
-      if (!isOpen) {
-        dropdown.classList.add('open');
-        btn.classList.add('active');
-      }
-    }
-
-    function closeAllDropdowns() {
-      document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('open'));
-      document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-    }
-
-    document.addEventListener('click', (e) => {
-      if (!e.target.closest('.nav-item')) closeAllDropdowns();
-    });
-
-    // Load stores into dropdowns and cards
     async function loadStores() {
       try {
         const res = await fetch('/api/inventory/stores', {
@@ -343,24 +148,6 @@
 
         document.getElementById('totalStores').textContent = stores.length;
 
-        // Fill dropdowns
-        const storeLinks = stores.map(s => `
-          <button class="dropdown-item" onclick="window.location.href='/inventory?store=${s.id}'">${s.name}</button>
-        `).join('');
-
-        const poLinks = stores.map(s => `
-          <button class="dropdown-item" onclick="window.location.href='/pos?store=${s.id}'">${s.name}</button>
-        `).join('');
-
-        const suggestedLinks = stores.map(s => `
-          <button class="dropdown-item" onclick="window.location.href='/suggested?store=${s.id}'">${s.name}</button>
-        `).join('');
-
-        document.getElementById('inventoryStoreList').innerHTML = storeLinks || '<div style="padding:12px 16px;color:#999;font-size:13px">No stores yet</div>';
-        document.getElementById('poStoreList').innerHTML = poLinks || '<div style="padding:12px 16px;color:#999;font-size:13px">No stores yet</div>';
-        document.getElementById('suggestedStoreList').innerHTML = suggestedLinks || '<div style="padding:12px 16px;color:#999;font-size:13px">No stores yet</div>';
-
-        // Store cards
         const container = document.getElementById('storesContainer');
         if (stores.length === 0) {
           container.innerHTML = `
@@ -395,9 +182,7 @@
           </div>
         `).join('');
 
-        // Load today's sales for each store
         loadTodaysSales(stores);
-
       } catch (err) {
         document.getElementById('storesContainer').innerHTML = '<div class="empty-state"><h3>Error loading stores</h3></div>';
       }
@@ -425,8 +210,8 @@
 
         document.getElementById('todaySales').textContent = '$' + totalSales.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
         document.getElementById('todayOrders').textContent = totalOrders;
+        document.getElementById('activePOs').textContent = '—';
 
-        // Update individual store cards
         stores.forEach(store => {
           const storeStats = storeData.find(s => s.name === store.name);
           if (storeStats) {
@@ -436,20 +221,12 @@
             if (ordersEl) ordersEl.textContent = storeStats.orders || 0;
           }
         });
-
       } catch (err) {
         console.error('Error loading today sales:', err);
       }
     }
 
-    function logout() {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/';
-    }
-
     loadStores();
   </script>
-
 </body>
 </html>
