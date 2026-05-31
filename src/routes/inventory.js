@@ -171,8 +171,7 @@ router.post('/sync/:store_id', auth, async (req, res) => {
 
     let synced = 0;
     for (const item of allItems) {
-      if (item.hidden || item.deleted || !item.name) continue;
-
+      if (item.deleted || !item.name) continue;
       const category = item.categories?.elements?.[0]?.name || 'No Category';
       const groupName = item.itemGroup?.id ? (groupMap[item.itemGroup.id] || '') : '';
       const cloverQty = item.itemStock ? item.itemStock.quantity : 0;
