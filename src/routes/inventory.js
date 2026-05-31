@@ -95,7 +95,7 @@ router.get('/items', auth, async (req, res) => {
       .eq('store_id', store_id)
       .order('category')
       .order('group_name')
-      .order('variant_name');
+      .order('variant_name')
       .limit(5000);
 
     if (error) throw error;
