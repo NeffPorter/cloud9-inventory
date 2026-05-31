@@ -1,7 +1,7 @@
 const axios = require('axios');
 
 const CLOVER_BASE = 'https://api.clover.com/v3/merchants/';
-
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 async function cloverFetch(endpoint, merchantId, apiToken) {
   const url = `${CLOVER_BASE}${merchantId}/${endpoint}`;
   const response = await axios.get(url, {

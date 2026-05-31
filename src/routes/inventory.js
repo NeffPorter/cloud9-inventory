@@ -159,6 +159,7 @@ router.post('/sync/:store_id', auth, async (req, res) => {
         keepGoing = false;
       } else {
         offset += limit;
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
 
