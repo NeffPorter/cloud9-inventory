@@ -96,6 +96,7 @@ router.get('/items', auth, async (req, res) => {
       .order('category')
       .order('group_name')
       .order('variant_name');
+      .limit(5000);
 
     if (error) throw error;
     res.json({ items: data });
