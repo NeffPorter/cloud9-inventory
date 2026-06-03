@@ -24,19 +24,38 @@
     .page-title { font-size: 24px; font-weight: 700; color: #1a1a2e; }
     .page-subtitle { color: #666; font-size: 14px; margin-top: 4px; }
     .header-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-    .sync-btn {
-      background: #2f5597;
-      color: white;
+    .btn {
       border: none;
       padding: 10px 20px;
       border-radius: 8px;
       font-size: 14px;
       font-weight: 600;
       cursor: pointer;
-      transition: background 0.2s;
+      transition: all 0.2s;
     }
-    .sync-btn:hover { background: #1e3a6e; }
-    .sync-btn:disabled { background: #999; cursor: not-allowed; }
+    .btn-blue { background: #2f5597; color: white; }
+    .btn-blue:hover { background: #1e3a6e; }
+    .btn-gray { background: #666; color: white; }
+    .btn-gray:hover { background: #444; }
+    .btn-green { background: #38761d; color: white; }
+    .btn-green:hover { background: #2a5a14; }
+    .btn-orange { background: #c55a11; color: white; }
+    .btn-orange:hover { background: #a34a0e; }
+    .btn:disabled { background: #999; cursor: not-allowed; }
+    .edit-mode-banner {
+      display: none;
+      background: #fff3cd;
+      border: 2px solid #c55a11;
+      border-radius: 10px;
+      padding: 12px 20px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #c55a11;
+      align-items: center;
+      gap: 12px;
+    }
+    .edit-mode-banner.visible { display: flex; }
     .search-input {
       padding: 10px 16px;
       border: 2px solid #e0e0e0;
@@ -100,7 +119,7 @@
       border-bottom: 2px solid #f0f0f0;
     }
     td {
-      padding: 10px 14px;
+      padding: 8px 14px;
       border-bottom: 1px solid #f8f8f8;
       font-size: 13px;
       color: #333;
@@ -134,24 +153,54 @@
       background: white;
       cursor: pointer;
     }
-    .on-hand-input {
-      width: 60px;
+    .edit-input {
+      width: 70px;
       padding: 4px 8px;
       border: 1px solid #e0e0e0;
       border-radius: 6px;
       font-size: 13px;
       text-align: center;
+      background: #f8f9ff;
+      transition: border-color 0.2s;
     }
-    .on-hand-input:focus { outline: none; border-color: #2f5597; }
+    .edit-input:focus { outline: none; border-color: #2f5597; }
+    .edit-input.changed { border-color: #c55a11; background: #fff8f0; }
+    .view-value { font-size: 13px; color: #333; }
     .loading { text-align: center; padding: 60px; color: #999; font-size: 16px; }
     .empty { text-align: center; padding: 40px; color: #999; }
     .sync-status { font-size: 13px; color: #666; padding: 8px 16px; background: #f0f4ff; border-radius: 8px; }
     .dropping-row td { opacity: 0.5; text-decoration: line-through; }
     .hold-row td { opacity: 0.7; color: #999; }
     .not-tracking-row td { opacity: 0.3; color: #999; }
+    .changes-bar {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #1a1a2e;
+      color: white;
+      padding: 16px 24px;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 14px;
+      font-weight: 600;
+      transform: translateY(150px);
+      transition: transform 0.3s;
+    }
+    .changes-bar.visible { transform: translateY(0); }
   </style>
 </head>
 <body>
+
+  <!-- Floating save bar -->
+  <div class="changes-bar" id="changesBar">
+    <span id="changesCount">Edit mode active</span>
+    <button class="btn btn-gray" onclick="cancelEditMode()">✖ Cancel</button>
+    <button class="btn btn-green" onclick="saveAllChanges()">💾 Save Changes</button>
+  </div>
 
   <div class="container">
     <div class="page-header">
@@ -162,9 +211,14 @@
       <div class="header-actions">
         <input type="text" class="search-input" id="searchInput" placeholder="🔍 Search items..." oninput="filterItems()">
         <span class="sync-status" id="syncStatus"></span>
-        <button class="sync-btn" style="background:#666" onclick="toggleAllCategories()" id="collapseBtn">📂 Collapse All</button>
-        <button class="sync-btn" onclick="syncInventory()" id="syncBtn">🔄 Sync from Clover</button>
+        <button class="btn btn-gray" onclick="toggleAllCategories()" id="collapseBtn">📂 Collapse All</button>
+        <button class="btn btn-orange" onclick="toggleEditMode()" id="editBtn">✏️ Edit</button>
+        <button class="btn btn-blue" onclick="loadInventory()" id="refreshBtn">🔄 Refresh</button>
       </div>
+    </div>
+
+    <div class="edit-mode-banner" id="editBanner">
+      ✏️ Edit Mode — Make your changes below then click Save Changes
     </div>
 
     <div class="stats-row" id="statsRow"></div>
@@ -182,7 +236,9 @@
 
     let allItems = [];
     let storeName = '';
-    let allCollapsed = false;
+    let allCollapsedState = false;
+    let pendingChanges = {};
+    let editMode = false;
 
     async function loadStoreName() {
       const res = await fetch('/api/inventory/stores', {
@@ -293,30 +349,56 @@
           html += items.map(item => {
             const qty = item.clover_qty || 0;
             const qtyClass = qty < 0 ? 'stock-negative' : qty === 0 ? 'stock-out' : qty <= 5 ? 'stock-low' : 'stock-good';
-            const rowClass = item.status === 'Dropping' ? 'dropping-row' : item.status === 'On Hold' ? 'hold-row' : item.status === 'Not Tracking' ? 'not-tracking-row' : '';
+            const rowClass = item.status === 'Dropping' ? 'dropping-row' :
+                            item.status === 'On Hold' ? 'hold-row' :
+                            item.status === 'Not Tracking' ? 'not-tracking-row' : '';
 
-            return `
-              <tr class="${rowClass}">
-                <td class="item-name">${item.variant_name}</td>
-                <td>$${(item.cost || 0).toFixed(2)}</td>
-                <td>$${(item.price || 0).toFixed(2)}</td>
-                <td>
-                  <input type="number" class="on-hand-input"
-                    value="${item.on_hand_qty || ''}"
-                    placeholder="—"
-                    onchange="updateOnHand('${item.id}', this.value)">
-                </td>
-                <td class="${qtyClass}">${qty}</td>
-                <td>${item.suggested_order > 0 ? `<span class="suggested-badge">Order ${item.suggested_order}</span>` : '—'}</td>
-                <td>
-                  <select class="status-select" onchange="updateStatus('${item.id}', this.value)">
-                    <option value="Active" ${item.status === 'Active' ? 'selected' : ''}>Active</option>
-                    <option value="Dropping" ${item.status === 'Dropping' ? 'selected' : ''}>Dropping</option>
-                    <option value="On Hold" ${item.status === 'On Hold' ? 'selected' : ''}>On Hold</option>
-                    <option value="Not Tracking" ${item.status === 'Not Tracking' ? 'selected' : ''}>Not Tracking</option>
-                  </select>
-                </td>
-              </tr>`;
+            if (editMode) {
+              return `
+                <tr class="${rowClass}" data-item-id="${item.id}">
+                  <td class="item-name">${item.variant_name}</td>
+                  <td>
+                    <input type="number" step="0.01" class="edit-input" data-field="cost" data-item="${item.id}" data-original="${(item.cost || 0).toFixed(2)}"
+                      value="${(item.cost || 0).toFixed(2)}" onchange="markChanged(this)">
+                  </td>
+                  <td>
+                    <input type="number" step="0.01" class="edit-input" data-field="price" data-item="${item.id}" data-original="${(item.price || 0).toFixed(2)}"
+                      value="${(item.price || 0).toFixed(2)}" onchange="markChanged(this)">
+                  </td>
+                  <td>
+                    <input type="number" class="edit-input" data-field="on_hand_qty" data-item="${item.id}" data-original="${item.on_hand_qty || ''}"
+                      value="${item.on_hand_qty || ''}" placeholder="—" onchange="markChanged(this)">
+                  </td>
+                  <td class="${qtyClass}">${qty}</td>
+                  <td>${item.suggested_order > 0 ? `<span class="suggested-badge">Order ${item.suggested_order}</span>` : '—'}</td>
+                  <td>
+                    <select class="status-select" onchange="updateStatus('${item.id}', this.value)">
+                      <option value="Active" ${item.status === 'Active' ? 'selected' : ''}>Active</option>
+                      <option value="Dropping" ${item.status === 'Dropping' ? 'selected' : ''}>Dropping</option>
+                      <option value="On Hold" ${item.status === 'On Hold' ? 'selected' : ''}>On Hold</option>
+                      <option value="Not Tracking" ${item.status === 'Not Tracking' ? 'selected' : ''}>Not Tracking</option>
+                    </select>
+                  </td>
+                </tr>`;
+            } else {
+              return `
+                <tr class="${rowClass}">
+                  <td class="item-name">${item.variant_name}</td>
+                  <td>$${(item.cost || 0).toFixed(2)}</td>
+                  <td>$${(item.price || 0).toFixed(2)}</td>
+                  <td>${item.on_hand_qty || '—'}</td>
+                  <td class="${qtyClass}">${qty}</td>
+                  <td>${item.suggested_order > 0 ? `<span class="suggested-badge">Order ${item.suggested_order}</span>` : '—'}</td>
+                  <td>
+                    <select class="status-select" onchange="updateStatus('${item.id}', this.value)">
+                      <option value="Active" ${item.status === 'Active' ? 'selected' : ''}>Active</option>
+                      <option value="Dropping" ${item.status === 'Dropping' ? 'selected' : ''}>Dropping</option>
+                      <option value="On Hold" ${item.status === 'On Hold' ? 'selected' : ''}>On Hold</option>
+                      <option value="Not Tracking" ${item.status === 'Not Tracking' ? 'selected' : ''}>Not Tracking</option>
+                    </select>
+                  </td>
+                </tr>`;
+            }
           }).join('');
 
           return html;
@@ -348,12 +430,110 @@
       }).join('');
     }
 
+    function toggleEditMode() {
+      editMode = !editMode;
+      pendingChanges = {};
+
+      const editBtn = document.getElementById('editBtn');
+      const banner = document.getElementById('editBanner');
+      const bar = document.getElementById('changesBar');
+
+      if (editMode) {
+        editBtn.textContent = '✖ Exit Edit';
+        editBtn.classList.remove('btn-orange');
+        editBtn.classList.add('btn-gray');
+        banner.classList.add('visible');
+        bar.classList.add('visible');
+      } else {
+        editBtn.textContent = '✏️ Edit';
+        editBtn.classList.add('btn-orange');
+        editBtn.classList.remove('btn-gray');
+        banner.classList.remove('visible');
+        bar.classList.remove('visible');
+      }
+
+      renderInventory(allItems);
+    }
+
+    function cancelEditMode() {
+      editMode = false;
+      pendingChanges = {};
+      document.getElementById('editBtn').textContent = '✏️ Edit';
+      document.getElementById('editBtn').classList.add('btn-orange');
+      document.getElementById('editBtn').classList.remove('btn-gray');
+      document.getElementById('editBanner').classList.remove('visible');
+      document.getElementById('changesBar').classList.remove('visible');
+      renderInventory(allItems);
+    }
+
+    function markChanged(input) {
+      const itemId = input.dataset.item;
+      const field = input.dataset.field;
+      const value = input.value;
+      const original = input.dataset.original;
+
+      if (value !== original) {
+        input.classList.add('changed');
+        if (!pendingChanges[itemId]) pendingChanges[itemId] = {};
+        pendingChanges[itemId][field] = field === 'on_hand_qty'
+          ? (parseInt(value) || 0)
+          : (parseFloat(value) || 0);
+      } else {
+        input.classList.remove('changed');
+        if (pendingChanges[itemId]) {
+          delete pendingChanges[itemId][field];
+          if (Object.keys(pendingChanges[itemId]).length === 0) {
+            delete pendingChanges[itemId];
+          }
+        }
+      }
+
+      const count = Object.keys(pendingChanges).length;
+      document.getElementById('changesCount').textContent =
+        count > 0 ? `${count} item${count > 1 ? 's' : ''} changed` : 'Edit mode active';
+    }
+
+    async function saveAllChanges() {
+      const itemIds = Object.keys(pendingChanges);
+      if (itemIds.length === 0) {
+        cancelEditMode();
+        return;
+      }
+
+      document.getElementById('changesCount').textContent = 'Saving...';
+
+      let saved = 0;
+      for (const itemId of itemIds) {
+        try {
+          await fetch(`/api/inventory/items/${itemId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify(pendingChanges[itemId])
+          });
+          const item = allItems.find(i => i.id === itemId);
+          if (item) Object.assign(item, pendingChanges[itemId]);
+          saved++;
+        } catch (err) {
+          console.error('Save error:', err);
+        }
+      }
+
+      document.getElementById('changesCount').textContent = `✅ Saved ${saved} items!`;
+      pendingChanges = {};
+
+      setTimeout(() => {
+        cancelEditMode();
+      }, 1500);
+    }
+
     function toggleCategory(id) {
       const el = document.getElementById(id);
       if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
     }
 
-    let allCollapsedState = false;
     function toggleAllCategories() {
       allCollapsedState = !allCollapsedState;
       document.querySelectorAll('[id^="cat-"]').forEach(el => {
@@ -382,59 +562,6 @@
         renderInventory(allItems);
       } catch (err) {
         console.error('Update status error:', err);
-      }
-    }
-
-    async function updateOnHand(itemId, value) {
-      try {
-        const on_hand_qty = parseInt(value) || 0;
-        await fetch(`/api/inventory/items/${itemId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + token
-          },
-          body: JSON.stringify({ on_hand_qty })
-        });
-        const item = allItems.find(i => i.id === itemId);
-        if (item) item.on_hand_qty = on_hand_qty;
-      } catch (err) {
-        console.error('Update on hand error:', err);
-      }
-    }
-
-    async function syncInventory() {
-      const btn = document.getElementById('syncBtn');
-      btn.disabled = true;
-      btn.textContent = '🔄 Syncing...';
-
-      try {
-        const res = await fetch(`/api/inventory/sync/${storeId}`, {
-          method: 'POST',
-          headers: { 'Authorization': 'Bearer ' + token }
-        });
-        const data = await res.json();
-
-        if (res.ok) {
-          btn.textContent = `✅ Synced ${data.synced} items!`;
-          setTimeout(() => {
-            btn.textContent = '🔄 Sync from Clover';
-            btn.disabled = false;
-          }, 3000);
-          loadInventory();
-        } else {
-          btn.textContent = '❌ Sync failed';
-          setTimeout(() => {
-            btn.textContent = '🔄 Sync from Clover';
-            btn.disabled = false;
-          }, 3000);
-        }
-      } catch (err) {
-        btn.textContent = '❌ Error';
-        setTimeout(() => {
-          btn.textContent = '🔄 Sync from Clover';
-          btn.disabled = false;
-        }, 3000);
       }
     }
 

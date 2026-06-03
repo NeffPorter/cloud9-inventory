@@ -51,17 +51,81 @@ router.post('/stores', auth, async (req, res) => {
       .select()
       .single();
     if (error) throw error;
+
     await supabase.from('store_settings').insert([{
       store_id: data.id,
       lead_time: 5,
       buffer_days: 14
     }]);
+
+    // Auto-sync inventory in background
+    triggerBackgroundSync(data);
+
     res.json({ store: data });
   } catch (err) {
     console.error('Add store error:', err);
     res.status(500).json({ error: 'Failed to add store' });
   }
 });
+
+async function triggerBackgroundSync(store) {
+  try {
+    console.log(`🔄 Starting background sync for ${store.name}...`);
+    const { cloverFetch } = require('../services/clover');
+
+    let allItems = [];
+    let offset = 0;
+    const limit = 200;
+    let keepGoing = true;
+
+    while (keepGoing) {
+      const data = await cloverFetch(
+        `items?expand=itemStock,categories,itemGroup&limit=${limit}&offset=${offset}`,
+        store.merchant_id,
+        store.api_token
+      );
+      const elements = data.elements || [];
+      allItems = allItems.concat(elements);
+      if (elements.length < limit) {
+        keepGoing = false;
+      } else {
+        offset += limit;
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+
+    const groupsData = await cloverFetch('item_groups?limit=1000', store.merchant_id, store.api_token);
+    const groupMap = {};
+    (groupsData.elements || []).forEach(g => {
+      if (g.id && g.name) groupMap[g.id] = g.name.trim();
+    });
+
+    for (const item of allItems) {
+      if (item.deleted || !item.name) continue;
+      const category = item.categories?.elements?.[0]?.name || 'No Category';
+      const groupName = item.itemGroup?.id ? (groupMap[item.itemGroup.id] || '') : '';
+      const cloverQty = item.itemStock ? item.itemStock.quantity : 0;
+      const cost = item.cost ? (item.cost / 100) : 0;
+      const price = item.price ? (item.price / 100) : 0;
+
+      await supabase.from('inventory_items').upsert([{
+        id: item.id,
+        store_id: store.id,
+        category,
+        group_name: groupName,
+        variant_name: cleanVariantName(groupName, item.name),
+        cost,
+        price,
+        clover_qty: cloverQty,
+        last_synced: new Date().toISOString()
+      }], { onConflict: 'id' });
+    }
+
+    console.log(`✅ Background sync complete for ${store.name}: ${allItems.length} items`);
+  } catch (err) {
+    console.error(`Background sync failed for ${store.name}:`, err.message);
+  }
+}
 
 // Delete a store (admin only)
 router.delete('/stores/:id', auth, async (req, res) => {
