@@ -165,7 +165,6 @@
     }
     .edit-input:focus { outline: none; border-color: #2f5597; }
     .edit-input.changed { border-color: #c55a11; background: #fff8f0; }
-    .view-value { font-size: 13px; color: #333; }
     .loading { text-align: center; padding: 60px; color: #999; font-size: 16px; }
     .empty { text-align: center; padding: 40px; color: #999; }
     .sync-status { font-size: 13px; color: #666; padding: 8px 16px; background: #f0f4ff; border-radius: 8px; }
@@ -195,7 +194,6 @@
 </head>
 <body>
 
-  <!-- Floating save bar -->
   <div class="changes-bar" id="changesBar">
     <span id="changesCount">Edit mode active</span>
     <button class="btn btn-gray" onclick="cancelEditMode()">✖ Cancel</button>
@@ -264,7 +262,7 @@
           document.getElementById('inventoryContainer').innerHTML = `
             <div class="empty">
               <h3 style="font-size:18px;color:#666;margin-bottom:8px">No inventory yet</h3>
-              <p style="color:#999">Click "Sync from Clover" to import your inventory</p>
+              <p style="color:#999">Inventory will populate automatically from Clover</p>
             </div>`;
           updateStats([]);
           return;
@@ -343,7 +341,7 @@
           let html = '';
 
           if (grpName !== '___standalone') {
-            html += `<tr class="group-row"><td colspan="7">${grpName}</td></tr>`;
+            html += `<tr class="group-row"><td colspan="6">${grpName}</td></tr>`;
           }
 
           html += items.map(item => {
@@ -355,7 +353,7 @@
 
             if (editMode) {
               return `
-                <tr class="${rowClass}" data-item-id="${item.id}">
+                <tr class="${rowClass}">
                   <td class="item-name">${item.variant_name}</td>
                   <td>
                     <input type="number" step="0.01" class="edit-input" data-field="cost" data-item="${item.id}" data-original="${(item.cost || 0).toFixed(2)}"
@@ -366,10 +364,9 @@
                       value="${(item.price || 0).toFixed(2)}" onchange="markChanged(this)">
                   </td>
                   <td>
-                    <input type="number" class="edit-input" data-field="on_hand_qty" data-item="${item.id}" data-original="${item.on_hand_qty || ''}"
-                      value="${item.on_hand_qty || ''}" placeholder="—" onchange="markChanged(this)">
+                    <input type="number" class="edit-input" data-field="clover_qty" data-item="${item.id}" data-original="${qty}"
+                      value="${qty}" onchange="markChanged(this)">
                   </td>
-                  <td class="${qtyClass}">${qty}</td>
                   <td>${item.suggested_order > 0 ? `<span class="suggested-badge">Order ${item.suggested_order}</span>` : '—'}</td>
                   <td>
                     <select class="status-select" onchange="updateStatus('${item.id}', this.value)">
@@ -386,7 +383,6 @@
                   <td class="item-name">${item.variant_name}</td>
                   <td>$${(item.cost || 0).toFixed(2)}</td>
                   <td>$${(item.price || 0).toFixed(2)}</td>
-                  <td>${item.on_hand_qty || '—'}</td>
                   <td class="${qtyClass}">${qty}</td>
                   <td>${item.suggested_order > 0 ? `<span class="suggested-badge">Order ${item.suggested_order}</span>` : '—'}</td>
                   <td>
@@ -417,7 +413,6 @@
                     <th>Item / Variant</th>
                     <th>Cost</th>
                     <th>Price</th>
-                    <th>On Hand</th>
                     <th>Clover Qty</th>
                     <th>Suggested Order</th>
                     <th>Status</th>
@@ -475,7 +470,7 @@
       if (value !== original) {
         input.classList.add('changed');
         if (!pendingChanges[itemId]) pendingChanges[itemId] = {};
-        pendingChanges[itemId][field] = field === 'on_hand_qty'
+        pendingChanges[itemId][field] = field === 'clover_qty'
           ? (parseInt(value) || 0)
           : (parseFloat(value) || 0);
       } else {
@@ -495,10 +490,7 @@
 
     async function saveAllChanges() {
       const itemIds = Object.keys(pendingChanges);
-      if (itemIds.length === 0) {
-        cancelEditMode();
-        return;
-      }
+      if (itemIds.length === 0) { cancelEditMode(); return; }
 
       document.getElementById('changesCount').textContent = 'Saving...';
 
@@ -523,10 +515,7 @@
 
       document.getElementById('changesCount').textContent = `✅ Saved ${saved} items!`;
       pendingChanges = {};
-
-      setTimeout(() => {
-        cancelEditMode();
-      }, 1500);
+      setTimeout(() => cancelEditMode(), 1500);
     }
 
     function toggleCategory(id) {

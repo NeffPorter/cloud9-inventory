@@ -45,7 +45,21 @@ async function pushStockToClover(merchantId, apiToken, itemId, qtyToAdd) {
     return false;
   }
 }
-
+async function setStockInClover(merchantId, apiToken, itemId, quantity) {
+  try {
+    const url = `${CLOVER_BASE}${merchantId}/item_stocks/${itemId}`;
+    await axios.post(url, { quantity }, {
+      headers: {
+        'Authorization': 'Bearer ' + apiToken,
+        'Content-Type': 'application/json'
+      }
+    });
+    return true;
+  } catch (err) {
+    console.error('setStockInClover error:', err.message);
+    return false;
+  }
+}
 async function updateItemPriceAndCost(merchantId, apiToken, itemId, price, cost) {
   try {
     const url = `${CLOVER_BASE}${merchantId}/items/${itemId}`;
@@ -126,6 +140,7 @@ module.exports = {
   fetchOrderRefunds,
   fetchItem,
   pushStockToClover,
+  setStockInClover,
   updateItemPriceAndCost,
   extractLineItems,
   extractRefundedItems

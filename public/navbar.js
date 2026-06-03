@@ -26,6 +26,8 @@ function loadNavbar() {
             <div class="dropdown" id="inventoryDropdown">
               <div class="dropdown-header">By Store</div>
               <div id="inventoryStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
+              <div class="dropdown-header">Tools</div>
+              <div id="stocktakeStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
             </div>
           </div>
 
@@ -167,6 +169,11 @@ async function loadNavbarStores() {
         <div class="nav-item" style="position:relative">
           <button class="nav-btn" onclick="window.location.href='/inventory?store=${store.id}'">📦 Inventory</button>
         </div>`;
+        const stocktakeLinks = stores.map(s =>
+          `<button class="dropdown-item" onclick="window.location.href='/stocktake?store=${s.id}'">📋 ${s.name} — Stock Take</button>`
+        ).join('') || '<div style="padding:12px 16px;color:#999;font-size:13px">No stores yet</div>';
+
+        document.getElementById('stocktakeStoreList').innerHTML = stocktakeLinks;
 
       document.getElementById('poStoreList').closest('.nav-item').outerHTML = `
         <div class="nav-item" style="position:relative">

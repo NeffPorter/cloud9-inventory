@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const { createClient } = require('@supabase/supabase-js');
-
+const { cloverFetch, updateItemPriceAndCost, setStockInClover } = require('../services/clover');
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_ANON_KEY
@@ -185,11 +185,9 @@ router.get('/items', auth, async (req, res) => {
     res.status(500).json({ error: 'Failed to load inventory' });
   }
 });
-
-// Update item
 router.put('/items/:id', auth, async (req, res) => {
   try {
-    const { status, on_hand_qty, suggested_order, price, cost } = req.body;
+    const { status, on_hand_qty, suggested_order, price, cost, clover_qty } = req.body;
 
     const updateData = {};
     if (status !== undefined) updateData.status = status;
@@ -197,6 +195,7 @@ router.put('/items/:id', auth, async (req, res) => {
     if (suggested_order !== undefined) updateData.suggested_order = suggested_order;
     if (price !== undefined) updateData.price = price;
     if (cost !== undefined) updateData.cost = cost;
+    if (clover_qty !== undefined) updateData.clover_qty = clover_qty;
 
     const { data, error } = await supabase
       .from('inventory_items')
@@ -207,7 +206,7 @@ router.put('/items/:id', auth, async (req, res) => {
 
     if (error) throw error;
 
-    if ((price !== undefined || cost !== undefined) && data) {
+    if (data) {
       const { data: store } = await supabase
         .from('stores')
         .select('*')
@@ -215,14 +214,23 @@ router.put('/items/:id', auth, async (req, res) => {
         .single();
 
       if (store) {
-        const { updateItemPriceAndCost } = require('../services/clover');
-        await updateItemPriceAndCost(
-          store.merchant_id,
-          store.api_token,
-          req.params.id,
-          price !== undefined ? price : data.price,
-          cost !== undefined ? cost : data.cost
-        );
+        if (price !== undefined || cost !== undefined) {
+          await updateItemPriceAndCost(
+            store.merchant_id,
+            store.api_token,
+            req.params.id,
+            price !== undefined ? price : data.price,
+            cost !== undefined ? cost : data.cost
+          );
+        }
+        if (clover_qty !== undefined) {
+          await setStockInClover(
+            store.merchant_id,
+            store.api_token,
+            req.params.id,
+            clover_qty
+          );
+        }
       }
     }
 

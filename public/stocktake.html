@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloud 9 - Stock Take</title>
+  <script src="/navbar.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      min-height: 100vh;
+    }
+    .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .page-title { font-size: 24px; font-weight: 700; color: #1a1a2e; }
+    .page-subtitle { color: #666; font-size: 14px; margin-top: 4px; }
+    .header-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .btn {
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-blue { background: #2f5597; color: white; }
+    .btn-blue:hover { background: #1e3a6e; }
+    .btn-gray { background: #666; color: white; }
+    .btn-gray:hover { background: #444; }
+    .btn-green { background: #38761d; color: white; }
+    .btn-green:hover { background: #2a5a14; }
+    .btn-orange { background: #c55a11; color: white; }
+    .btn-orange:hover { background: #a34a0e; }
+    .btn-red { background: #c00; color: white; }
+    .btn-red:hover { background: #900; }
+    .btn:disabled { background: #999; cursor: not-allowed; }
+    .steps {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+    }
+    .step {
+      background: white;
+      border-radius: 10px;
+      padding: 16px 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      flex: 1;
+      min-width: 200px;
+      opacity: 0.5;
+      border: 2px solid transparent;
+    }
+    .step.active {
+      opacity: 1;
+      border-color: #2f5597;
+    }
+    .step.done {
+      opacity: 1;
+      border-color: #38761d;
+      background: #f0fff4;
+    }
+    .step-number {
+      font-size: 11px;
+      font-weight: 700;
+      color: #999;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+    .step-title { font-size: 14px; font-weight: 700; color: #1a1a2e; }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      margin-bottom: 24px;
+    }
+    .card-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 16px;
+    }
+    .category-section { margin-bottom: 20px; }
+    .category-header {
+      background: #2f5597;
+      color: white;
+      padding: 10px 16px;
+      border-radius: 8px 8px 0 0;
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .category-body {
+      background: white;
+      border: 1px solid #e0e0e0;
+      border-top: none;
+      border-radius: 0 0 8px 8px;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      color: #999;
+      text-transform: uppercase;
+      padding: 8px 14px;
+      background: #f8f9fa;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    td {
+      padding: 8px 14px;
+      border-bottom: 1px solid #f8f8f8;
+      font-size: 13px;
+    }
+    tr:last-child td { border-bottom: none; }
+    .group-row td {
+      background: #f0f4ff;
+      font-weight: 700;
+      color: #2f5597;
+      font-size: 12px;
+      padding: 6px 14px;
+    }
+    .count-input {
+      width: 80px;
+      padding: 6px 10px;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 14px;
+      text-align: center;
+      transition: border-color 0.2s;
+    }
+    .count-input:focus { outline: none; border-color: #2f5597; }
+    .count-input.entered { border-color: #38761d; background: #f0fff4; }
+    .discrepancy-high { color: #c00; font-weight: 700; }
+    .discrepancy-low { color: #c55a11; font-weight: 700; }
+    .discrepancy-ok { color: #38761d; font-weight: 700; }
+    .report-card {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      margin-bottom: 16px;
+    }
+    .report-summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    .summary-stat {
+      background: #f8f9fa;
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+    }
+    .summary-value { font-size: 28px; font-weight: 800; color: #1a1a2e; }
+    .summary-label { font-size: 12px; color: #999; font-weight: 600; margin-top: 4px; }
+    .loading { text-align: center; padding: 40px; color: #999; }
+    .print-only { display: none; }
+    @media print {
+      .no-print { display: none !important; }
+      .print-only { display: block; }
+      body { background: white; }
+      .container { padding: 0; }
+      .count-input { border: 1px solid #ccc; }
+      .navbar { display: none; }
+    }
+    .changes-bar {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #1a1a2e;
+      color: white;
+      padding: 16px 24px;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 14px;
+      font-weight: 600;
+      transform: translateY(150px);
+      transition: transform 0.3s;
+    }
+    .changes-bar.visible { transform: translateY(0); }
+  </style>
+</head>
+<body>
+
+  <div class="changes-bar" id="submitBar">
+    <span id="countedItems">0 items counted</span>
+    <button class="btn btn-green" onclick="generateReport()">📊 Generate Report</button>
+  </div>
+
+  <div class="container">
+    <div class="page-header">
+      <div>
+        <div class="page-title" id="pageTitle">📋 Stock Take</div>
+        <div class="page-subtitle" id="pageSubtitle">Count your inventory and compare to Clover</div>
+      </div>
+      <div class="header-actions no-print">
+        <button class="btn btn-gray" onclick="window.print()" id="printBtn">🖨️ Print Count Sheet</button>
+        <button class="btn btn-blue" onclick="loadInventory()" id="refreshBtn">🔄 Refresh</button>
+      </div>
+    </div>
+
+    <div class="steps">
+      <div class="step active" id="step1">
+        <div class="step-number">Step 1</div>
+        <div class="step-title">🖨️ Print & Count</div>
+      </div>
+      <div class="step" id="step2">
+        <div class="step-number">Step 2</div>
+        <div class="step-title">✍️ Enter Counts</div>
+      </div>
+      <div class="step" id="step3">
+        <div class="step-number">Step 3</div>
+        <div class="step-title">📊 View Report</div>
+      </div>
+    </div>
+
+    <div id="countSection">
+      <div id="inventoryContainer" class="loading">Loading inventory...</div>
+    </div>
+
+    <div id="reportSection" style="display:none">
+      <div class="report-card">
+        <div class="card-title">📊 Stock Take Report — <span id="reportDate"></span></div>
+        <div class="report-summary" id="reportSummary"></div>
+      </div>
+      <div id="reportDetails"></div>
+      <div class="no-print" style="display:flex;gap:12px;margin-top:16px">
+        <button class="btn btn-gray" onclick="backToCount()">← Back to Count</button>
+        <button class="btn btn-blue" onclick="window.print()">🖨️ Print Report</button>
+        <button class="btn btn-green" onclick="applyCountsToClover()">✅ Apply Counts to Clover</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    if (!token) window.location.href = '/';
+
+    const params = new URLSearchParams(window.location.search);
+    const storeId = params.get('store');
+    if (!storeId) window.location.href = '/dashboard';
+
+    let allItems = [];
+    let counts = {};
+
+    async function loadStoreName() {
+      const res = await fetch('/api/inventory/stores', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const data = await res.json();
+      const store = (data.stores || []).find(s => s.id === storeId);
+      if (store) {
+        document.getElementById('pageTitle').textContent = `📋 ${store.name} — Stock Take`;
+      }
+    }
+
+    async function loadInventory() {
+      try {
+        const res = await fetch(`/api/inventory/items?store_id=${storeId}`, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await res.json();
+        allItems = data.items.filter(i => i.status === 'Active') || [];
+        renderCountSheet();
+      } catch (err) {
+        document.getElementById('inventoryContainer').innerHTML = '<div class="loading">Error loading inventory</div>';
+      }
+    }
+
+    function renderCountSheet() {
+      const categories = {};
+      allItems.forEach(item => {
+        const cat = item.category || 'No Category';
+        if (!categories[cat]) categories[cat] = {};
+        const grp = item.group_name || '___standalone';
+        if (!categories[cat][grp]) categories[cat][grp] = [];
+        categories[cat][grp].push(item);
+      });
+
+      const container = document.getElementById('inventoryContainer');
+      container.innerHTML = Object.keys(categories).sort().map(catName => {
+        const groups = categories[catName];
+
+        const rows = Object.keys(groups).sort().map(grpName => {
+          const items = groups[grpName];
+          let html = '';
+
+          if (grpName !== '___standalone') {
+            html += `<tr class="group-row"><td colspan="4">${grpName}</td></tr>`;
+          }
+
+          html += items.map(item => `
+            <tr>
+              <td>${item.variant_name}</td>
+              <td style="color:#999">${item.clover_qty || 0}</td>
+              <td>
+                <input type="number" class="count-input no-print" 
+                  id="count-${item.id}"
+                  placeholder="—"
+                  onchange="updateCount('${item.id}', this.value)"
+                  value="${counts[item.id] !== undefined ? counts[item.id] : ''}">
+                <span class="print-only" style="display:inline-block;width:80px;border-bottom:1px solid #ccc">&nbsp;</span>
+              </td>
+              <td style="color:#999;font-size:12px" id="diff-${item.id}">—</td>
+            </tr>
+          `).join('');
+
+          return html;
+        }).join('');
+
+        return `
+          <div class="category-section">
+            <div class="category-header">
+              ${catName}
+              <span style="font-size:12px;opacity:0.8">${Object.values(groups).flat().length} items</span>
+            </div>
+            <div class="category-body">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Item</th>
+                    <th>System Qty</th>
+                    <th>Counted Qty</th>
+                    <th>Difference</th>
+                  </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>
+          </div>`;
+      }).join('');
+
+      updateSubmitBar();
+    }
+
+    function updateCount(itemId, value) {
+      if (value === '' || value === null) {
+        delete counts[itemId];
+        document.getElementById(`diff-${itemId}`).textContent = '—';
+        document.getElementById(`diff-${itemId}`).className = '';
+      } else {
+        const counted = parseInt(value) || 0;
+        counts[itemId] = counted;
+        document.getElementById(`count-${itemId}`)?.classList.add('entered');
+
+        const item = allItems.find(i => i.id === itemId);
+        if (item) {
+          const diff = counted - (item.clover_qty || 0);
+          const diffEl = document.getElementById(`diff-${itemId}`);
+          diffEl.textContent = diff > 0 ? `+${diff}` : diff;
+          diffEl.className = diff > 0 ? 'discrepancy-high' : diff < 0 ? 'discrepancy-low' : 'discrepancy-ok';
+        }
+      }
+      updateSubmitBar();
+    }
+
+    function updateSubmitBar() {
+      const count = Object.keys(counts).length;
+      const bar = document.getElementById('submitBar');
+      document.getElementById('countedItems').textContent = `${count} item${count !== 1 ? 's' : ''} counted`;
+      if (count > 0) {
+        bar.classList.add('visible');
+        document.getElementById('step2').classList.add('active');
+      } else {
+        bar.classList.remove('visible');
+      }
+    }
+
+    function generateReport() {
+      document.getElementById('step2').classList.add('done');
+      document.getElementById('step3').classList.add('active');
+      document.getElementById('submitBar').classList.remove('visible');
+      document.getElementById('countSection').style.display = 'none';
+      document.getElementById('reportSection').style.display = 'block';
+      document.getElementById('reportDate').textContent = new Date().toLocaleDateString();
+
+      const countedItems = allItems.filter(i => counts[i.id] !== undefined);
+      let matches = 0, overages = 0, shortages = 0, totalDiscrepancy = 0;
+
+      const discrepancies = countedItems.map(item => {
+        const counted = counts[item.id];
+        const system = item.clover_qty || 0;
+        const diff = counted - system;
+        if (diff === 0) matches++;
+        else if (diff > 0) overages++;
+        else shortages++;
+        totalDiscrepancy += Math.abs(diff);
+        return { item, counted, system, diff };
+      }).filter(d => d.diff !== 0).sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+
+      document.getElementById('reportSummary').innerHTML = `
+        <div class="summary-stat">
+          <div class="summary-value">${countedItems.length}</div>
+          <div class="summary-label">Items Counted</div>
+        </div>
+        <div class="summary-stat">
+          <div class="summary-value" style="color:#38761d">${matches}</div>
+          <div class="summary-label">Exact Matches</div>
+        </div>
+        <div class="summary-stat">
+          <div class="summary-value" style="color:#c00">${shortages}</div>
+          <div class="summary-label">Shortages</div>
+        </div>
+        <div class="summary-stat">
+          <div class="summary-value" style="color:#c55a11">${overages}</div>
+          <div class="summary-label">Overages</div>
+        </div>
+        <div class="summary-stat">
+          <div class="summary-value">${totalDiscrepancy}</div>
+          <div class="summary-label">Total Discrepancy</div>
+        </div>
+      `;
+
+      if (discrepancies.length === 0) {
+        document.getElementById('reportDetails').innerHTML = `
+          <div class="report-card" style="text-align:center;color:#38761d">
+            <h3 style="font-size:20px">✅ Perfect Match!</h3>
+            <p>All counted items match the system quantities.</p>
+          </div>`;
+        return;
+      }
+
+      const categories = {};
+      discrepancies.forEach(d => {
+        const cat = d.item.category || 'No Category';
+        if (!categories[cat]) categories[cat] = [];
+        categories[cat].push(d);
+      });
+
+      document.getElementById('reportDetails').innerHTML = `
+        <div class="report-card">
+          <div class="card-title">⚠️ Discrepancies (${discrepancies.length} items)</div>
+          ${Object.keys(categories).sort().map(catName => `
+            <div class="category-section">
+              <div class="category-header">${catName}</div>
+              <div class="category-body">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      <th>Group</th>
+                      <th>System Qty</th>
+                      <th>Counted</th>
+                      <th>Difference</th>
+                      <th>Possible Reason</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${categories[catName].map(d => `
+                      <tr>
+                        <td>${d.item.variant_name}</td>
+                        <td style="color:#999">${d.item.group_name || '—'}</td>
+                        <td>${d.system}</td>
+                        <td>${d.counted}</td>
+                        <td class="${d.diff > 0 ? 'discrepancy-high' : 'discrepancy-low'}">${d.diff > 0 ? '+' + d.diff : d.diff}</td>
+                        <td style="color:#999;font-size:12px">${d.diff < 0 ? 'Possible theft, damage, or unrecorded sale' : 'Possible receiving error or unrecorded return'}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          `).join('')}
+        </div>`;
+    }
+
+    function backToCount() {
+      document.getElementById('countSection').style.display = 'block';
+      document.getElementById('reportSection').style.display = 'none';
+      document.getElementById('step3').classList.remove('active');
+      updateSubmitBar();
+    }
+
+    async function applyCountsToClover() {
+      if (!confirm('This will update all counted quantities in Clover. Continue?')) return;
+
+      const btn = document.querySelector('[onclick="applyCountsToClover()"]');
+      btn.disabled = true;
+      btn.textContent = 'Applying...';
+
+      let applied = 0;
+      for (const itemId of Object.keys(counts)) {
+        try {
+          await fetch(`/api/inventory/items/${itemId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify({ clover_qty: counts[itemId] })
+          });
+          applied++;
+        } catch (err) {
+          console.error('Apply error:', err);
+        }
+      }
+
+      btn.textContent = `✅ Applied ${applied} counts!`;
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.textContent = '✅ Apply Counts to Clover';
+      }, 3000);
+    }
+
+    loadStoreName();
+    loadInventory();
+  </script>
+  <script>loadNavbar();</script>
+</body>
+</html>
