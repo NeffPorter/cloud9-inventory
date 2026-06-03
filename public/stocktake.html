@@ -438,13 +438,14 @@
           return html;
         }).join('');
 
+        const catId = 'stcount-' + catName.replace(/[^a-zA-Z0-9]/g, '-');
         return `
-          <div class="category-section">
-            <div class="category-header">
-              ${catName}
-              <span style="font-size:12px;opacity:0.8">${Object.values(groups).flat().length} items</span>
-            </div>
-            <div class="category-body">
+                <div class="category-section">
+                    <div class="category-header" onclick="toggleCountCat('${catId}')" style="cursor:pointer">
+                    ${catName}
+                    <span style="font-size:12px;opacity:0.8">${Object.values(groups).flat().length} items ▼</span>
+                    </div>
+                    <div class="category-body" id="${catId}">
               <table>
                 <thead>
                   <tr>
@@ -487,6 +488,11 @@
       const bar = document.getElementById('actionBar');
       document.getElementById('actionText').textContent = `${count} item${count !== 1 ? 's' : ''} counted`;
       bar.classList.toggle('visible', count > 0);
+    }
+    
+    function toggleCountCat(id) {
+        const el = document.getElementById(id);
+        if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
     }
 
     function generateReport() {
