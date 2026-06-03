@@ -670,27 +670,38 @@
       setTimeout(() => printWindow.print(), 500);
     }
 
-    async function applyCountsToClover() {
-      if (!confirm('This will update all counted quantities in Clover. Continue?')) return;
-      const btn = document.querySelector('[onclick="applyCountsToClover()"]');
-      btn.disabled = true;
-      btn.textContent = 'Applying...';
+    async function applyToClover() {
+  if (!confirm('This will adjust Clover quantities based on your count discrepancies. Continue?')) return;
+  const btn = document.querySelector('[onclick="applyToClover()"]');
+  btn.disabled = true;
+  btn.textContent = 'Applying...';
 
-      let applied = 0;
-      for (const itemId of Object.keys(counts)) {
-        try {
-          await fetch(`/api/inventory/items/${itemId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-            body: JSON.stringify({ clover_qty: counts[itemId] })
-          });
-          applied++;
-        } catch (err) { console.error('Apply error:', err); }
-      }
+  const toUpdate = Object.keys(counts).filter(itemId => {
+    const item = allItems.find(i => i.id === itemId);
+    return item && counts[itemId] !== (item.clover_qty || 0);
+  });
 
-      btn.textContent = `✅ Applied ${applied} counts!`;
-      setTimeout(() => { btn.disabled = false; btn.textContent = '✅ Apply Counts to Clover'; }, 3000);
-    }
+  let applied = 0;
+  for (const itemId of toUpdate) {
+    try {
+      const item = allItems.find(i => i.id === itemId);
+      const diff = counts[itemId] - (item.clover_qty || 0);
+      const newQty = (item.clover_qty || 0) + diff;
+
+      await fetch(`/api/inventory/items/${itemId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ clover_qty: newQty })
+      });
+
+      item.clover_qty = newQty;
+      applied++;
+    } catch (err) { console.error('Apply error:', err); }
+  }
+
+  btn.textContent = `✅ Adjusted ${applied} items in Clover!`;
+  setTimeout(() => { btn.disabled = false; btn.textContent = '✅ Apply to Clover'; }, 3000);
+}
 
     loadStoreName();
     loadInventory();
