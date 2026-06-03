@@ -1,7 +1,7 @@
 const axios = require('axios');
 
 const CLOVER_BASE = 'https://api.clover.com/v3/merchants/';
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 async function cloverFetch(endpoint, merchantId, apiToken) {
   const url = `${CLOVER_BASE}${merchantId}/${endpoint}`;
   const response = await axios.get(url, {
@@ -42,6 +42,25 @@ async function pushStockToClover(merchantId, apiToken, itemId, qtyToAdd) {
     return true;
   } catch (err) {
     console.error('pushStockToClover error:', err.message);
+    return false;
+  }
+}
+
+async function updateItemPriceAndCost(merchantId, apiToken, itemId, price, cost) {
+  try {
+    const url = `${CLOVER_BASE}${merchantId}/items/${itemId}`;
+    await axios.post(url, {
+      price: Math.round(price * 100),
+      cost: Math.round(cost * 100)
+    }, {
+      headers: {
+        'Authorization': 'Bearer ' + apiToken,
+        'Content-Type': 'application/json'
+      }
+    });
+    return true;
+  } catch (err) {
+    console.error('updateItemPriceAndCost error:', err.message);
     return false;
   }
 }
@@ -107,6 +126,7 @@ module.exports = {
   fetchOrderRefunds,
   fetchItem,
   pushStockToClover,
+  updateItemPriceAndCost,
   extractLineItems,
   extractRefundedItems
 };
