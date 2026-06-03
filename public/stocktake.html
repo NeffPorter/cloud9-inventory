@@ -41,43 +41,27 @@
     .btn-green:hover { background: #2a5a14; }
     .btn-orange { background: #c55a11; color: white; }
     .btn-orange:hover { background: #a34a0e; }
-    .btn-red { background: #c00; color: white; }
-    .btn-red:hover { background: #900; }
     .btn:disabled { background: #999; cursor: not-allowed; }
-    .steps {
+    .tabs {
       display: flex;
-      gap: 12px;
-      margin-bottom: 32px;
-      flex-wrap: wrap;
+      gap: 4px;
+      margin-bottom: 24px;
+      border-bottom: 2px solid #e0e0e0;
     }
-    .step {
-      background: white;
-      border-radius: 10px;
-      padding: 16px 20px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-      flex: 1;
-      min-width: 200px;
-      opacity: 0.5;
-      border: 2px solid transparent;
+    .tab {
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      background: none;
+      color: #666;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.2s;
     }
-    .step.active {
-      opacity: 1;
-      border-color: #2f5597;
-    }
-    .step.done {
-      opacity: 1;
-      border-color: #38761d;
-      background: #f0fff4;
-    }
-    .step-number {
-      font-size: 11px;
-      font-weight: 700;
-      color: #999;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 4px;
-    }
-    .step-title { font-size: 14px; font-weight: 700; color: #1a1a2e; }
+    .tab.active { color: #2f5597; border-bottom-color: #2f5597; }
+    .tab:hover { color: #2f5597; }
     .card {
       background: white;
       border-radius: 12px;
@@ -86,12 +70,33 @@
       margin-bottom: 24px;
     }
     .card-title {
-      font-size: 18px;
+      font-size: 16px;
       font-weight: 700;
       color: #1a1a2e;
       margin-bottom: 16px;
     }
-    .category-section { margin-bottom: 20px; }
+    .category-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 10px;
+    }
+    .category-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      user-select: none;
+    }
+    .category-checkbox:hover { border-color: #2f5597; background: #f0f4ff; }
+    .category-checkbox.selected { border-color: #2f5597; background: #dce8f8; }
+    .category-checkbox input { cursor: pointer; width: 16px; height: 16px; }
+    .category-checkbox span { font-size: 13px; font-weight: 600; color: #1a1a2e; }
+    .category-checkbox small { color: #999; font-size: 11px; }
+    .category-section { margin-bottom: 24px; }
     .category-header {
       background: #2f5597;
       color: white;
@@ -101,7 +106,6 @@
       font-weight: 700;
       display: flex;
       justify-content: space-between;
-      align-items: center;
     }
     .category-body {
       background: white;
@@ -120,18 +124,14 @@
       background: #f8f9fa;
       border-bottom: 1px solid #f0f0f0;
     }
-    td {
-      padding: 8px 14px;
-      border-bottom: 1px solid #f8f8f8;
-      font-size: 13px;
-    }
+    td { padding: 8px 14px; border-bottom: 1px solid #f8f8f8; font-size: 13px; }
     tr:last-child td { border-bottom: none; }
     .group-row td {
       background: #f0f4ff;
       font-weight: 700;
       color: #2f5597;
       font-size: 12px;
-      padding: 6px 14px;
+      padding: 5px 14px;
     }
     .count-input {
       width: 80px;
@@ -140,23 +140,15 @@
       border-radius: 6px;
       font-size: 14px;
       text-align: center;
-      transition: border-color 0.2s;
     }
     .count-input:focus { outline: none; border-color: #2f5597; }
     .count-input.entered { border-color: #38761d; background: #f0fff4; }
-    .discrepancy-high { color: #c00; font-weight: 700; }
-    .discrepancy-low { color: #c55a11; font-weight: 700; }
+    .discrepancy-over { color: #c55a11; font-weight: 700; }
+    .discrepancy-under { color: #c00; font-weight: 700; }
     .discrepancy-ok { color: #38761d; font-weight: 700; }
-    .report-card {
-      background: white;
-      border-radius: 12px;
-      padding: 24px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-      margin-bottom: 16px;
-    }
     .report-summary {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
       gap: 12px;
       margin-bottom: 24px;
     }
@@ -169,15 +161,6 @@
     .summary-value { font-size: 28px; font-weight: 800; color: #1a1a2e; }
     .summary-label { font-size: 12px; color: #999; font-weight: 600; margin-top: 4px; }
     .loading { text-align: center; padding: 40px; color: #999; }
-    .print-only { display: none; }
-    @media print {
-      .no-print { display: none !important; }
-      .print-only { display: block; }
-      body { background: white; }
-      .container { padding: 0; }
-      .count-input { border: 1px solid #ccc; }
-      .navbar { display: none; }
-    }
     .changes-bar {
       position: fixed;
       bottom: 24px;
@@ -197,58 +180,109 @@
       transition: transform 0.3s;
     }
     .changes-bar.visible { transform: translateY(0); }
+
+    /* PRINT STYLES */
+    @media print {
+      body { background: white; font-family: Arial, sans-serif; }
+      .no-print { display: none !important; }
+      .navbar { display: none !important; }
+      .container { padding: 0; max-width: 100%; }
+      .print-category { page-break-after: always; padding: 20px; }
+      .print-category:last-child { page-break-after: avoid; }
+      .print-category-title {
+        font-size: 20px;
+        font-weight: bold;
+        color: #000;
+        border-bottom: 2px solid #000;
+        padding-bottom: 8px;
+        margin-bottom: 16px;
+      }
+      .print-store-name { font-size: 13px; color: #666; margin-bottom: 4px; }
+      .print-date { font-size: 13px; color: #666; margin-bottom: 16px; }
+      .print-table { width: 100%; border-collapse: collapse; }
+      .print-table th {
+        border-bottom: 1px solid #000;
+        padding: 6px 8px;
+        text-align: left;
+        font-size: 11px;
+        text-transform: uppercase;
+      }
+      .print-table td { border-bottom: 1px solid #ddd; padding: 8px; font-size: 13px; }
+      .print-table .group-header td {
+        background: #f0f0f0;
+        font-weight: bold;
+        font-size: 12px;
+        padding: 4px 8px;
+      }
+      .print-count-line {
+        display: inline-block;
+        width: 80px;
+        border-bottom: 1px solid #000;
+      }
+    }
   </style>
 </head>
 <body>
 
-  <div class="changes-bar" id="submitBar">
-    <span id="countedItems">0 items counted</span>
-    <button class="btn btn-green" onclick="generateReport()">📊 Generate Report</button>
+  <div class="changes-bar" id="actionBar">
+    <span id="actionText">0 items counted</span>
+    <button class="btn btn-green" id="actionBtn" onclick="generateReport()">📊 Generate Report</button>
   </div>
 
   <div class="container">
-    <div class="page-header">
+    <div class="page-header no-print">
       <div>
         <div class="page-title" id="pageTitle">📋 Stock Take</div>
-        <div class="page-subtitle" id="pageSubtitle">Count your inventory and compare to Clover</div>
-      </div>
-      <div class="header-actions no-print">
-        <button class="btn btn-gray" onclick="window.print()" id="printBtn">🖨️ Print Count Sheet</button>
-        <button class="btn btn-blue" onclick="loadInventory()" id="refreshBtn">🔄 Refresh</button>
+        <div class="page-subtitle">Count inventory and generate discrepancy reports</div>
       </div>
     </div>
 
-    <div class="steps">
-      <div class="step active" id="step1">
-        <div class="step-number">Step 1</div>
-        <div class="step-title">🖨️ Print & Count</div>
+    <!-- TABS -->
+    <div class="tabs no-print">
+      <button class="tab active" onclick="showTab('select')" id="tab-select">1. Select Categories</button>
+      <button class="tab" onclick="showTab('count')" id="tab-count">2. Enter Counts</button>
+      <button class="tab" onclick="showTab('report')" id="tab-report">3. Discrepancy Report</button>
+    </div>
+
+    <!-- TAB 1: SELECT CATEGORIES -->
+    <div id="tab-select-content">
+      <div class="card">
+        <div class="card-title">Select categories to count</div>
+        <div style="display:flex;gap:10px;margin-bottom:16px" class="no-print">
+          <button class="btn btn-blue" onclick="selectAllCategories()">Select All</button>
+          <button class="btn btn-gray" onclick="deselectAllCategories()">Deselect All</button>
+        </div>
+        <div class="category-grid" id="categoryGrid">
+          <div class="loading">Loading categories...</div>
+        </div>
       </div>
-      <div class="step" id="step2">
-        <div class="step-number">Step 2</div>
-        <div class="step-title">✍️ Enter Counts</div>
-      </div>
-      <div class="step" id="step3">
-        <div class="step-number">Step 3</div>
-        <div class="step-title">📊 View Report</div>
+      <div style="display:flex;gap:12px" class="no-print">
+        <button class="btn btn-gray" onclick="printCountSheets()" id="printBtn">🖨️ Print Count Sheets</button>
+        <button class="btn btn-blue" onclick="showTab('count')">✍️ Enter Counts →</button>
       </div>
     </div>
 
-    <div id="countSection">
-      <div id="inventoryContainer" class="loading">Loading inventory...</div>
+    <!-- TAB 2: ENTER COUNTS -->
+    <div id="tab-count-content" style="display:none">
+      <div id="countContainer" class="loading">Loading...</div>
     </div>
 
-    <div id="reportSection" style="display:none">
-      <div class="report-card">
-        <div class="card-title">📊 Stock Take Report — <span id="reportDate"></span></div>
+    <!-- TAB 3: REPORT -->
+    <div id="tab-report-content" style="display:none">
+      <div class="card" id="reportSummaryCard">
+        <div class="card-title">📊 Discrepancy Report — <span id="reportDate"></span></div>
         <div class="report-summary" id="reportSummary"></div>
       </div>
       <div id="reportDetails"></div>
-      <div class="no-print" style="display:flex;gap:12px;margin-top:16px">
-        <button class="btn btn-gray" onclick="backToCount()">← Back to Count</button>
+      <div style="display:flex;gap:12px;margin-top:16px" class="no-print">
         <button class="btn btn-blue" onclick="window.print()">🖨️ Print Report</button>
         <button class="btn btn-green" onclick="applyCountsToClover()">✅ Apply Counts to Clover</button>
       </div>
     </div>
+
+    <!-- PRINT CONTENT (hidden on screen, shown when printing) -->
+    <div id="printContent" style="display:none"></div>
+
   </div>
 
   <script>
@@ -261,7 +295,9 @@
     if (!storeId) window.location.href = '/dashboard';
 
     let allItems = [];
+    let selectedCategories = new Set();
     let counts = {};
+    let storeName = '';
 
     async function loadStoreName() {
       const res = await fetch('/api/inventory/stores', {
@@ -270,6 +306,7 @@
       const data = await res.json();
       const store = (data.stores || []).find(s => s.id === storeId);
       if (store) {
+        storeName = store.name;
         document.getElementById('pageTitle').textContent = `📋 ${store.name} — Stock Take`;
       }
     }
@@ -280,16 +317,78 @@
           headers: { 'Authorization': 'Bearer ' + token }
         });
         const data = await res.json();
-        allItems = data.items.filter(i => i.status === 'Active') || [];
-        renderCountSheet();
+        allItems = (data.items || []).filter(i => i.status === 'Active');
+        renderCategorySelection();
       } catch (err) {
-        document.getElementById('inventoryContainer').innerHTML = '<div class="loading">Error loading inventory</div>';
+        document.getElementById('categoryGrid').innerHTML = '<div class="loading">Error loading inventory</div>';
       }
     }
 
-    function renderCountSheet() {
-      const categories = {};
+    function getCategories() {
+      const cats = {};
       allItems.forEach(item => {
+        const cat = item.category || 'No Category';
+        if (!cats[cat]) cats[cat] = 0;
+        cats[cat]++;
+      });
+      return cats;
+    }
+
+    function renderCategorySelection() {
+      const cats = getCategories();
+      const grid = document.getElementById('categoryGrid');
+
+      grid.innerHTML = Object.keys(cats).sort().map(cat => `
+        <label class="category-checkbox ${selectedCategories.has(cat) ? 'selected' : ''}" onclick="toggleCategory('${cat}', this)">
+          <input type="checkbox" ${selectedCategories.has(cat) ? 'checked' : ''} onclick="event.stopPropagation()">
+          <div>
+            <span>${cat}</span><br>
+            <small>${cats[cat]} items</small>
+          </div>
+        </label>
+      `).join('');
+    }
+
+    function toggleCategory(cat, el) {
+      if (selectedCategories.has(cat)) {
+        selectedCategories.delete(cat);
+        el.classList.remove('selected');
+        el.querySelector('input').checked = false;
+      } else {
+        selectedCategories.add(cat);
+        el.classList.add('selected');
+        el.querySelector('input').checked = true;
+      }
+    }
+
+    function selectAllCategories() {
+      const cats = getCategories();
+      Object.keys(cats).forEach(cat => selectedCategories.add(cat));
+      renderCategorySelection();
+    }
+
+    function deselectAllCategories() {
+      selectedCategories.clear();
+      renderCategorySelection();
+    }
+
+    function showTab(tab) {
+      ['select', 'count', 'report'].forEach(t => {
+        document.getElementById(`tab-${t}-content`).style.display = t === tab ? 'block' : 'none';
+        document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
+      });
+
+      if (tab === 'count') renderCountSheet();
+      if (tab === 'report') generateReport();
+    }
+
+    function renderCountSheet() {
+      const filtered = selectedCategories.size > 0
+        ? allItems.filter(i => selectedCategories.has(i.category))
+        : allItems;
+
+      const categories = {};
+      filtered.forEach(item => {
         const cat = item.category || 'No Category';
         if (!categories[cat]) categories[cat] = {};
         const grp = item.group_name || '___standalone';
@@ -297,7 +396,14 @@
         categories[cat][grp].push(item);
       });
 
-      const container = document.getElementById('inventoryContainer');
+      const container = document.getElementById('countContainer');
+      container.className = '';
+
+      if (Object.keys(categories).length === 0) {
+        container.innerHTML = '<div class="loading">No categories selected. Go back and select some!</div>';
+        return;
+      }
+
       container.innerHTML = Object.keys(categories).sort().map(catName => {
         const groups = categories[catName];
 
@@ -309,21 +415,25 @@
             html += `<tr class="group-row"><td colspan="4">${grpName}</td></tr>`;
           }
 
-          html += items.map(item => `
-            <tr>
-              <td>${item.variant_name}</td>
-              <td style="color:#999">${item.clover_qty || 0}</td>
-              <td>
-                <input type="number" class="count-input no-print" 
-                  id="count-${item.id}"
-                  placeholder="—"
-                  onchange="updateCount('${item.id}', this.value)"
-                  value="${counts[item.id] !== undefined ? counts[item.id] : ''}">
-                <span class="print-only" style="display:inline-block;width:80px;border-bottom:1px solid #ccc">&nbsp;</span>
-              </td>
-              <td style="color:#999;font-size:12px" id="diff-${item.id}">—</td>
-            </tr>
-          `).join('');
+          html += items.map(item => {
+            const counted = counts[item.id];
+            const diff = counted !== undefined ? counted - (item.clover_qty || 0) : null;
+            return `
+              <tr>
+                <td>${item.variant_name}</td>
+                <td style="color:#999">${item.clover_qty || 0}</td>
+                <td>
+                  <input type="number" class="count-input ${counted !== undefined ? 'entered' : ''}"
+                    id="count-${item.id}"
+                    placeholder="—"
+                    value="${counted !== undefined ? counted : ''}"
+                    onchange="updateCount('${item.id}', this.value)">
+                </td>
+                <td id="diff-${item.id}" class="${diff === null ? '' : diff > 0 ? 'discrepancy-over' : diff < 0 ? 'discrepancy-under' : 'discrepancy-ok'}">
+                  ${diff === null ? '—' : diff > 0 ? '+' + diff : diff === 0 ? '✓' : diff}
+                </td>
+              </tr>`;
+          }).join('');
 
           return html;
         }).join('');
@@ -340,7 +450,7 @@
                   <tr>
                     <th>Item</th>
                     <th>System Qty</th>
-                    <th>Counted Qty</th>
+                    <th>Your Count</th>
                     <th>Difference</th>
                   </tr>
                 </thead>
@@ -350,61 +460,48 @@
           </div>`;
       }).join('');
 
-      updateSubmitBar();
+      updateActionBar();
     }
 
     function updateCount(itemId, value) {
-      if (value === '' || value === null) {
+      if (value === '') {
         delete counts[itemId];
-        document.getElementById(`diff-${itemId}`).textContent = '—';
-        document.getElementById(`diff-${itemId}`).className = '';
       } else {
-        const counted = parseInt(value) || 0;
-        counts[itemId] = counted;
+        counts[itemId] = parseInt(value) || 0;
         document.getElementById(`count-${itemId}`)?.classList.add('entered');
-
         const item = allItems.find(i => i.id === itemId);
         if (item) {
-          const diff = counted - (item.clover_qty || 0);
-          const diffEl = document.getElementById(`diff-${itemId}`);
-          diffEl.textContent = diff > 0 ? `+${diff}` : diff;
-          diffEl.className = diff > 0 ? 'discrepancy-high' : diff < 0 ? 'discrepancy-low' : 'discrepancy-ok';
+          const diff = counts[itemId] - (item.clover_qty || 0);
+          const el = document.getElementById(`diff-${itemId}`);
+          if (el) {
+            el.textContent = diff > 0 ? '+' + diff : diff === 0 ? '✓' : diff;
+            el.className = diff > 0 ? 'discrepancy-over' : diff < 0 ? 'discrepancy-under' : 'discrepancy-ok';
+          }
         }
       }
-      updateSubmitBar();
+      updateActionBar();
     }
 
-    function updateSubmitBar() {
+    function updateActionBar() {
       const count = Object.keys(counts).length;
-      const bar = document.getElementById('submitBar');
-      document.getElementById('countedItems').textContent = `${count} item${count !== 1 ? 's' : ''} counted`;
-      if (count > 0) {
-        bar.classList.add('visible');
-        document.getElementById('step2').classList.add('active');
-      } else {
-        bar.classList.remove('visible');
-      }
+      const bar = document.getElementById('actionBar');
+      document.getElementById('actionText').textContent = `${count} item${count !== 1 ? 's' : ''} counted`;
+      bar.classList.toggle('visible', count > 0);
     }
 
     function generateReport() {
-      document.getElementById('step2').classList.add('done');
-      document.getElementById('step3').classList.add('active');
-      document.getElementById('submitBar').classList.remove('visible');
-      document.getElementById('countSection').style.display = 'none';
-      document.getElementById('reportSection').style.display = 'block';
       document.getElementById('reportDate').textContent = new Date().toLocaleDateString();
 
       const countedItems = allItems.filter(i => counts[i.id] !== undefined);
-      let matches = 0, overages = 0, shortages = 0, totalDiscrepancy = 0;
+      let matches = 0, overages = 0, shortages = 0, totalOver = 0, totalUnder = 0;
 
       const discrepancies = countedItems.map(item => {
         const counted = counts[item.id];
         const system = item.clover_qty || 0;
         const diff = counted - system;
         if (diff === 0) matches++;
-        else if (diff > 0) overages++;
-        else shortages++;
-        totalDiscrepancy += Math.abs(diff);
+        else if (diff > 0) { overages++; totalOver += diff; }
+        else { shortages++; totalUnder += Math.abs(diff); }
         return { item, counted, system, diff };
       }).filter(d => d.diff !== 0).sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
 
@@ -426,31 +523,36 @@
           <div class="summary-label">Overages</div>
         </div>
         <div class="summary-stat">
-          <div class="summary-value">${totalDiscrepancy}</div>
-          <div class="summary-label">Total Discrepancy</div>
+          <div class="summary-value" style="color:#c00">${totalUnder}</div>
+          <div class="summary-label">Total Short</div>
+        </div>
+        <div class="summary-stat">
+          <div class="summary-value" style="color:#c55a11">${totalOver}</div>
+          <div class="summary-label">Total Over</div>
         </div>
       `;
 
       if (discrepancies.length === 0) {
         document.getElementById('reportDetails').innerHTML = `
-          <div class="report-card" style="text-align:center;color:#38761d">
-            <h3 style="font-size:20px">✅ Perfect Match!</h3>
-            <p>All counted items match the system quantities.</p>
+          <div class="card" style="text-align:center;padding:40px">
+            <div style="font-size:40px;margin-bottom:12px">✅</div>
+            <h3 style="font-size:20px;color:#38761d;margin-bottom:8px">Perfect Match!</h3>
+            <p style="color:#999">All counted items match the system quantities.</p>
           </div>`;
         return;
       }
 
-      const categories = {};
+      const catGroups = {};
       discrepancies.forEach(d => {
         const cat = d.item.category || 'No Category';
-        if (!categories[cat]) categories[cat] = [];
-        categories[cat].push(d);
+        if (!catGroups[cat]) catGroups[cat] = [];
+        catGroups[cat].push(d);
       });
 
       document.getElementById('reportDetails').innerHTML = `
-        <div class="report-card">
-          <div class="card-title">⚠️ Discrepancies (${discrepancies.length} items)</div>
-          ${Object.keys(categories).sort().map(catName => `
+        <div class="card">
+          <div class="card-title">⚠️ ${discrepancies.length} Discrepanc${discrepancies.length === 1 ? 'y' : 'ies'} Found</div>
+          ${Object.keys(catGroups).sort().map(catName => `
             <div class="category-section">
               <div class="category-header">${catName}</div>
               <div class="category-body">
@@ -459,21 +561,21 @@
                     <tr>
                       <th>Item</th>
                       <th>Group</th>
-                      <th>System Qty</th>
+                      <th>System</th>
                       <th>Counted</th>
                       <th>Difference</th>
                       <th>Possible Reason</th>
                     </tr>
                   </thead>
                   <tbody>
-                    ${categories[catName].map(d => `
+                    ${catGroups[catName].map(d => `
                       <tr>
-                        <td>${d.item.variant_name}</td>
+                        <td><strong>${d.item.variant_name}</strong></td>
                         <td style="color:#999">${d.item.group_name || '—'}</td>
                         <td>${d.system}</td>
                         <td>${d.counted}</td>
-                        <td class="${d.diff > 0 ? 'discrepancy-high' : 'discrepancy-low'}">${d.diff > 0 ? '+' + d.diff : d.diff}</td>
-                        <td style="color:#999;font-size:12px">${d.diff < 0 ? 'Possible theft, damage, or unrecorded sale' : 'Possible receiving error or unrecorded return'}</td>
+                        <td class="${d.diff > 0 ? 'discrepancy-over' : 'discrepancy-under'}">${d.diff > 0 ? '+' + d.diff : d.diff}</td>
+                        <td style="color:#999;font-size:12px">${d.diff < 0 ? '⚠️ Possible theft, damage, or missed sale' : '📦 Possible receiving error or unrecorded return'}</td>
                       </tr>
                     `).join('')}
                   </tbody>
@@ -484,16 +586,86 @@
         </div>`;
     }
 
-    function backToCount() {
-      document.getElementById('countSection').style.display = 'block';
-      document.getElementById('reportSection').style.display = 'none';
-      document.getElementById('step3').classList.remove('active');
-      updateSubmitBar();
+    function printCountSheets() {
+      const selected = selectedCategories.size > 0
+        ? allItems.filter(i => selectedCategories.has(i.category))
+        : allItems;
+
+      if (selected.length === 0) {
+        alert('Please select at least one category first!');
+        return;
+      }
+
+      const categories = {};
+      selected.forEach(item => {
+        const cat = item.category || 'No Category';
+        if (!categories[cat]) categories[cat] = {};
+        const grp = item.group_name || '___standalone';
+        if (!categories[cat][grp]) categories[cat][grp] = [];
+        categories[cat][grp].push(item);
+      });
+
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Stock Count Sheet — ${storeName}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+            .page { padding: 24px; page-break-after: always; }
+            .page:last-child { page-break-after: avoid; }
+            .header { border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 16px; }
+            .store { font-size: 12px; color: #666; }
+            .category { font-size: 20px; font-weight: bold; }
+            .date { font-size: 12px; color: #666; margin-top: 4px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+            th { border-bottom: 1px solid #000; padding: 6px 8px; text-align: left; font-size: 11px; text-transform: uppercase; }
+            td { border-bottom: 1px solid #ddd; padding: 8px; font-size: 13px; }
+            .group-td { background: #f0f0f0; font-weight: bold; font-size: 12px; padding: 4px 8px; }
+            .count-line { display: inline-block; width: 80px; border-bottom: 1px solid #000; }
+          </style>
+        </head>
+        <body>
+          ${Object.keys(categories).sort().map(catName => {
+            const groups = categories[catName];
+            const rows = Object.keys(groups).sort().map(grpName => {
+              let html = '';
+              if (grpName !== '___standalone') {
+                html += `<tr><td colspan="2" class="group-td">${grpName}</td></tr>`;
+              }
+              html += groups[grpName].map(item => `
+                <tr>
+                  <td>${item.variant_name}</td>
+                  <td style="width:120px"><span class="count-line">&nbsp;</span></td>
+                </tr>
+              `).join('');
+              return html;
+            }).join('');
+
+            return `
+              <div class="page">
+                <div class="header">
+                  <div class="store">${storeName}</div>
+                  <div class="category">${catName}</div>
+                  <div class="date">Date: _____________________ &nbsp;&nbsp; Counted by: _____________________</div>
+                </div>
+                <table>
+                  <thead><tr><th>Item</th><th>Count</th></tr></thead>
+                  <tbody>${rows}</tbody>
+                </table>
+              </div>`;
+          }).join('')}
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+      printWindow.focus();
+      setTimeout(() => printWindow.print(), 500);
     }
 
     async function applyCountsToClover() {
       if (!confirm('This will update all counted quantities in Clover. Continue?')) return;
-
       const btn = document.querySelector('[onclick="applyCountsToClover()"]');
       btn.disabled = true;
       btn.textContent = 'Applying...';
@@ -503,23 +675,15 @@
         try {
           await fetch(`/api/inventory/items/${itemId}`, {
             method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer ' + token
-            },
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
             body: JSON.stringify({ clover_qty: counts[itemId] })
           });
           applied++;
-        } catch (err) {
-          console.error('Apply error:', err);
-        }
+        } catch (err) { console.error('Apply error:', err); }
       }
 
       btn.textContent = `✅ Applied ${applied} counts!`;
-      setTimeout(() => {
-        btn.disabled = false;
-        btn.textContent = '✅ Apply Counts to Clover';
-      }, 3000);
+      setTimeout(() => { btn.disabled = false; btn.textContent = '✅ Apply Counts to Clover'; }, 3000);
     }
 
     loadStoreName();
