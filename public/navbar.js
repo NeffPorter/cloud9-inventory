@@ -201,6 +201,11 @@ async function loadNavbarStores() {
       document.getElementById('inventoryStoreList').innerHTML = inventoryLinks;
       document.getElementById('poStoreList').innerHTML = poLinks;
       document.getElementById('suggestedStoreList').innerHTML = suggestedLinks;
+      const stocktakeLinks = stores.map(s =>
+  `<button class="dropdown-item" onclick="window.location.href='/stocktake?store=${s.id}'">📋 ${s.name} — Stock Take</button>`
+).join('') || '<div style="padding:12px 16px;color:#999;font-size:13px">No stores yet</div>';
+
+document.getElementById('stocktakeStoreList').innerHTML = stocktakeLinks;
     }
   } catch (err) {
     console.error('Navbar stores error:', err);
