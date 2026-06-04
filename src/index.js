@@ -48,5 +48,14 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+app.get('/stocktake', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/stocktake.html'));
+});
+app.get('/stocktake/new', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/stocktake-new.html'));
+});
+app.get('/stocktake/report', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/stocktake-report.html'));
+});
 
 module.exports = app;
