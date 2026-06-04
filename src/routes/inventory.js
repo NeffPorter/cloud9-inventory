@@ -368,4 +368,88 @@ router.get('/stocktake/reports', auth, async (req, res) => {
     res.status(500).json({ error: 'Failed to load reports' });
   }
 });
+// Save stock take draft
+router.post('/stocktake/drafts', auth, async (req, res) => {
+  try {
+    const { store_id, counts, cat_status } = req.body;
+
+    // Check if draft already exists for this store
+    const { data: existing } = await supabase
+      .from('stock_take_drafts')
+      .select('id')
+      .eq('store_id', store_id)
+      .eq('status', 'in_progress')
+      .single();
+
+    let data, error;
+
+    if (existing) {
+      // Update existing draft
+      ({ data, error } = await supabase
+        .from('stock_take_drafts')
+        .update({ counts, cat_status, updated_at: new Date().toISOString() })
+        .eq('id', existing.id)
+        .select()
+        .single());
+    } else {
+      // Create new draft
+      ({ data, error } = await supabase
+        .from('stock_take_drafts')
+        .insert([{
+          store_id,
+          created_by_name: req.user.name || req.user.email,
+          counts,
+          cat_status
+        }])
+        .select()
+        .single());
+    }
+
+    if (error) throw error;
+    res.json({ draft: data });
+  } catch (err) {
+    console.error('Save draft error:', err);
+    res.status(500).json({ error: 'Failed to save draft' });
+  }
+});
+
+// Get draft for a store
+router.get('/stocktake/drafts', auth, async (req, res) => {
+  try {
+    const { store_id } = req.query;
+
+    let query = supabase
+      .from('stock_take_drafts')
+      .select('*')
+      .eq('status', 'in_progress')
+      .order('updated_at', { ascending: false });
+
+    if (store_id) query = query.eq('store_id', store_id);
+    else if (req.user.role === 'manager' && req.user.store_id) {
+      query = query.eq('store_id', req.user.store_id);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json({ drafts: data });
+  } catch (err) {
+    console.error('Get drafts error:', err);
+    res.status(500).json({ error: 'Failed to load drafts' });
+  }
+});
+
+// Delete draft (when finished)
+router.delete('/stocktake/drafts/:id', auth, async (req, res) => {
+  try {
+    const { error } = await supabase
+      .from('stock_take_drafts')
+      .delete()
+      .eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete draft error:', err);
+    res.status(500).json({ error: 'Failed to delete draft' });
+  }
+});
 module.exports = router;

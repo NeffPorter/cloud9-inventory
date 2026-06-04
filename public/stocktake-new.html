@@ -41,9 +41,6 @@
       box-shadow: 0 2px 8px rgba(0,0,0,0.06);
       margin-bottom: 20px;
     }
-    .card-title { font-size: 18px; font-weight: 700; color: #1a1a2e; margin-bottom: 16px; }
-
-    /* PROGRESS */
     .progress-wrap {
       background: white;
       border-radius: 12px;
@@ -64,11 +61,8 @@
       background: #f0f0f0;
       color: #666;
     }
-    .prog-cat.active { background: #2f5597; color: white; }
     .prog-cat.done-clean { background: #38761d; color: white; }
     .prog-cat.done-issues { background: #c55a11; color: white; }
-
-    /* CATEGORY GRID */
     .cat-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -86,13 +80,10 @@
     .cat-card:hover { border-color: #2f5597; background: #f0f4ff; transform: translateY(-1px); }
     .cat-card.done-clean { border-color: #38761d; background: #f0fff4; }
     .cat-card.done-issues { border-color: #c55a11; background: #fff8f0; }
-    .cat-card.active { border-color: #2f5597; background: #dce8f8; }
     .cat-icon { font-size: 24px; margin-bottom: 8px; }
     .cat-name { font-size: 13px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
     .cat-count { font-size: 12px; color: #999; }
     .cat-status { font-size: 11px; font-weight: 700; margin-top: 6px; }
-
-    /* COUNT TABLE */
     .count-header {
       display: flex;
       justify-content: space-between;
@@ -110,6 +101,11 @@
       font-weight: 600;
       cursor: pointer;
       color: #666;
+    }
+    .autosave-indicator {
+      font-size: 12px;
+      color: #38761d;
+      display: none;
     }
     table { width: 100%; border-collapse: collapse; }
     th {
@@ -138,8 +134,6 @@
     .diff-over { color: #c55a11; font-weight: 700; }
     .diff-under { color: #c00; font-weight: 700; }
     .diff-ok { color: #38761d; font-weight: 700; }
-
-    /* CATEGORY SUMMARY */
     .summary-stats {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -149,15 +143,11 @@
     .stat-box { background: #f8f9fa; border-radius: 8px; padding: 14px; text-align: center; }
     .stat-val { font-size: 24px; font-weight: 800; color: #1a1a2e; }
     .stat-lbl { font-size: 11px; color: #999; font-weight: 600; margin-top: 4px; }
-
     .disc-row-over td { background: #fff8f0; }
     .disc-row-under td { background: #fff0f0; }
-
     .screen { display: none; }
     .screen.active { display: block; }
     .loading { text-align: center; padding: 40px; color: #999; }
-
-    /* FINAL REPORT */
     .final-report {
       background: white;
       border-radius: 12px;
@@ -194,7 +184,6 @@
       border-top: none;
       border-radius: 0 0 8px 8px;
     }
-
     @media print {
       .no-print { display: none !important; }
       nav { display: none !important; }
@@ -215,7 +204,8 @@
         <div class="page-title" id="selectTitle">📋 New Stock Take</div>
         <div class="page-subtitle" id="selectSubtitle">Select a category to start counting</div>
       </div>
-      <div style="display:flex;gap:10px">
+      <div style="display:flex;gap:10px;align-items:center">
+        <span class="autosave-indicator" id="autosaveIndicator">✅ Saved</span>
         <button class="btn btn-gray no-print" onclick="window.location.href='/stocktake'">← Back</button>
         <button class="btn btn-green no-print" id="finishAllBtn" style="display:none" onclick="showFinalReport()">📊 View Final Report</button>
       </div>
@@ -253,7 +243,8 @@
         <div style="font-size:20px;font-weight:700;color:#1a1a2e" id="countCatName">—</div>
         <div style="font-size:13px;color:#666;margin-top:2px" id="countProgress">0 items entered</div>
       </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <span class="autosave-indicator" id="autosaveIndicator2">✅ Saved</span>
         <button class="collapse-btn" id="collapseBtn" onclick="toggleCollapseAll()">📂 Collapse All</button>
         <button class="btn btn-gray" onclick="showScreen('screen-print')">← Back</button>
         <button class="btn btn-green" onclick="finishCategory()">✅ Done →</button>
@@ -267,7 +258,7 @@
   <!-- SCREEN: CATEGORY SUMMARY -->
   <div class="screen" id="screen-summary">
     <div class="no-print" style="margin-bottom:20px">
-      <div style="font-size:20px;font-weight:700;color:#1a1a2e" id="summaryTitle">Category Summary</div>
+      <div style="font-size:20px;font-weight:700;color:#1a1a2e">Category Summary</div>
     </div>
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
@@ -315,11 +306,39 @@
   let allItems = [];
   let storeName = '';
   let currentCat = '';
-  let counts = {}; // { itemId: count }
-  let catStatus = {}; // { catName: 'clean' | 'issues' }
+  let counts = {};
+  let catStatus = {};
   let allCollapsed = false;
+  let draftId = null;
+  let saveTimer = null;
 
-  // Load store name and inventory
+  async function autoSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/inventory/stocktake/drafts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ store_id: storeId, counts, cat_status: catStatus })
+        });
+        const data = await res.json();
+        if (data.draft) {
+          draftId = data.draft.id;
+          // Show saved indicator
+          ['autosaveIndicator', 'autosaveIndicator2'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+              el.style.display = 'inline';
+              setTimeout(() => { el.style.display = 'none'; }, 2000);
+            }
+          });
+        }
+      } catch (err) {
+        console.error('Auto-save error:', err);
+      }
+    }, 2000);
+  }
+
   async function init() {
     const storeRes = await fetch('/api/inventory/stores', {
       headers: { 'Authorization': 'Bearer ' + token }
@@ -336,6 +355,26 @@
     });
     const itemData = await itemRes.json();
     allItems = (itemData.items || []).filter(i => i.status === 'Active');
+
+    try {
+      const draftRes = await fetch(`/api/inventory/stocktake/drafts?store_id=${storeId}`, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const draftData = await draftRes.json();
+      const draft = (draftData.drafts || [])[0];
+
+      if (draft && Object.keys(draft.counts || {}).length > 0) {
+        const resume = confirm(`You have an in-progress stock take from ${new Date(draft.updated_at).toLocaleDateString()}. Resume it?`);
+        if (resume) {
+          counts = draft.counts || {};
+          catStatus = draft.cat_status || {};
+          draftId = draft.id;
+        }
+      }
+    } catch (err) {
+      console.error('Load draft error:', err);
+    }
+
     renderCategoryGrid();
   }
 
@@ -354,13 +393,11 @@
     const catNames = Object.keys(cats).sort();
     const doneCount = Object.keys(catStatus).length;
 
-    const grid = document.getElementById('catGrid');
-    grid.innerHTML = catNames.map(cat => {
+    document.getElementById('catGrid').innerHTML = catNames.map(cat => {
       const status = catStatus[cat];
       const cardClass = status === 'clean' ? 'done-clean' : status === 'issues' ? 'done-issues' : '';
-      const statusText = status === 'clean' ? '✅ Done — No issues' : status === 'issues' ? '⚠️ Done — Has discrepancies' : '';
       const icon = status === 'clean' ? '✅' : status === 'issues' ? '⚠️' : '📦';
-
+      const statusText = status === 'clean' ? '✅ Done — No issues' : status === 'issues' ? '⚠️ Done — Has discrepancies' : '';
       return `
         <div class="cat-card ${cardClass}" onclick="selectCategory('${cat}')">
           <div class="cat-icon">${icon}</div>
@@ -370,7 +407,6 @@
         </div>`;
     }).join('');
 
-    // Show progress bar
     if (doneCount > 0) {
       document.getElementById('progressWrap').style.display = 'flex';
       document.getElementById('progressCats').innerHTML = catNames.map(cat => {
@@ -378,10 +414,6 @@
         const cls = s === 'clean' ? 'done-clean' : s === 'issues' ? 'done-issues' : '';
         return `<span class="prog-cat ${cls}">${cat}</span>`;
       }).join('');
-    }
-
-    // Show finish button if at least one category done
-    if (doneCount > 0) {
       document.getElementById('finishAllBtn').style.display = 'block';
     }
 
@@ -460,15 +492,12 @@
     });
 
     document.getElementById('countCatName').textContent = `✍️ Counting: ${currentCat}`;
-
     const entered = catItems.filter(i => counts[i.id] !== undefined).length;
     document.getElementById('countProgress').textContent = `${entered} of ${catItems.length} items entered`;
 
-    const wrap = document.getElementById('countTableWrap');
-    wrap.innerHTML = Object.keys(groups).sort().map(grp => {
+    document.getElementById('countTableWrap').innerHTML = Object.keys(groups).sort().map(grp => {
       const items = groups[grp];
       const grpId = 'grp-' + grp.replace(/[^a-zA-Z0-9]/g, '-');
-
       let rows = '';
       if (grp !== '___standalone') {
         rows += `<tr class="group-row" onclick="toggleGrp('${grpId}')" style="cursor:pointer"><td colspan="4">${grp} ▼</td></tr>`;
@@ -492,7 +521,6 @@
             </td>
           </tr>`;
       }).join('') + '</tbody>';
-
       return `<table><thead><tr><th>Item</th><th>System</th><th>Count</th><th>Diff</th></tr></thead><tbody>${rows}</tbody></table><br>`;
     }).join('');
   }
@@ -529,6 +557,7 @@
         }
       }
     }
+    autoSave();
   }
 
   function updateCountProgress(total) {
@@ -548,8 +577,8 @@
     const overages = discrepancies.filter(d => d.diff > 0).length;
 
     catStatus[currentCat] = discrepancies.length > 0 ? 'issues' : 'clean';
+    autoSave();
 
-    // Render summary
     document.getElementById('summaryCatName').textContent = currentCat;
     const badge = document.getElementById('summaryBadge');
     if (discrepancies.length === 0) {
@@ -569,11 +598,9 @@
       <div class="stat-box"><div class="stat-val" style="color:#c55a11">${overages}</div><div class="stat-lbl">Overages</div></div>
     `;
 
-    if (discrepancies.length === 0) {
-      document.getElementById('summaryTable').innerHTML = `<div style="text-align:center;padding:24px;color:#38761d;font-weight:600">✅ All items match!</div>`;
-    } else {
-      document.getElementById('summaryTable').innerHTML = `
-        <table>
+    document.getElementById('summaryTable').innerHTML = discrepancies.length === 0
+      ? `<div style="text-align:center;padding:24px;color:#38761d;font-weight:600">✅ All items match!</div>`
+      : `<table>
           <thead><tr><th>Item</th><th>Group</th><th>System</th><th>Counted</th><th>Difference</th></tr></thead>
           <tbody>
             ${discrepancies.map(d => `
@@ -586,7 +613,6 @@
               </tr>`).join('')}
           </tbody>
         </table>`;
-    }
 
     showScreen('screen-summary');
   }
@@ -616,7 +642,6 @@
       <div class="stat-box"><div class="stat-val" style="color:#c55a11">+${totalOverQty}</div><div class="stat-lbl">Total Over Qty</div></div>
     `;
 
-    // Group by category
     const catGroups = {};
     allDiscrepancies.forEach(d => {
       const cat = d.item.category || 'No Category';
@@ -624,38 +649,35 @@
       catGroups[cat].push(d);
     });
 
-    if (allDiscrepancies.length === 0) {
-      document.getElementById('finalDetails').innerHTML = `
-        <div style="text-align:center;padding:40px;color:#38761d">
+    document.getElementById('finalDetails').innerHTML = allDiscrepancies.length === 0
+      ? `<div style="text-align:center;padding:40px;color:#38761d">
           <div style="font-size:40px;margin-bottom:12px">✅</div>
           <h3 style="font-size:20px;margin-bottom:8px">Perfect Match!</h3>
           <p style="color:#999">All counted items match system quantities.</p>
-        </div>`;
-    } else {
-      document.getElementById('finalDetails').innerHTML = Object.keys(catGroups).sort().map(cat => `
-        <div class="final-cat-section">
-          <div class="final-cat-header">
-            ${cat}
-            <span style="font-size:12px;opacity:0.8">${catGroups[cat].length} discrepanc${catGroups[cat].length === 1 ? 'y' : 'ies'}</span>
-          </div>
-          <div class="final-cat-body">
-            <table>
-              <thead><tr><th>Item</th><th>Group</th><th>System</th><th>Counted</th><th>Difference</th><th>Possible Reason</th></tr></thead>
-              <tbody>
-                ${catGroups[cat].map(d => `
-                  <tr>
-                    <td><strong>${d.item.variant_name}</strong></td>
-                    <td style="color:#999">${d.item.group_name || '—'}</td>
-                    <td>${d.system}</td>
-                    <td>${d.counted}</td>
-                    <td class="${d.diff > 0 ? 'diff-over' : 'diff-under'}">${d.diff > 0 ? '+' + d.diff : d.diff}</td>
-                    <td style="color:#999;font-size:12px">${d.diff < 0 ? '⚠️ Possible theft or missed sale' : '📦 Possible receiving error or unrecorded return'}</td>
-                  </tr>`).join('')}
-              </tbody>
-            </table>
-          </div>
-        </div>`).join('');
-    }
+        </div>`
+      : Object.keys(catGroups).sort().map(cat => `
+          <div class="final-cat-section">
+            <div class="final-cat-header">
+              ${cat}
+              <span style="font-size:12px;opacity:0.8">${catGroups[cat].length} discrepanc${catGroups[cat].length === 1 ? 'y' : 'ies'}</span>
+            </div>
+            <div class="final-cat-body">
+              <table>
+                <thead><tr><th>Item</th><th>Group</th><th>System</th><th>Counted</th><th>Difference</th><th>Possible Reason</th></tr></thead>
+                <tbody>
+                  ${catGroups[cat].map(d => `
+                    <tr>
+                      <td><strong>${d.item.variant_name}</strong></td>
+                      <td style="color:#999">${d.item.group_name || '—'}</td>
+                      <td>${d.system}</td>
+                      <td>${d.counted}</td>
+                      <td class="${d.diff > 0 ? 'diff-over' : 'diff-under'}">${d.diff > 0 ? '+' + d.diff : d.diff}</td>
+                      <td style="color:#999;font-size:12px">${d.diff < 0 ? '⚠️ Possible theft or missed sale' : '📦 Possible receiving error or unrecorded return'}</td>
+                    </tr>`).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>`).join('');
 
     showScreen('screen-final');
   }
@@ -675,22 +697,26 @@
     for (const itemId of toUpdate) {
       try {
         const item = allItems.find(i => i.id === itemId);
-        const newQty = counts[itemId];
         await fetch(`/api/inventory/items/${itemId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-          body: JSON.stringify({ clover_qty: newQty })
+          body: JSON.stringify({ clover_qty: counts[itemId] })
         });
-        item.clover_qty = newQty;
+        item.clover_qty = counts[itemId];
         applied++;
       } catch (err) { console.error('Apply error:', err); }
     }
 
     btn.textContent = `✅ Applied ${applied} adjustments!`;
     btn.style.background = '#38761d';
+    btn.disabled = false;
   }
 
   async function saveAndFinish() {
+    const btn = document.querySelector('[onclick="saveAndFinish()"]');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
     const allCatItems = allItems.filter(i => catStatus[i.category || 'No Category']);
     const allDiscrepancies = allCatItems
       .filter(i => counts[i.id] !== undefined && counts[i.id] !== (i.clover_qty || 0))
@@ -702,6 +728,7 @@
     const totalOverages = allDiscrepancies.filter(d => d.diff > 0).length;
     const totalShortQty = allDiscrepancies.filter(d => d.diff < 0).reduce((a, d) => a + Math.abs(d.diff), 0);
     const totalOverQty = allDiscrepancies.filter(d => d.diff > 0).reduce((a, d) => a + d.diff, 0);
+    const wasApplied = document.getElementById('applyBtn').textContent.includes('Applied');
 
     try {
       await fetch('/api/inventory/stocktake/reports', {
@@ -725,11 +752,22 @@
             counted_qty: d.counted,
             difference: d.diff
           })),
-          applied_to_clover: document.getElementById('applyBtn').textContent.includes('Applied')
+          applied_to_clover: wasApplied
         })
       });
+
+      // Delete draft
+      if (draftId) {
+        await fetch(`/api/inventory/stocktake/drafts/${draftId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+      }
+
       window.location.href = '/stocktake';
     } catch (err) {
+      btn.disabled = false;
+      btn.textContent = '💾 Save & Finish';
       alert('Error saving report. Please try again.');
     }
   }

@@ -31,8 +31,6 @@
       font-weight: 600;
       cursor: pointer;
       transition: all 0.2s;
-      text-decoration: none;
-      display: inline-block;
     }
     .btn-blue { background: #2f5597; color: white; }
     .btn-blue:hover { background: #1e3a6e; }
@@ -141,6 +139,12 @@
       font-size: 11px;
       font-weight: 600;
     }
+    .section-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 12px;
+    }
     .loading { text-align: center; padding: 60px; color: #999; }
     .empty {
       text-align: center;
@@ -151,17 +155,6 @@
       box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     }
     .empty h3 { font-size: 18px; color: #666; margin-bottom: 8px; }
-    .new-stock-btn {
-      background: #2f5597;
-      color: white;
-      border: none;
-      padding: 12px 24px;
-      border-radius: 8px;
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-      margin-top: 16px;
-    }
   </style>
 </head>
 <body>
@@ -185,6 +178,7 @@
     if (!token) window.location.href = '/';
 
     let allReports = [];
+    let allDrafts = [];
     let allStores = [];
     let selectedStore = '';
 
@@ -195,7 +189,6 @@
       const data = await res.json();
       allStores = data.stores || [];
 
-      // Build new stock take buttons
       const btns = document.getElementById('newStockBtns');
       if (allStores.length === 1) {
         btns.innerHTML = `<button class="btn btn-blue" onclick="window.location.href='/stocktake/new?store=${allStores[0].id}'">➕ New Stock Take</button>`;
@@ -209,7 +202,6 @@
         `;
       }
 
-      // Build store filter for admin
       if (user.role === 'admin' && allStores.length > 1) {
         const filter = document.getElementById('storeFilter');
         filter.innerHTML = `<button class="filter-btn active" onclick="filterStore('', this)">All Stores</button>` +
@@ -232,11 +224,20 @@
 
     async function loadReports() {
       try {
-        const res = await fetch('/api/inventory/stocktake/reports', {
-          headers: { 'Authorization': 'Bearer ' + token }
-        });
-        const data = await res.json();
-        allReports = data.reports || [];
+        const [reportsRes, draftsRes] = await Promise.all([
+          fetch('/api/inventory/stocktake/reports', {
+            headers: { 'Authorization': 'Bearer ' + token }
+          }),
+          fetch('/api/inventory/stocktake/drafts', {
+            headers: { 'Authorization': 'Bearer ' + token }
+          })
+        ]);
+
+        const reportsData = await reportsRes.json();
+        const draftsData = await draftsRes.json();
+
+        allReports = reportsData.reports || [];
+        allDrafts = draftsData.drafts || [];
         renderReports();
       } catch (err) {
         document.getElementById('reportsContainer').innerHTML = '<div class="empty"><h3>Error loading reports</h3></div>';
@@ -244,13 +245,17 @@
     }
 
     function renderReports() {
-      const filtered = selectedStore
+      const filteredReports = selectedStore
         ? allReports.filter(r => r.store_id === selectedStore)
         : allReports;
 
+      const filteredDrafts = selectedStore
+        ? allDrafts.filter(d => d.store_id === selectedStore)
+        : allDrafts;
+
       const container = document.getElementById('reportsContainer');
 
-      if (filtered.length === 0) {
+      if (filteredReports.length === 0 && filteredDrafts.length === 0) {
         container.innerHTML = `
           <div class="empty">
             <h3>No stock takes yet</h3>
@@ -259,56 +264,117 @@
         return;
       }
 
-      container.className = 'reports-grid';
-      container.innerHTML = filtered.map(report => {
-        const store = allStores.find(s => s.id === report.store_id);
-        const storeName = store?.name || report.stores?.name || 'Unknown Store';
-        const date = new Date(report.created_at).toLocaleDateString('en-US', {
-          month: 'short', day: 'numeric', year: 'numeric'
-        });
-        const time = new Date(report.created_at).toLocaleTimeString('en-US', {
-          hour: 'numeric', minute: '2-digit'
-        });
-        const hasIssues = report.total_shortages > 0 || report.total_overages > 0;
-        const cardClass = report.status === 'resolved' ? 'resolved' : hasIssues ? 'has-issues' : '';
-        const cats = (report.categories || []).join(', ') || 'All categories';
+      container.className = '';
+      let html = '';
 
-        return `
-          <div class="report-card ${cardClass}" onclick="window.location.href='/stocktake/report?id=${report.id}'">
-            <div class="report-header">
-              <div>
-                <div class="report-store">${storeName}</div>
-                <div class="report-date">${date} at ${time}</div>
+      // In progress drafts
+      if (filteredDrafts.length > 0) {
+        html += `<div style="margin-bottom:32px">
+          <div class="section-title">🔄 In Progress</div>
+          <div class="reports-grid">`;
+
+        html += filteredDrafts.map(draft => {
+          const store = allStores.find(s => s.id === draft.store_id);
+          const storeName = store?.name || 'Unknown Store';
+          const date = new Date(draft.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          const time = new Date(draft.updated_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+          const countedItems = Object.keys(draft.counts || {}).length;
+          const doneCats = Object.keys(draft.cat_status || {}).length;
+
+          return `
+            <div class="report-card" style="border-left-color:#c55a11" onclick="window.location.href='/stocktake/new?store=${draft.store_id}'">
+              <div class="report-header">
+                <div>
+                  <div class="report-store">${storeName}</div>
+                  <div class="report-date">Last updated: ${date} at ${time}</div>
+                </div>
+                <span class="status-badge" style="background:#fff3cd;color:#c55a11">🔄 In Progress</span>
               </div>
-              <span class="status-badge status-${report.status}">${report.status}</span>
-            </div>
-            <div class="report-categories">📁 ${cats.length > 60 ? cats.substring(0, 60) + '...' : cats}</div>
-            <div class="report-stats">
-              <div class="report-stat">
-                <div class="report-stat-value">${report.total_counted || 0}</div>
-                <div class="report-stat-label">Counted</div>
+              <div class="report-categories">📁 ${doneCats} categories counted so far</div>
+              <div class="report-stats">
+                <div class="report-stat">
+                  <div class="report-stat-value">${countedItems}</div>
+                  <div class="report-stat-label">Items Counted</div>
+                </div>
+                <div class="report-stat">
+                  <div class="report-stat-value">${doneCats}</div>
+                  <div class="report-stat-label">Categories Done</div>
+                </div>
+                <div class="report-stat">
+                  <div class="report-stat-value">—</div>
+                  <div class="report-stat-label">Shortages</div>
+                </div>
+                <div class="report-stat">
+                  <div class="report-stat-value">—</div>
+                  <div class="report-stat-label">Overages</div>
+                </div>
               </div>
-              <div class="report-stat">
-                <div class="report-stat-value" style="color:#38761d">${report.total_matches || 0}</div>
-                <div class="report-stat-label">Matches</div>
+              <div class="report-footer">
+                <span>By: ${draft.created_by_name || 'Unknown'}</span>
+                <span style="color:#2f5597;font-weight:600;font-size:12px">Click to Resume →</span>
               </div>
-              <div class="report-stat">
-                <div class="report-stat-value" style="color:#c00">${report.total_shortages || 0}</div>
-                <div class="report-stat-label">Shortages</div>
+            </div>`;
+        }).join('');
+
+        html += `</div></div>`;
+      }
+
+      // Completed reports
+      if (filteredReports.length > 0) {
+        html += `<div>
+          <div class="section-title">✅ Completed</div>
+          <div class="reports-grid">`;
+
+        html += filteredReports.map(report => {
+          const store = allStores.find(s => s.id === report.store_id);
+          const storeName = store?.name || report.stores?.name || 'Unknown Store';
+          const date = new Date(report.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          const time = new Date(report.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+          const hasIssues = report.total_shortages > 0 || report.total_overages > 0;
+          const cardClass = report.status === 'resolved' ? 'resolved' : hasIssues ? 'has-issues' : '';
+          const cats = (report.categories || []).join(', ') || 'All categories';
+
+          return `
+            <div class="report-card ${cardClass}" onclick="window.location.href='/stocktake/report?id=${report.id}'">
+              <div class="report-header">
+                <div>
+                  <div class="report-store">${storeName}</div>
+                  <div class="report-date">${date} at ${time}</div>
+                </div>
+                <span class="status-badge status-${report.status}">${report.status}</span>
               </div>
-              <div class="report-stat">
-                <div class="report-stat-value" style="color:#c55a11">${report.total_overages || 0}</div>
-                <div class="report-stat-label">Overages</div>
+              <div class="report-categories">📁 ${cats.length > 60 ? cats.substring(0, 60) + '...' : cats}</div>
+              <div class="report-stats">
+                <div class="report-stat">
+                  <div class="report-stat-value">${report.total_counted || 0}</div>
+                  <div class="report-stat-label">Counted</div>
+                </div>
+                <div class="report-stat">
+                  <div class="report-stat-value" style="color:#38761d">${report.total_matches || 0}</div>
+                  <div class="report-stat-label">Matches</div>
+                </div>
+                <div class="report-stat">
+                  <div class="report-stat-value" style="color:#c00">${report.total_shortages || 0}</div>
+                  <div class="report-stat-label">Shortages</div>
+                </div>
+                <div class="report-stat">
+                  <div class="report-stat-value" style="color:#c55a11">${report.total_overages || 0}</div>
+                  <div class="report-stat-label">Overages</div>
+                </div>
               </div>
-            </div>
-            <div class="report-footer">
-              <span>By: ${report.created_by_name || 'Unknown'}</span>
-              <span class="${report.applied_to_clover ? 'applied-badge' : 'not-applied-badge'}">
-                ${report.applied_to_clover ? '✅ Applied to Clover' : '⏳ Not Applied'}
-              </span>
-            </div>
-          </div>`;
-      }).join('');
+              <div class="report-footer">
+                <span>By: ${report.created_by_name || 'Unknown'}</span>
+                <span class="${report.applied_to_clover ? 'applied-badge' : 'not-applied-badge'}">
+                  ${report.applied_to_clover ? '✅ Applied' : '⏳ Not Applied'}
+                </span>
+              </div>
+            </div>`;
+        }).join('');
+
+        html += `</div></div>`;
+      }
+
+      container.innerHTML = html;
     }
 
     loadStores();
