@@ -50,7 +50,9 @@ function loadNavbar() {
           <div class="nav-item" style="position:relative">
             <button class="nav-btn" onclick="window.location.href='/sales'">📊 Sales</button>
           </div>
-
+          <div class="nav-item" style="position:relative">
+            <button class="nav-btn" onclick="window.location.href='/stocktake'">📋 Stock Take</button>
+          </div>
           ${user.role === 'admin' ? `
           <div class="nav-item" style="position:relative">
             <button class="nav-btn" onclick="toggleDropdown('adminDropdown', this)">⚙️ Admin <span style="font-size:10px">▼</span></button>

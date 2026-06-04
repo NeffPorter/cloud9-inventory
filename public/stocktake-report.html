@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloud 9 - Stock Take Report</title>
+  <script src="/navbar.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f0f2f5;
+      min-height: 100vh;
+    }
+    .container { max-width: 1000px; margin: 0 auto; padding: 32px 24px; }
+    .btn {
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-blue { background: #2f5597; color: white; }
+    .btn-blue:hover { background: #1e3a6e; }
+    .btn-gray { background: #666; color: white; }
+    .btn-gray:hover { background: #444; }
+    .btn-green { background: #38761d; color: white; }
+    .btn-green:hover { background: #2a5a14; }
+    .btn-orange { background: #c55a11; color: white; }
+    .btn:disabled { background: #999; cursor: not-allowed; }
+    .report-wrap {
+      background: white;
+      border-radius: 12px;
+      padding: 40px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      margin-bottom: 20px;
+    }
+    .report-header {
+      text-align: center;
+      padding-bottom: 24px;
+      border-bottom: 2px solid #f0f0f0;
+      margin-bottom: 24px;
+    }
+    .report-title { font-size: 26px; font-weight: 800; color: #1a1a2e; margin-bottom: 6px; }
+    .report-meta { font-size: 13px; color: #666; margin-bottom: 4px; }
+    .status-badge {
+      display: inline-block;
+      padding: 4px 14px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 700;
+      margin-top: 8px;
+    }
+    .status-pending { background: #fff3cd; color: #c55a11; }
+    .status-reviewed { background: #dce8f8; color: #2f5597; }
+    .status-resolved { background: #d9ead3; color: #38761d; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 12px;
+      margin-bottom: 32px;
+    }
+    .stat-box { background: #f8f9fa; border-radius: 8px; padding: 14px; text-align: center; }
+    .stat-val { font-size: 26px; font-weight: 800; color: #1a1a2e; }
+    .stat-lbl { font-size: 11px; color: #999; font-weight: 600; margin-top: 4px; }
+    .cat-section { margin-bottom: 20px; }
+    .cat-header {
+      background: #2f5597;
+      color: white;
+      padding: 10px 16px;
+      border-radius: 8px 8px 0 0;
+      font-size: 14px;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+    }
+    .cat-body {
+      border: 1px solid #e0e0e0;
+      border-top: none;
+      border-radius: 0 0 8px 8px;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      color: #999;
+      text-transform: uppercase;
+      padding: 8px 12px;
+      background: #f8f9fa;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    td { padding: 8px 12px; border-bottom: 1px solid #f8f8f8; font-size: 13px; }
+    tr:last-child td { border-bottom: none; }
+    .diff-over { color: #c55a11; font-weight: 700; }
+    .diff-under { color: #c00; font-weight: 700; }
+    .over-row td { background: #fff8f0; }
+    .under-row td { background: #fff0f0; }
+    .notes-area {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+      resize: vertical;
+      min-height: 80px;
+      outline: none;
+    }
+    .notes-area:focus { border-color: #2f5597; }
+    .applied-badge {
+      background: #d9ead3;
+      color: #38761d;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .not-applied-badge {
+      background: #fff3cd;
+      color: #c55a11;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .loading { text-align: center; padding: 60px; color: #999; }
+    .action-bar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+    }
+    @media print {
+      .no-print { display: none !important; }
+      nav { display: none !important; }
+      body { background: white; }
+      .container { padding: 0; max-width: 100%; }
+      .report-wrap { box-shadow: none; border-radius: 0; padding: 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <div class="action-bar no-print">
+    <button class="btn btn-gray" onclick="window.location.href='/stocktake'">← Back to Stock Takes</button>
+    <button class="btn btn-blue" onclick="window.print()">🖨️ Print / Save PDF</button>
+    <button class="btn btn-green" id="applyBtn" onclick="applyToClover()">✅ Apply to Clover</button>
+    <select id="statusSelect" onchange="updateStatus(this.value)" style="padding:10px;border:2px solid #e0e0e0;border-radius:8px;font-size:14px;font-weight:600;outline:none;background:white">
+      <option value="pending">Status: Pending</option>
+      <option value="reviewed">Status: Reviewed</option>
+      <option value="resolved">Status: Resolved</option>
+    </select>
+  </div>
+
+  <div id="reportContainer" class="loading">Loading report...</div>
+
+</div>
+
+<script>
+  const token = localStorage.getItem('token');
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  if (!token) window.location.href = '/';
+
+  const params = new URLSearchParams(window.location.search);
+  const reportId = params.get('id');
+  if (!reportId) window.location.href = '/stocktake';
+
+  let report = null;
+  let storeItems = [];
+
+  async function loadReport() {
+    try {
+      const res = await fetch('/api/inventory/stocktake/reports', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const data = await res.json();
+      report = (data.reports || []).find(r => r.id === reportId);
+
+      if (!report) {
+        document.getElementById('reportContainer').innerHTML = '<div class="loading">Report not found</div>';
+        return;
+      }
+
+      // Set status select
+      document.getElementById('statusSelect').value = report.status;
+
+      // Hide apply button if already applied
+      if (report.applied_to_clover) {
+        const btn = document.getElementById('applyBtn');
+        btn.textContent = '✅ Already Applied';
+        btn.disabled = true;
+        btn.style.background = '#38761d';
+      }
+
+      renderReport();
+    } catch (err) {
+      document.getElementById('reportContainer').innerHTML = '<div class="loading">Error loading report</div>';
+    }
+  }
+
+  function renderReport() {
+    const discrepancies = report.discrepancies || [];
+    const date = new Date(report.created_at).toLocaleDateString('en-US', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+    });
+    const time = new Date(report.created_at).toLocaleTimeString('en-US', {
+      hour: 'numeric', minute: '2-digit'
+    });
+
+    const catGroups = {};
+    discrepancies.forEach(d => {
+      const cat = d.category || 'No Category';
+      if (!catGroups[cat]) catGroups[cat] = [];
+      catGroups[cat].push(d);
+    });
+
+    document.getElementById('reportContainer').innerHTML = `
+      <div class="report-wrap" id="printArea">
+        <div class="report-header">
+          <div class="report-title">📋 Stock Take Report</div>
+          <div class="report-meta">${report.stores?.name || 'Store'}</div>
+          <div class="report-meta">${date} at ${time}</div>
+          <div class="report-meta">Counted by: ${report.created_by_name || 'Unknown'}</div>
+          <div class="report-meta">Categories: ${(report.categories || []).join(', ')}</div>
+          <span class="status-badge status-${report.status}">${report.status}</span>
+          &nbsp;
+          <span class="${report.applied_to_clover ? 'applied-badge' : 'not-applied-badge'}">
+            ${report.applied_to_clover ? '✅ Applied to Clover' : '⏳ Not Yet Applied'}
+          </span>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-val">${report.total_counted || 0}</div>
+            <div class="stat-lbl">Items Counted</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-val" style="color:#38761d">${report.total_matches || 0}</div>
+            <div class="stat-lbl">Exact Matches</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-val" style="color:#c00">${report.total_shortages || 0}</div>
+            <div class="stat-lbl">Shortages</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-val" style="color:#c55a11">${report.total_overages || 0}</div>
+            <div class="stat-lbl">Overages</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-val" style="color:#c00">-${report.total_short_qty || 0}</div>
+            <div class="stat-lbl">Total Short Qty</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-val" style="color:#c55a11">+${report.total_over_qty || 0}</div>
+            <div class="stat-lbl">Total Over Qty</div>
+          </div>
+        </div>
+
+        ${discrepancies.length === 0 ? `
+          <div style="text-align:center;padding:40px;color:#38761d">
+            <div style="font-size:40px;margin-bottom:12px">✅</div>
+            <h3 style="font-size:20px;margin-bottom:8px">Perfect Match!</h3>
+            <p style="color:#999">All counted items matched system quantities.</p>
+          </div>
+        ` : `
+          <h3 style="font-size:16px;font-weight:700;color:#1a1a2e;margin-bottom:16px">
+            ⚠️ ${discrepancies.length} Discrepanc${discrepancies.length === 1 ? 'y' : 'ies'} Found
+          </h3>
+          ${Object.keys(catGroups).sort().map(cat => `
+            <div class="cat-section">
+              <div class="cat-header">
+                ${cat}
+                <span style="font-size:12px;opacity:0.8">${catGroups[cat].length} item${catGroups[cat].length !== 1 ? 's' : ''}</span>
+              </div>
+              <div class="cat-body">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Item</th>
+                      <th>Group</th>
+                      <th>System Qty</th>
+                      <th>Counted</th>
+                      <th>Difference</th>
+                      <th>Possible Reason</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${catGroups[cat].map(d => `
+                      <tr class="${d.difference > 0 ? 'over-row' : 'under-row'}">
+                        <td><strong>${d.item_name}</strong></td>
+                        <td style="color:#999">${d.group_name || '—'}</td>
+                        <td>${d.system_qty}</td>
+                        <td>${d.counted_qty}</td>
+                        <td class="${d.difference > 0 ? 'diff-over' : 'diff-under'}">${d.difference > 0 ? '+' + d.difference : d.difference}</td>
+                        <td style="color:#999;font-size:12px">${d.difference < 0 ? '⚠️ Possible theft or missed sale' : '📦 Possible receiving error or unrecorded return'}</td>
+                      </tr>`).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          `).join('')}
+        `}
+
+        <div style="margin-top:24px;padding-top:20px;border-top:1px solid #f0f0f0" class="no-print">
+          <div style="font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:8px">📝 Notes</div>
+          <textarea class="notes-area" id="notesArea" placeholder="Add notes about this stock take...">${report.notes || ''}</textarea>
+          <button class="btn btn-blue" style="margin-top:8px" onclick="saveNotes()">Save Notes</button>
+        </div>
+      </div>
+    `;
+  }
+
+  async function updateStatus(status) {
+    try {
+      await fetch(`/api/inventory/stocktake/reports/${reportId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ status })
+      });
+      report.status = status;
+    } catch (err) {
+      console.error('Update status error:', err);
+    }
+  }
+
+  async function saveNotes() {
+    const notes = document.getElementById('notesArea').value;
+    try {
+      await fetch(`/api/inventory/stocktake/reports/${reportId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ notes })
+      });
+      alert('Notes saved!');
+    } catch (err) {
+      alert('Error saving notes');
+    }
+  }
+
+  async function applyToClover() {
+    if (!confirm('This will adjust Clover quantities based on the discrepancies in this report. Continue?')) return;
+
+    const btn = document.getElementById('applyBtn');
+    btn.disabled = true;
+    btn.textContent = 'Applying...';
+
+    const discrepancies = report.discrepancies || [];
+    let applied = 0;
+
+    for (const d of discrepancies) {
+      try {
+        await fetch(`/api/inventory/items/${d.item_id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ clover_qty: d.counted_qty })
+        });
+        applied++;
+      } catch (err) {
+        console.error('Apply error:', err);
+      }
+    }
+
+    // Mark as applied
+    await fetch(`/api/inventory/stocktake/reports/${reportId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ applied_to_clover: true })
+    });
+
+    btn.textContent = `✅ Applied ${applied} adjustments!`;
+    btn.style.background = '#38761d';
+    report.applied_to_clover = true;
+  }
+
+  loadReport();
+</script>
+<script>loadNavbar();</script>
+</body>
+</html>

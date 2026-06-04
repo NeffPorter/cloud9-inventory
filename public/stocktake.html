@@ -17,13 +17,12 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 24px;
+      margin-bottom: 32px;
       flex-wrap: wrap;
       gap: 12px;
     }
     .page-title { font-size: 24px; font-weight: 700; color: #1a1a2e; }
     .page-subtitle { color: #666; font-size: 14px; margin-top: 4px; }
-    .header-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
     .btn {
       border: none;
       padding: 10px 20px;
@@ -32,257 +31,152 @@
       font-weight: 600;
       cursor: pointer;
       transition: all 0.2s;
+      text-decoration: none;
+      display: inline-block;
     }
     .btn-blue { background: #2f5597; color: white; }
     .btn-blue:hover { background: #1e3a6e; }
     .btn-gray { background: #666; color: white; }
-    .btn-gray:hover { background: #444; }
     .btn-green { background: #38761d; color: white; }
-    .btn-green:hover { background: #2a5a14; }
     .btn-orange { background: #c55a11; color: white; }
-    .btn-orange:hover { background: #a34a0e; }
-    .btn:disabled { background: #999; cursor: not-allowed; }
-    .tabs {
+    .store-filter {
       display: flex;
-      gap: 4px;
+      gap: 8px;
       margin-bottom: 24px;
-      border-bottom: 2px solid #e0e0e0;
+      flex-wrap: wrap;
     }
-    .tab {
-      padding: 10px 20px;
-      font-size: 14px;
+    .filter-btn {
+      padding: 6px 16px;
+      border-radius: 20px;
+      border: 2px solid #e0e0e0;
+      background: white;
+      font-size: 13px;
       font-weight: 600;
       cursor: pointer;
-      border: none;
-      background: none;
-      color: #666;
-      border-bottom: 3px solid transparent;
-      margin-bottom: -2px;
+      color: #444;
       transition: all 0.2s;
     }
-    .tab.active { color: #2f5597; border-bottom-color: #2f5597; }
-    .tab:hover { color: #2f5597; }
-    .card {
-      background: white;
-      border-radius: 12px;
-      padding: 24px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-      margin-bottom: 24px;
-    }
-    .card-title {
-      font-size: 16px;
-      font-weight: 700;
-      color: #1a1a2e;
-      margin-bottom: 16px;
-    }
-    .category-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-      gap: 10px;
-    }
-    .category-checkbox {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 10px 14px;
-      border: 2px solid #e0e0e0;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: all 0.2s;
-      user-select: none;
-    }
-    .category-checkbox:hover { border-color: #2f5597; background: #f0f4ff; }
-    .category-checkbox.selected { border-color: #2f5597; background: #dce8f8; }
-    .category-checkbox input { cursor: pointer; width: 16px; height: 16px; }
-    .category-checkbox span { font-size: 13px; font-weight: 600; color: #1a1a2e; }
-    .category-checkbox small { color: #999; font-size: 11px; }
-    .category-section { margin-bottom: 24px; }
-    .category-header {
+    .filter-btn.active {
+      border-color: #2f5597;
       background: #2f5597;
       color: white;
-      padding: 10px 16px;
-      border-radius: 8px 8px 0 0;
-      font-size: 14px;
-      font-weight: 700;
+    }
+    .reports-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 16px;
+    }
+    .report-card {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      border-left: 4px solid #2f5597;
+    }
+    .report-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    }
+    .report-card.has-issues { border-left-color: #c55a11; }
+    .report-card.resolved { border-left-color: #38761d; }
+    .report-header {
       display: flex;
       justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
     }
-    .category-body {
-      background: white;
-      border: 1px solid #e0e0e0;
-      border-top: none;
-      border-radius: 0 0 8px 8px;
-    }
-    table { width: 100%; border-collapse: collapse; }
-    th {
-      text-align: left;
+    .report-store { font-size: 16px; font-weight: 700; color: #1a1a2e; }
+    .report-date { font-size: 12px; color: #999; margin-top: 2px; }
+    .status-badge {
+      padding: 3px 10px;
+      border-radius: 12px;
       font-size: 11px;
       font-weight: 700;
-      color: #999;
-      text-transform: uppercase;
-      padding: 8px 14px;
-      background: #f8f9fa;
-      border-bottom: 1px solid #f0f0f0;
+      white-space: nowrap;
     }
-    td { padding: 8px 14px; border-bottom: 1px solid #f8f8f8; font-size: 13px; }
-    tr:last-child td { border-bottom: none; }
-    .group-row td {
-      background: #f0f4ff;
-      font-weight: 700;
-      color: #2f5597;
-      font-size: 12px;
-      padding: 5px 14px;
-    }
-    .count-input {
-      width: 80px;
-      padding: 6px 10px;
-      border: 2px solid #e0e0e0;
-      border-radius: 6px;
-      font-size: 14px;
-      text-align: center;
-    }
-    .count-input:focus { outline: none; border-color: #2f5597; }
-    .count-input.entered { border-color: #38761d; background: #f0fff4; }
-    .discrepancy-over { color: #c55a11; font-weight: 700; }
-    .discrepancy-under { color: #c00; font-weight: 700; }
-    .discrepancy-ok { color: #38761d; font-weight: 700; }
-    .report-summary {
+    .status-pending { background: #fff3cd; color: #c55a11; }
+    .status-reviewed { background: #dce8f8; color: #2f5597; }
+    .status-resolved { background: #d9ead3; color: #38761d; }
+    .report-stats {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      gap: 12px;
-      margin-bottom: 24px;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 12px;
     }
-    .summary-stat {
+    .report-stat {
       background: #f8f9fa;
-      border-radius: 8px;
-      padding: 16px;
+      border-radius: 6px;
+      padding: 8px;
       text-align: center;
     }
-    .summary-value { font-size: 28px; font-weight: 800; color: #1a1a2e; }
-    .summary-label { font-size: 12px; color: #999; font-weight: 600; margin-top: 4px; }
-    .loading { text-align: center; padding: 40px; color: #999; }
-    .changes-bar {
-      position: fixed;
-      bottom: 24px;
-      right: 24px;
-      background: #1a1a2e;
-      color: white;
-      padding: 16px 24px;
-      border-radius: 12px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-      z-index: 1000;
+    .report-stat-value { font-size: 18px; font-weight: 800; color: #1a1a2e; }
+    .report-stat-label { font-size: 10px; color: #999; font-weight: 600; margin-top: 2px; }
+    .report-footer {
       display: flex;
+      justify-content: space-between;
       align-items: center;
-      gap: 16px;
-      font-size: 14px;
-      font-weight: 600;
-      transform: translateY(150px);
-      transition: transform 0.3s;
+      font-size: 12px;
+      color: #999;
     }
-    .changes-bar.visible { transform: translateY(0); }
-
-    /* PRINT STYLES */
-    @media print {
-      body { background: white; font-family: Arial, sans-serif; }
-      .no-print { display: none !important; }
-      .navbar { display: none !important; }
-      .container { padding: 0; max-width: 100%; }
-      .print-category { page-break-after: always; padding: 20px; }
-      .print-category:last-child { page-break-after: avoid; }
-      .print-category-title {
-        font-size: 20px;
-        font-weight: bold;
-        color: #000;
-        border-bottom: 2px solid #000;
-        padding-bottom: 8px;
-        margin-bottom: 16px;
-      }
-      .print-store-name { font-size: 13px; color: #666; margin-bottom: 4px; }
-      .print-date { font-size: 13px; color: #666; margin-bottom: 16px; }
-      .print-table { width: 100%; border-collapse: collapse; }
-      .print-table th {
-        border-bottom: 1px solid #000;
-        padding: 6px 8px;
-        text-align: left;
-        font-size: 11px;
-        text-transform: uppercase;
-      }
-      .print-table td { border-bottom: 1px solid #ddd; padding: 8px; font-size: 13px; }
-      .print-table .group-header td {
-        background: #f0f0f0;
-        font-weight: bold;
-        font-size: 12px;
-        padding: 4px 8px;
-      }
-      .print-count-line {
-        display: inline-block;
-        width: 80px;
-        border-bottom: 1px solid #000;
-      }
+    .report-categories {
+      font-size: 11px;
+      color: #666;
+      margin-bottom: 8px;
+    }
+    .applied-badge {
+      background: #d9ead3;
+      color: #38761d;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .not-applied-badge {
+      background: #fff3cd;
+      color: #c55a11;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .loading { text-align: center; padding: 60px; color: #999; }
+    .empty {
+      text-align: center;
+      padding: 60px;
+      color: #999;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+    .empty h3 { font-size: 18px; color: #666; margin-bottom: 8px; }
+    .new-stock-btn {
+      background: #2f5597;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 16px;
     }
   </style>
 </head>
 <body>
 
-  <div class="changes-bar" id="actionBar">
-    <span id="actionText">0 items counted</span>
-    <button class="btn btn-green" id="actionBtn" onclick="generateReport()">📊 Generate Report</button>
-  </div>
-
   <div class="container">
-    <div class="page-header no-print">
+    <div class="page-header">
       <div>
-        <div class="page-title" id="pageTitle">📋 Stock Take</div>
-        <div class="page-subtitle">Count inventory and generate discrepancy reports</div>
+        <div class="page-title">📋 Stock Takes</div>
+        <div class="page-subtitle">View and manage inventory count reports</div>
       </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap" id="newStockBtns"></div>
     </div>
 
-    <!-- TABS -->
-    <div class="tabs no-print">
-      <button class="tab active" onclick="showTab('select')" id="tab-select">1. Select Categories</button>
-      <button class="tab" onclick="showTab('count')" id="tab-count">2. Enter Counts</button>
-      <button class="tab" onclick="showTab('report')" id="tab-report">3. Discrepancy Report</button>
-    </div>
-
-    <!-- TAB 1: SELECT CATEGORIES -->
-    <div id="tab-select-content">
-      <div class="card">
-        <div class="card-title">Select categories to count</div>
-        <div style="display:flex;gap:10px;margin-bottom:16px" class="no-print">
-          <button class="btn btn-blue" onclick="selectAllCategories()">Select All</button>
-          <button class="btn btn-gray" onclick="deselectAllCategories()">Deselect All</button>
-        </div>
-        <div class="category-grid" id="categoryGrid">
-          <div class="loading">Loading categories...</div>
-        </div>
-      </div>
-      <div style="display:flex;gap:12px" class="no-print">
-        <button class="btn btn-gray" onclick="printCountSheets()" id="printBtn">🖨️ Print Count Sheets</button>
-        <button class="btn btn-blue" onclick="showTab('count')">✍️ Enter Counts →</button>
-      </div>
-    </div>
-
-    <!-- TAB 2: ENTER COUNTS -->
-    <div id="tab-count-content" style="display:none">
-      <div id="countContainer" class="loading">Loading...</div>
-    </div>
-
-    <!-- TAB 3: REPORT -->
-    <div id="tab-report-content" style="display:none">
-      <div class="card" id="reportSummaryCard">
-        <div class="card-title">📊 Discrepancy Report — <span id="reportDate"></span></div>
-        <div class="report-summary" id="reportSummary"></div>
-      </div>
-      <div id="reportDetails"></div>
-      <div style="display:flex;gap:12px;margin-top:16px" class="no-print">
-        <button class="btn btn-blue" onclick="window.print()">🖨️ Print Report</button>
-        <button class="btn btn-green" onclick="ApplyToClover()">✅ Apply Counts to Clover</button>
-      </div>
-    </div>
-
-    <!-- PRINT CONTENT (hidden on screen, shown when printing) -->
-    <div id="printContent" style="display:none"></div>
-
+    <div class="store-filter" id="storeFilter"></div>
+    <div id="reportsContainer" class="loading">Loading reports...</div>
   </div>
 
   <script>
@@ -290,487 +184,135 @@
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     if (!token) window.location.href = '/';
 
-    const params = new URLSearchParams(window.location.search);
-    const storeId = params.get('store');
-    if (!storeId) window.location.href = '/dashboard';
+    let allReports = [];
+    let allStores = [];
+    let selectedStore = '';
 
-    let allItems = [];
-    let selectedCategories = new Set();
-    let counts = {};
-    let storeName = '';
-
-    async function loadStoreName() {
+    async function loadStores() {
       const res = await fetch('/api/inventory/stores', {
         headers: { 'Authorization': 'Bearer ' + token }
       });
       const data = await res.json();
-      const store = (data.stores || []).find(s => s.id === storeId);
-      if (store) {
-        storeName = store.name;
-        document.getElementById('pageTitle').textContent = `📋 ${store.name} — Stock Take`;
+      allStores = data.stores || [];
+
+      // Build new stock take buttons
+      const btns = document.getElementById('newStockBtns');
+      if (allStores.length === 1) {
+        btns.innerHTML = `<button class="btn btn-blue" onclick="window.location.href='/stocktake/new?store=${allStores[0].id}'">➕ New Stock Take</button>`;
+      } else if (user.role === 'admin') {
+        btns.innerHTML = `
+          <select id="newStoreSelect" style="padding:10px;border:2px solid #e0e0e0;border-radius:8px;font-size:14px;outline:none">
+            <option value="">Select store...</option>
+            ${allStores.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}
+          </select>
+          <button class="btn btn-blue" onclick="startNewStockTake()">➕ New Stock Take</button>
+        `;
+      }
+
+      // Build store filter for admin
+      if (user.role === 'admin' && allStores.length > 1) {
+        const filter = document.getElementById('storeFilter');
+        filter.innerHTML = `<button class="filter-btn active" onclick="filterStore('', this)">All Stores</button>` +
+          allStores.map(s => `<button class="filter-btn" onclick="filterStore('${s.id}', this)">${s.name}</button>`).join('');
       }
     }
 
-    async function loadInventory() {
+    function startNewStockTake() {
+      const storeId = document.getElementById('newStoreSelect').value;
+      if (!storeId) { alert('Please select a store first!'); return; }
+      window.location.href = `/stocktake/new?store=${storeId}`;
+    }
+
+    function filterStore(storeId, btn) {
+      selectedStore = storeId;
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderReports();
+    }
+
+    async function loadReports() {
       try {
-        const res = await fetch(`/api/inventory/items?store_id=${storeId}`, {
+        const res = await fetch('/api/inventory/stocktake/reports', {
           headers: { 'Authorization': 'Bearer ' + token }
         });
         const data = await res.json();
-        allItems = (data.items || []).filter(i => i.status === 'Active');
-        renderCategorySelection();
+        allReports = data.reports || [];
+        renderReports();
       } catch (err) {
-        document.getElementById('categoryGrid').innerHTML = '<div class="loading">Error loading inventory</div>';
+        document.getElementById('reportsContainer').innerHTML = '<div class="empty"><h3>Error loading reports</h3></div>';
       }
     }
 
-    function getCategories() {
-      const cats = {};
-      allItems.forEach(item => {
-        const cat = item.category || 'No Category';
-        if (!cats[cat]) cats[cat] = 0;
-        cats[cat]++;
-      });
-      return cats;
-    }
+    function renderReports() {
+      const filtered = selectedStore
+        ? allReports.filter(r => r.store_id === selectedStore)
+        : allReports;
 
-    function renderCategorySelection() {
-      const cats = getCategories();
-      const grid = document.getElementById('categoryGrid');
+      const container = document.getElementById('reportsContainer');
 
-      grid.innerHTML = Object.keys(cats).sort().map(cat => `
-        <label class="category-checkbox ${selectedCategories.has(cat) ? 'selected' : ''}" onclick="toggleCategory('${cat}', this)">
-          <input type="checkbox" ${selectedCategories.has(cat) ? 'checked' : ''} onclick="event.stopPropagation()">
-          <div>
-            <span>${cat}</span><br>
-            <small>${cats[cat]} items</small>
-          </div>
-        </label>
-      `).join('');
-    }
-
-    function toggleCategory(cat, el) {
-      if (selectedCategories.has(cat)) {
-        selectedCategories.delete(cat);
-        el.classList.remove('selected');
-        el.querySelector('input').checked = false;
-      } else {
-        selectedCategories.add(cat);
-        el.classList.add('selected');
-        el.querySelector('input').checked = true;
-      }
-    }
-
-    function selectAllCategories() {
-      const cats = getCategories();
-      Object.keys(cats).forEach(cat => selectedCategories.add(cat));
-      renderCategorySelection();
-    }
-
-    function deselectAllCategories() {
-      selectedCategories.clear();
-      renderCategorySelection();
-    }
-
-    function showTab(tab) {
-      ['select', 'count', 'report'].forEach(t => {
-        document.getElementById(`tab-${t}-content`).style.display = t === tab ? 'block' : 'none';
-        document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
-      });
-
-      if (tab === 'count') renderCountSheet();
-      if (tab === 'report') generateReport();
-    }
-
-    function renderCountSheet() {
-      const filtered = selectedCategories.size > 0
-        ? allItems.filter(i => selectedCategories.has(i.category))
-        : allItems;
-
-      const categories = {};
-      filtered.forEach(item => {
-        const cat = item.category || 'No Category';
-        if (!categories[cat]) categories[cat] = {};
-        const grp = item.group_name || '___standalone';
-        if (!categories[cat][grp]) categories[cat][grp] = [];
-        categories[cat][grp].push(item);
-      });
-
-      const container = document.getElementById('countContainer');
-      container.className = '';
-let allCountCollapsed = false;
-
-      if (Object.keys(categories).length === 0) {
-        container.innerHTML = '<div class="loading">No categories selected. Go back and select some!</div>';
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="empty">
+            <h3>No stock takes yet</h3>
+            <p>Start your first stock take to track inventory accuracy</p>
+          </div>`;
         return;
       }
-        
-      container.innerHTML = Object.keys(categories).sort().map(catName => {
-        const groups = categories[catName];
-      container.insertAdjacentHTML('afterbegin', `
-                <div style="display:flex;gap:10px;margin-bottom:16px">
-                  <button class="btn btn-gray" id="collapseCountBtn" onclick="toggleAllCountCats()">📂 Collapse All</button>
-                </div>
-              `);
-        const rows = Object.keys(groups).sort().map(grpName => {
-          const items = groups[grpName];
-          let html = '';
 
-          if (grpName !== '___standalone') {
-            html += `<tr class="group-row"><td colspan="4">${grpName}</td></tr>`;
-          }
+      container.className = 'reports-grid';
+      container.innerHTML = filtered.map(report => {
+        const store = allStores.find(s => s.id === report.store_id);
+        const storeName = store?.name || report.stores?.name || 'Unknown Store';
+        const date = new Date(report.created_at).toLocaleDateString('en-US', {
+          month: 'short', day: 'numeric', year: 'numeric'
+        });
+        const time = new Date(report.created_at).toLocaleTimeString('en-US', {
+          hour: 'numeric', minute: '2-digit'
+        });
+        const hasIssues = report.total_shortages > 0 || report.total_overages > 0;
+        const cardClass = report.status === 'resolved' ? 'resolved' : hasIssues ? 'has-issues' : '';
+        const cats = (report.categories || []).join(', ') || 'All categories';
 
-          html += items.map(item => {
-            const counted = counts[item.id];
-            const diff = counted !== undefined ? counted - (item.clover_qty || 0) : null;
-            return `
-              <tr>
-                <td>${item.variant_name}</td>
-                <td style="color:#999">${item.clover_qty || 0}</td>
-                <td>
-                  <input type="number" class="count-input ${counted !== undefined ? 'entered' : ''}"
-                    id="count-${item.id}"
-                    placeholder="—"
-                    value="${counted !== undefined ? counted : ''}"
-                    onchange="updateCount('${item.id}', this.value)">
-                </td>
-                <td id="diff-${item.id}" class="${diff === null ? '' : diff > 0 ? 'discrepancy-over' : diff < 0 ? 'discrepancy-under' : 'discrepancy-ok'}">
-                  ${diff === null ? '—' : diff > 0 ? '+' + diff : diff === 0 ? '✓' : diff}
-                </td>
-              </tr>`;
-          }).join('');
-
-          return html;
-        }).join('');
-
-        const catId = 'stcount-' + catName.replace(/[^a-zA-Z0-9]/g, '-');
         return `
-                <div class="category-section">
-                    <div class="category-header" style="display:flex;justify-content:space-between;align-items:center">
-                      <span onclick="toggleCountCat('${catId}')" style="cursor:pointer;flex:1">${catName} <span style="font-size:10px;opacity:0.8">▼</span></span>
-                      <span style="font-size:11px;opacity:0.7">${Object.values(groups).flat().length} items</span>
-                      <button onclick="event.stopPropagation();generateCategoryReport('${catName}')" style="background:rgba(255,255,255,0.2);border:none;color:white;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;margin-left:12px">📊 Report</button>
-                    </div>
-                    <div class="category-body" id="${catId}">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Item</th>
-                    <th>System Qty</th>
-                    <th>Your Count</th>
-                    <th>Difference</th>
-                  </tr>
-                </thead>
-                <tbody>${rows}</tbody>
-              </table>
+          <div class="report-card ${cardClass}" onclick="window.location.href='/stocktake/report?id=${report.id}'">
+            <div class="report-header">
+              <div>
+                <div class="report-store">${storeName}</div>
+                <div class="report-date">${date} at ${time}</div>
+              </div>
+              <span class="status-badge status-${report.status}">${report.status}</span>
+            </div>
+            <div class="report-categories">📁 ${cats.length > 60 ? cats.substring(0, 60) + '...' : cats}</div>
+            <div class="report-stats">
+              <div class="report-stat">
+                <div class="report-stat-value">${report.total_counted || 0}</div>
+                <div class="report-stat-label">Counted</div>
+              </div>
+              <div class="report-stat">
+                <div class="report-stat-value" style="color:#38761d">${report.total_matches || 0}</div>
+                <div class="report-stat-label">Matches</div>
+              </div>
+              <div class="report-stat">
+                <div class="report-stat-value" style="color:#c00">${report.total_shortages || 0}</div>
+                <div class="report-stat-label">Shortages</div>
+              </div>
+              <div class="report-stat">
+                <div class="report-stat-value" style="color:#c55a11">${report.total_overages || 0}</div>
+                <div class="report-stat-label">Overages</div>
+              </div>
+            </div>
+            <div class="report-footer">
+              <span>By: ${report.created_by_name || 'Unknown'}</span>
+              <span class="${report.applied_to_clover ? 'applied-badge' : 'not-applied-badge'}">
+                ${report.applied_to_clover ? '✅ Applied to Clover' : '⏳ Not Applied'}
+              </span>
             </div>
           </div>`;
       }).join('');
-
-      updateActionBar();
-    }
-    function generateCategoryReport(catName) {
-      showTab('report');
-      // Filter counts to just this category
-      const catItems = allItems.filter(i => i.category === catName && counts[i.id] !== undefined);
-      if (catItems.length === 0) {
-        alert(`No counts entered for ${catName} yet!`);
-        showTab('count');
-        return;
-      }
-      // Temporarily filter to just this category for report
-      generateReport(catName);
-    }
-    function updateCount(itemId, value) {
-      if (value === '') {
-        delete counts[itemId];
-      } else {
-        counts[itemId] = parseInt(value) || 0;
-        document.getElementById(`count-${itemId}`)?.classList.add('entered');
-        const item = allItems.find(i => i.id === itemId);
-        if (item) {
-          const diff = counts[itemId] - (item.clover_qty || 0);
-          const el = document.getElementById(`diff-${itemId}`);
-          if (el) {
-            el.textContent = diff > 0 ? '+' + diff : diff === 0 ? '✓' : diff;
-            el.className = diff > 0 ? 'discrepancy-over' : diff < 0 ? 'discrepancy-under' : 'discrepancy-ok';
-          }
-        }
-      }
-      updateActionBar();
     }
 
-    function updateActionBar() {
-      const count = Object.keys(counts).length;
-      const bar = document.getElementById('actionBar');
-      document.getElementById('actionText').textContent = `${count} item${count !== 1 ? 's' : ''} counted`;
-      bar.classList.toggle('visible', count > 0);
-    }
-    
-    function toggleCountCat(id) {
-        const el = document.getElementById(id);
-        if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
-    }
-    function toggleAllCountCats() {
-      const btn = document.getElementById('collapseCountBtn');
-      const cats = document.querySelectorAll('[id^="stcount-"]');
-      const anyVisible = [...cats].some(el => el.style.display !== 'none');
-      cats.forEach(el => el.style.display = anyVisible ? 'none' : '');
-      btn.textContent = anyVisible ? '📂 Expand All' : '📂 Collapse All';
-    }
-    function generateReport(filterCat = null) {
-  document.getElementById('reportDate').textContent = new Date().toLocaleDateString();
-
-  // Hide the action bar
-  document.getElementById('actionBar').classList.remove('visible');
-
-  const countedItems = allItems.filter(i =>
-    counts[i.id] !== undefined &&
-    (filterCat === null || i.category === filterCat)
-  );
-
-  let matches = 0, overages = 0, shortages = 0, totalOver = 0, totalUnder = 0;
-
-  const discrepancies = countedItems.map(item => {
-    const counted = counts[item.id];
-    const system = item.clover_qty || 0;
-    const diff = counted - system;
-    if (diff === 0) matches++;
-    else if (diff > 0) { overages++; totalOver += diff; }
-    else { shortages++; totalUnder += Math.abs(diff); }
-    return { item, counted, system, diff };
-  }).filter(d => d.diff !== 0).sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
-
-  // Auto-save report
-  saveReport(countedItems, discrepancies, matches, shortages, overages, filterCat);
-
-  document.getElementById('reportSummary').innerHTML = `
-    <div class="summary-stat">
-      <div class="summary-value">${countedItems.length}</div>
-      <div class="summary-label">Items Counted</div>
-    </div>
-    <div class="summary-stat">
-      <div class="summary-value" style="color:#38761d">${matches}</div>
-      <div class="summary-label">Exact Matches</div>
-    </div>
-    <div class="summary-stat">
-      <div class="summary-value" style="color:#c00">${shortages}</div>
-      <div class="summary-label">Shortages</div>
-    </div>
-    <div class="summary-stat">
-      <div class="summary-value" style="color:#c55a11">${overages}</div>
-      <div class="summary-label">Overages</div>
-    </div>
-    <div class="summary-stat">
-      <div class="summary-value" style="color:#c00">${totalUnder}</div>
-      <div class="summary-label">Total Short</div>
-    </div>
-    <div class="summary-stat">
-      <div class="summary-value" style="color:#c55a11">${totalOver}</div>
-      <div class="summary-label">Total Over</div>
-    </div>
-  `;
-
-  if (discrepancies.length === 0) {
-    document.getElementById('reportDetails').innerHTML = `
-      <div class="card" style="text-align:center;padding:40px">
-        <div style="font-size:40px;margin-bottom:12px">✅</div>
-        <h3 style="font-size:20px;color:#38761d;margin-bottom:8px">Perfect Match!</h3>
-        <p style="color:#999">All counted items match the system quantities.</p>
-      </div>`;
-    return;
-  }
-
-  const catGroups = {};
-  discrepancies.forEach(d => {
-    const cat = d.item.category || 'No Category';
-    if (!catGroups[cat]) catGroups[cat] = [];
-    catGroups[cat].push(d);
-  });
-
-  document.getElementById('reportDetails').innerHTML = `
-    <div class="card">
-      <div class="card-title">⚠️ ${discrepancies.length} Discrepanc${discrepancies.length === 1 ? 'y' : 'ies'} Found</div>
-      ${Object.keys(catGroups).sort().map(catName => `
-        <div class="category-section">
-          <div class="category-header">${catName}</div>
-          <div class="category-body">
-            <table>
-              <thead>
-                <tr>
-                  <th>Item</th>
-                  <th>Group</th>
-                  <th>System</th>
-                  <th>Counted</th>
-                  <th>Difference</th>
-                  <th>Possible Reason</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${catGroups[catName].map(d => `
-                  <tr>
-                    <td><strong>${d.item.variant_name}</strong></td>
-                    <td style="color:#999">${d.item.group_name || '—'}</td>
-                    <td>${d.system}</td>
-                    <td>${d.counted}</td>
-                    <td class="${d.diff > 0 ? 'discrepancy-over' : 'discrepancy-under'}">${d.diff > 0 ? '+' + d.diff : d.diff}</td>
-                    <td style="color:#999;font-size:12px">${d.diff < 0 ? '⚠️ Possible theft, damage, or missed sale' : '📦 Possible receiving error or unrecorded return'}</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      `).join('')}
-    </div>`;
-}
-
-async function saveReport(countedItems, discrepancies, matches, shortages, overages, filterCat) {
-  try {
-    const cats = filterCat ? [filterCat] : [...new Set(countedItems.map(i => i.item?.category || i.category))];
-    await fetch('/api/inventory/stocktake/reports', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + token
-      },
-      body: JSON.stringify({
-        store_id: storeId,
-        categories: cats,
-        total_counted: countedItems.length,
-        total_matches: matches,
-        total_shortages: shortages,
-        total_overages: overages,
-        discrepancies: discrepancies.map(d => ({
-          item_id: d.item.id,
-          item_name: d.item.variant_name,
-          group_name: d.item.group_name,
-          category: d.item.category,
-          system_qty: d.system,
-          counted_qty: d.counted,
-          difference: d.diff
-        }))
-      })
-    });
-    console.log('Report saved!');
-  } catch (err) {
-    console.error('Save report error:', err);
-  }
-}
-
-    function printCountSheets() {
-      const selected = selectedCategories.size > 0
-        ? allItems.filter(i => selectedCategories.has(i.category))
-        : allItems;
-
-      if (selected.length === 0) {
-        alert('Please select at least one category first!');
-        return;
-      }
-
-      const categories = {};
-      selected.forEach(item => {
-        const cat = item.category || 'No Category';
-        if (!categories[cat]) categories[cat] = {};
-        const grp = item.group_name || '___standalone';
-        if (!categories[cat][grp]) categories[cat][grp] = [];
-        categories[cat][grp].push(item);
-      });
-
-      const printWindow = window.open('', '_blank');
-      printWindow.document.write(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Stock Count Sheet — ${storeName}</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
-            .page { padding: 24px; page-break-after: always; }
-            .page:last-child { page-break-after: avoid; }
-            .header { border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 16px; }
-            .store { font-size: 12px; color: #666; }
-            .category { font-size: 20px; font-weight: bold; }
-            .date { font-size: 12px; color: #666; margin-top: 4px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-            th { border-bottom: 1px solid #000; padding: 6px 8px; text-align: left; font-size: 11px; text-transform: uppercase; }
-            td { border-bottom: 1px solid #ddd; padding: 8px; font-size: 13px; }
-            .group-td { background: #f0f0f0; font-weight: bold; font-size: 12px; padding: 4px 8px; }
-            .count-line { display: inline-block; width: 80px; border-bottom: 1px solid #000; }
-          </style>
-        </head>
-        <body>
-          ${Object.keys(categories).sort().map(catName => {
-            const groups = categories[catName];
-            const rows = Object.keys(groups).sort().map(grpName => {
-              let html = '';
-              if (grpName !== '___standalone') {
-                html += `<tr><td colspan="2" class="group-td">${grpName}</td></tr>`;
-              }
-              html += groups[grpName].map(item => `
-                <tr>
-                  <td>${item.variant_name}</td>
-                  <td style="width:120px"><span class="count-line">&nbsp;</span></td>
-                </tr>
-              `).join('');
-              return html;
-            }).join('');
-
-            return `
-              <div class="page">
-                <div class="header">
-                  <div class="store">${storeName}</div>
-                  <div class="category">${catName}</div>
-                  <div class="date">Date: _____________________ &nbsp;&nbsp; Counted by: _____________________</div>
-                </div>
-                <table>
-                  <thead><tr><th>Item</th><th>Count</th></tr></thead>
-                  <tbody>${rows}</tbody>
-                </table>
-              </div>`;
-          }).join('')}
-        </body>
-        </html>
-      `);
-      printWindow.document.close();
-      printWindow.focus();
-      setTimeout(() => printWindow.print(), 500);
-    }
-
-    async function applyToClover() {
-  if (!confirm('This will adjust Clover quantities based on your count discrepancies. Continue?')) return;
-  const btn = document.querySelector('[onclick="applyToClover()"]');
-  btn.disabled = true;
-  btn.textContent = 'Applying...';
-
-  const toUpdate = Object.keys(counts).filter(itemId => {
-    const item = allItems.find(i => i.id === itemId);
-    return item && counts[itemId] !== (item.clover_qty || 0);
-  });
-
-  let applied = 0;
-  for (const itemId of toUpdate) {
-    try {
-      const item = allItems.find(i => i.id === itemId);
-      const diff = counts[itemId] - (item.clover_qty || 0);
-      const newQty = (item.clover_qty || 0) + diff;
-
-      await fetch(`/api/inventory/items/${itemId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ clover_qty: newQty })
-      });
-
-      item.clover_qty = newQty;
-      applied++;
-    } catch (err) { console.error('Apply error:', err); }
-  }
-
-  btn.textContent = `✅ Adjusted ${applied} items in Clover!`;
-  setTimeout(() => { btn.disabled = false; btn.textContent = '✅ Apply to Clover'; }, 3000);
-}
-
-    loadStoreName();
-    loadInventory();
+    loadStores();
+    loadReports();
   </script>
   <script>loadNavbar();</script>
 </body>
