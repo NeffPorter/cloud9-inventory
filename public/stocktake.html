@@ -519,103 +519,144 @@ let allCountCollapsed = false;
       btn.textContent = anyVisible ? '📂 Expand All' : '📂 Collapse All';
     }
     function generateReport(filterCat = null) {
-      document.getElementById('reportDate').textContent = new Date().toLocaleDateString();
+  document.getElementById('reportDate').textContent = new Date().toLocaleDateString();
 
-      const countedItems = allItems.filter(i => 
-        counts[i.id] !== undefined && 
-        (filterCat === null || i.category === filterCat)
-      );
-      let matches = 0, overages = 0, shortages = 0, totalOver = 0, totalUnder = 0;
-      const discrepancies = countedItems.map(item => {
-        const counted = counts[item.id];
-        const system = item.clover_qty || 0;
-        const diff = counted - system;
-        if (diff === 0) matches++;
-        else if (diff > 0) { overages++; totalOver += diff; }
-        else { shortages++; totalUnder += Math.abs(diff); }
-        return { item, counted, system, diff };
-      }).filter(d => d.diff !== 0).sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+  // Hide the action bar
+  document.getElementById('actionBar').classList.remove('visible');
 
-      document.getElementById('reportSummary').innerHTML = `
-        <div class="summary-stat">
-          <div class="summary-value">${countedItems.length}</div>
-          <div class="summary-label">Items Counted</div>
-        </div>
-        <div class="summary-stat">
-          <div class="summary-value" style="color:#38761d">${matches}</div>
-          <div class="summary-label">Exact Matches</div>
-        </div>
-        <div class="summary-stat">
-          <div class="summary-value" style="color:#c00">${shortages}</div>
-          <div class="summary-label">Shortages</div>
-        </div>
-        <div class="summary-stat">
-          <div class="summary-value" style="color:#c55a11">${overages}</div>
-          <div class="summary-label">Overages</div>
-        </div>
-        <div class="summary-stat">
-          <div class="summary-value" style="color:#c00">${totalUnder}</div>
-          <div class="summary-label">Total Short</div>
-        </div>
-        <div class="summary-stat">
-          <div class="summary-value" style="color:#c55a11">${totalOver}</div>
-          <div class="summary-label">Total Over</div>
-        </div>
-      `;
+  const countedItems = allItems.filter(i =>
+    counts[i.id] !== undefined &&
+    (filterCat === null || i.category === filterCat)
+  );
 
-      if (discrepancies.length === 0) {
-        document.getElementById('reportDetails').innerHTML = `
-          <div class="card" style="text-align:center;padding:40px">
-            <div style="font-size:40px;margin-bottom:12px">✅</div>
-            <h3 style="font-size:20px;color:#38761d;margin-bottom:8px">Perfect Match!</h3>
-            <p style="color:#999">All counted items match the system quantities.</p>
-          </div>`;
-        return;
-      }
+  let matches = 0, overages = 0, shortages = 0, totalOver = 0, totalUnder = 0;
 
-      const catGroups = {};
-      discrepancies.forEach(d => {
-        const cat = d.item.category || 'No Category';
-        if (!catGroups[cat]) catGroups[cat] = [];
-        catGroups[cat].push(d);
-      });
+  const discrepancies = countedItems.map(item => {
+    const counted = counts[item.id];
+    const system = item.clover_qty || 0;
+    const diff = counted - system;
+    if (diff === 0) matches++;
+    else if (diff > 0) { overages++; totalOver += diff; }
+    else { shortages++; totalUnder += Math.abs(diff); }
+    return { item, counted, system, diff };
+  }).filter(d => d.diff !== 0).sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
 
-      document.getElementById('reportDetails').innerHTML = `
-        <div class="card">
-          <div class="card-title">⚠️ ${discrepancies.length} Discrepanc${discrepancies.length === 1 ? 'y' : 'ies'} Found</div>
-          ${Object.keys(catGroups).sort().map(catName => `
-            <div class="category-section">
-              <div class="category-header">${catName}</div>
-              <div class="category-body">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Item</th>
-                      <th>Group</th>
-                      <th>System</th>
-                      <th>Counted</th>
-                      <th>Difference</th>
-                      <th>Possible Reason</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    ${catGroups[catName].map(d => `
-                      <tr>
-                        <td><strong>${d.item.variant_name}</strong></td>
-                        <td style="color:#999">${d.item.group_name || '—'}</td>
-                        <td>${d.system}</td>
-                        <td>${d.counted}</td>
-                        <td class="${d.diff > 0 ? 'discrepancy-over' : 'discrepancy-under'}">${d.diff > 0 ? '+' + d.diff : d.diff}</td>
-                        <td style="color:#999;font-size:12px">${d.diff < 0 ? '⚠️ Possible theft, damage, or missed sale' : '📦 Possible receiving error or unrecorded return'}</td>
-                      </tr>
-                    `).join('')}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          `).join('')}
-        </div>`;
-    }
+  // Auto-save report
+  saveReport(countedItems, discrepancies, matches, shortages, overages, filterCat);
+
+  document.getElementById('reportSummary').innerHTML = `
+    <div class="summary-stat">
+      <div class="summary-value">${countedItems.length}</div>
+      <div class="summary-label">Items Counted</div>
+    </div>
+    <div class="summary-stat">
+      <div class="summary-value" style="color:#38761d">${matches}</div>
+      <div class="summary-label">Exact Matches</div>
+    </div>
+    <div class="summary-stat">
+      <div class="summary-value" style="color:#c00">${shortages}</div>
+      <div class="summary-label">Shortages</div>
+    </div>
+    <div class="summary-stat">
+      <div class="summary-value" style="color:#c55a11">${overages}</div>
+      <div class="summary-label">Overages</div>
+    </div>
+    <div class="summary-stat">
+      <div class="summary-value" style="color:#c00">${totalUnder}</div>
+      <div class="summary-label">Total Short</div>
+    </div>
+    <div class="summary-stat">
+      <div class="summary-value" style="color:#c55a11">${totalOver}</div>
+      <div class="summary-label">Total Over</div>
+    </div>
+  `;
+
+  if (discrepancies.length === 0) {
+    document.getElementById('reportDetails').innerHTML = `
+      <div class="card" style="text-align:center;padding:40px">
+        <div style="font-size:40px;margin-bottom:12px">✅</div>
+        <h3 style="font-size:20px;color:#38761d;margin-bottom:8px">Perfect Match!</h3>
+        <p style="color:#999">All counted items match the system quantities.</p>
+      </div>`;
+    return;
+  }
+
+  const catGroups = {};
+  discrepancies.forEach(d => {
+    const cat = d.item.category || 'No Category';
+    if (!catGroups[cat]) catGroups[cat] = [];
+    catGroups[cat].push(d);
+  });
+
+  document.getElementById('reportDetails').innerHTML = `
+    <div class="card">
+      <div class="card-title">⚠️ ${discrepancies.length} Discrepanc${discrepancies.length === 1 ? 'y' : 'ies'} Found</div>
+      ${Object.keys(catGroups).sort().map(catName => `
+        <div class="category-section">
+          <div class="category-header">${catName}</div>
+          <div class="category-body">
+            <table>
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Group</th>
+                  <th>System</th>
+                  <th>Counted</th>
+                  <th>Difference</th>
+                  <th>Possible Reason</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${catGroups[catName].map(d => `
+                  <tr>
+                    <td><strong>${d.item.variant_name}</strong></td>
+                    <td style="color:#999">${d.item.group_name || '—'}</td>
+                    <td>${d.system}</td>
+                    <td>${d.counted}</td>
+                    <td class="${d.diff > 0 ? 'discrepancy-over' : 'discrepancy-under'}">${d.diff > 0 ? '+' + d.diff : d.diff}</td>
+                    <td style="color:#999;font-size:12px">${d.diff < 0 ? '⚠️ Possible theft, damage, or missed sale' : '📦 Possible receiving error or unrecorded return'}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `).join('')}
+    </div>`;
+}
+
+async function saveReport(countedItems, discrepancies, matches, shortages, overages, filterCat) {
+  try {
+    const cats = filterCat ? [filterCat] : [...new Set(countedItems.map(i => i.item?.category || i.category))];
+    await fetch('/api/inventory/stocktake/reports', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      },
+      body: JSON.stringify({
+        store_id: storeId,
+        categories: cats,
+        total_counted: countedItems.length,
+        total_matches: matches,
+        total_shortages: shortages,
+        total_overages: overages,
+        discrepancies: discrepancies.map(d => ({
+          item_id: d.item.id,
+          item_name: d.item.variant_name,
+          group_name: d.item.group_name,
+          category: d.item.category,
+          system_qty: d.system,
+          counted_qty: d.counted,
+          difference: d.diff
+        }))
+      })
+    });
+    console.log('Report saved!');
+  } catch (err) {
+    console.error('Save report error:', err);
+  }
+}
 
     function printCountSheets() {
       const selected = selectedCategories.size > 0

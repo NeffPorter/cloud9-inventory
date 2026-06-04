@@ -317,5 +317,55 @@ router.post('/sync/:store_id', auth, async (req, res) => {
     res.status(500).json({ error: 'Sync failed: ' + err.message });
   }
 });
+// Save stock take report
+router.post('/stocktake/reports', auth, async (req, res) => {
+  try {
+    const { store_id, categories, total_counted, total_matches, total_shortages, total_overages, discrepancies } = req.body;
 
+    const { data, error } = await supabase
+      .from('stock_take_reports')
+      .insert([{
+        store_id,
+        created_by: req.user.id,
+        categories,
+        total_counted,
+        total_matches,
+        total_shortages,
+        total_overages,
+        discrepancies
+      }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json({ report: data });
+  } catch (err) {
+    console.error('Save report error:', err);
+    res.status(500).json({ error: 'Failed to save report' });
+  }
+});
+
+// Get stock take reports for a store
+router.get('/stocktake/reports', auth, async (req, res) => {
+  try {
+    const { store_id } = req.query;
+
+    let query = supabase
+      .from('stock_take_reports')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (store_id) query = query.eq('store_id', store_id);
+    else if (req.user.role === 'manager' && req.user.store_id) {
+      query = query.eq('store_id', req.user.store_id);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json({ reports: data });
+  } catch (err) {
+    console.error('Get reports error:', err);
+    res.status(500).json({ error: 'Failed to load reports' });
+  }
+});
 module.exports = router;
