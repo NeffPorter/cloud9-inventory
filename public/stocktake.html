@@ -276,7 +276,7 @@
       <div id="reportDetails"></div>
       <div style="display:flex;gap:12px;margin-top:16px" class="no-print">
         <button class="btn btn-blue" onclick="window.print()">🖨️ Print Report</button>
-        <button class="btn btn-green" onclick="applyCountsToClover()">✅ Apply Counts to Clover</button>
+        <button class="btn btn-green" onclick="ApplyToClover()">✅ Apply Counts to Clover</button>
       </div>
     </div>
 
@@ -398,15 +398,20 @@
 
       const container = document.getElementById('countContainer');
       container.className = '';
+let allCountCollapsed = false;
 
       if (Object.keys(categories).length === 0) {
         container.innerHTML = '<div class="loading">No categories selected. Go back and select some!</div>';
         return;
       }
-
+        
       container.innerHTML = Object.keys(categories).sort().map(catName => {
         const groups = categories[catName];
-
+      container.insertAdjacentHTML('afterbegin', `
+                <div style="display:flex;gap:10px;margin-bottom:16px">
+                  <button class="btn btn-gray" id="collapseCountBtn" onclick="toggleAllCountCats()">📂 Collapse All</button>
+                </div>
+              `);
         const rows = Object.keys(groups).sort().map(grpName => {
           const items = groups[grpName];
           let html = '';
@@ -441,9 +446,10 @@
         const catId = 'stcount-' + catName.replace(/[^a-zA-Z0-9]/g, '-');
         return `
                 <div class="category-section">
-                    <div class="category-header" onclick="toggleCountCat('${catId}')" style="cursor:pointer">
-                    ${catName}
-                    <span style="font-size:12px;opacity:0.8">${Object.values(groups).flat().length} items ▼</span>
+                    <div class="category-header" style="display:flex;justify-content:space-between;align-items:center">
+                      <span onclick="toggleCountCat('${catId}')" style="cursor:pointer;flex:1">${catName} <span style="font-size:10px;opacity:0.8">▼</span></span>
+                      <span style="font-size:11px;opacity:0.7">${Object.values(groups).flat().length} items</span>
+                      <button onclick="event.stopPropagation();generateCategoryReport('${catName}')" style="background:rgba(255,255,255,0.2);border:none;color:white;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;margin-left:12px">📊 Report</button>
                     </div>
                     <div class="category-body" id="${catId}">
               <table>
@@ -463,7 +469,18 @@
 
       updateActionBar();
     }
-
+    function generateCategoryReport(catName) {
+      showTab('report');
+      // Filter counts to just this category
+      const catItems = allItems.filter(i => i.category === catName && counts[i.id] !== undefined);
+      if (catItems.length === 0) {
+        alert(`No counts entered for ${catName} yet!`);
+        showTab('count');
+        return;
+      }
+      // Temporarily filter to just this category for report
+      generateReport(catName);
+    }
     function updateCount(itemId, value) {
       if (value === '') {
         delete counts[itemId];
@@ -494,13 +511,21 @@
         const el = document.getElementById(id);
         if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
     }
-
-    function generateReport() {
+    function toggleAllCountCats() {
+      const btn = document.getElementById('collapseCountBtn');
+      const cats = document.querySelectorAll('[id^="stcount-"]');
+      const anyVisible = [...cats].some(el => el.style.display !== 'none');
+      cats.forEach(el => el.style.display = anyVisible ? 'none' : '');
+      btn.textContent = anyVisible ? '📂 Expand All' : '📂 Collapse All';
+    }
+    function generateReport(filterCat = null) {
       document.getElementById('reportDate').textContent = new Date().toLocaleDateString();
 
-      const countedItems = allItems.filter(i => counts[i.id] !== undefined);
+      const countedItems = allItems.filter(i => 
+        counts[i.id] !== undefined && 
+        (filterCat === null || i.category === filterCat)
+      );
       let matches = 0, overages = 0, shortages = 0, totalOver = 0, totalUnder = 0;
-
       const discrepancies = countedItems.map(item => {
         const counted = counts[item.id];
         const system = item.clover_qty || 0;
