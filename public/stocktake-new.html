@@ -781,7 +781,8 @@ async function pushCategoryToClover(discrepancies) {
         });
       }
 
-      window.location.href = '/stocktake';
+      console.log('Report saved successfully!');
+// window.location.href = '/stocktake';
     } catch (err) {
       btn.disabled = false;
       btn.textContent = '💾 Save & Finish';
