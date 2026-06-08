@@ -364,13 +364,10 @@
       const draft = (draftData.drafts || [])[0];
 
       if (draft && Object.keys(draft.counts || {}).length > 0) {
-        const resume = confirm(`You have an in-progress stock take from ${new Date(draft.updated_at).toLocaleDateString()}. Resume it?`);
-        if (resume) {
-          counts = draft.counts || {};
-          catStatus = draft.cat_status || {};
-          draftId = draft.id;
-        }
-      }
+      counts = draft.counts || {};
+      catStatus = draft.cat_status || {};
+      draftId = draft.id;
+    }
     } catch (err) {
       console.error('Load draft error:', err);
     }
@@ -578,7 +575,10 @@
 
     catStatus[currentCat] = discrepancies.length > 0 ? 'issues' : 'clean';
     autoSave();
-
+    // Auto-push discrepancies to Clover
+    if (discrepancies.length > 0) {
+      pushCategoryToClover(discrepancies);
+    }
     document.getElementById('summaryCatName').textContent = currentCat;
     const badge = document.getElementById('summaryBadge');
     if (discrepancies.length === 0) {
@@ -616,7 +616,24 @@
 
     showScreen('screen-summary');
   }
-
+async function pushCategoryToClover(discrepancies) {
+  for (const d of discrepancies) {
+    try {
+      // Use the difference to add/subtract rather than set absolute value
+      const newQty = (d.item.clover_qty || 0) + d.diff;
+      await fetch(`/api/inventory/items/${d.item.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ clover_qty: newQty })
+      });
+      // Update local item so future calculations are correct
+      d.item.clover_qty = newQty;
+    } catch (err) {
+      console.error('Push to Clover error:', err);
+    }
+  }
+  console.log(`✅ Pushed ${discrepancies.length} adjustments to Clover for ${currentCat}`);
+}
   function showFinalReport() {
     const allCatItems = allItems.filter(i => catStatus[i.category || 'No Category']);
     const allDiscrepancies = allCatItems
