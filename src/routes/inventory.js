@@ -326,7 +326,6 @@ router.post('/stocktake/reports', auth, async (req, res) => {
       .from('stock_take_reports')
       .insert([{
         store_id,
-        created_by: req.user.id,
         categories,
         total_counted,
         total_matches,
