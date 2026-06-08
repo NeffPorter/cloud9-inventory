@@ -196,14 +196,25 @@ async function updateInventoryItem(store, itemId) {
 
     const suggested = calculateSuggestedOrder(cloverQty, Math.max(0, unitsSold), leadTime, bufferDays);
 
-    await supabase.from('inventory_items').upsert([{
-      id: itemId, store_id: store.id,
-      category, group_name: groupName,
-      variant_name: item.name, cost, price,
-      clover_qty: cloverQty,
-      suggested_order: suggested > 0 ? suggested : 0,
-      last_synced: new Date().toISOString()
-    }], { onConflict: 'id' });
+    // Check if item already exists - if so preserve existing metadata
+const { data: existingItem } = await supabase
+  .from('inventory_items')
+  .select('category, group_name, variant_name, status')
+  .eq('id', itemId)
+  .single();
+
+await supabase.from('inventory_items').upsert([{
+  id: itemId,
+  store_id: store.id,
+  category: existingItem?.category || category,
+  group_name: existingItem?.group_name !== undefined ? existingItem.group_name : groupName,
+  variant_name: existingItem?.variant_name || item.name,
+  cost,
+  price,
+  clover_qty: cloverQty,
+  suggested_order: suggested > 0 ? suggested : 0,
+  last_synced: new Date().toISOString()
+}], { onConflict: 'id' });
 
     console.log(`📦 Updated item ${itemId} for ${store.name}: qty=${cloverQty}`);
   } catch (err) {
