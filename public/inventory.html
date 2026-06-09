@@ -145,6 +145,13 @@
       font-size: 12px;
       font-weight: 700;
     }
+    .clear-suggested-btn {
+      border: none; background: none; color: #ccc; cursor: pointer;
+      padding: 2px 5px; border-radius: 4px; font-size: 11px; margin-left: 3px;
+      vertical-align: middle; line-height: 1;
+    }
+    .clear-suggested-btn:hover { color: #c00; background: #fff0f0; }
+    .ungrouped-row td { background: #f9f9f9; color: #aaa; font-style: italic; font-size: 12px; }
     .status-select {
       padding: 4px 8px;
       border: 1px solid #e0e0e0;
@@ -336,12 +343,17 @@
         const itemCount = Object.values(groups).flat().length;
         const catId = 'cat-' + catName.replace(/[^a-zA-Z0-9]/g, '-');
 
+        const hasNamedGroups = Object.keys(groups).some(g => g !== '___standalone');
+
         const rows = Object.keys(groups).sort().map(grpName => {
           const items = groups[grpName];
           let html = '';
 
           if (grpName !== '___standalone') {
             html += `<tr class="group-row"><td colspan="6">${grpName}</td></tr>`;
+          } else if (hasNamedGroups) {
+            // Clearly separate ungrouped items when mixed with grouped items
+            html += `<tr class="group-row ungrouped-row"><td colspan="6">— Other items (no group) —</td></tr>`;
           }
 
           html += items.map(item => {
@@ -367,7 +379,7 @@
                     <input type="number" class="edit-input" data-field="clover_qty" data-item="${item.id}" data-original="${qty}"
                       value="${qty}" onchange="markChanged(this)">
                   </td>
-                  <td>${item.suggested_order > 0 ? `<span class="suggested-badge">Order ${item.suggested_order}</span>` : '—'}</td>
+                  <td>${item.suggested_order > 0 ? `<span class="suggested-badge">Order ${item.suggested_order}</span><button class="clear-suggested-btn" onclick="clearSuggestedOrder('${item.id}')" title="Clear suggested order">✕</button>` : '—'}</td>
                   <td>
                     <select class="status-select" onchange="updateStatus('${item.id}', this.value)">
                       <option value="Active" ${item.status === 'Active' ? 'selected' : ''}>Active</option>
@@ -384,7 +396,7 @@
                   <td>$${(item.cost || 0).toFixed(2)}</td>
                   <td>$${(item.price || 0).toFixed(2)}</td>
                   <td class="${qtyClass}">${qty}</td>
-                  <td>${item.suggested_order > 0 ? `<span class="suggested-badge">Order ${item.suggested_order}</span>` : '—'}</td>
+                  <td>${item.suggested_order > 0 ? `<span class="suggested-badge">Order ${item.suggested_order}</span><button class="clear-suggested-btn" onclick="clearSuggestedOrder('${item.id}')" title="Clear suggested order">✕</button>` : '—'}</td>
                   <td>
                     <select class="status-select" onchange="updateStatus('${item.id}', this.value)">
                       <option value="Active" ${item.status === 'Active' ? 'selected' : ''}>Active</option>
@@ -551,6 +563,22 @@
         renderInventory(allItems);
       } catch (err) {
         console.error('Update status error:', err);
+      }
+    }
+
+    async function clearSuggestedOrder(itemId) {
+      try {
+        await fetch(`/api/inventory/items/${itemId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ suggested_order: 0 })
+        });
+        const item = allItems.find(i => i.id === itemId);
+        if (item) item.suggested_order = 0;
+        updateStats(allItems);
+        renderInventory(allItems);
+      } catch (err) {
+        console.error('Error clearing suggested order:', err);
       }
     }
 

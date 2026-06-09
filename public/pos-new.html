@@ -47,6 +47,16 @@
     .empty-msg { text-align: center; padding: 40px; color: #999; }
     .group-header td { background: #f0f4ff; font-weight: 700; color: #2f5597; font-size: 12px; padding: 6px 10px; }
     .suggested-badge { background: #d9ead3; color: #38761d; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+    .manual-cat { margin-bottom: 6px; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
+    .manual-cat-header { background: #f0f4ff; padding: 11px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: 700; color: #2f5597; user-select: none; }
+    .manual-cat-header:hover { background: #dce8ff; }
+    .cat-count { font-size: 12px; font-weight: 400; color: #999; margin-left: 6px; }
+    .cat-chevron { font-size: 12px; color: #999; }
+    .manual-item-added td { background: #f0fff4; }
+    .btn-add-item { border: none; padding: 5px 14px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; background: #2f5597; color: white; white-space: nowrap; }
+    .btn-add-item:hover { background: #1e3a6e; }
+    .btn-remove-item { border: none; padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; background: #f5f5f5; color: #c00; white-space: nowrap; }
+    .btn-remove-item:hover { background: #ffe0e0; }
   </style>
 </head>
 <body>
@@ -115,6 +125,7 @@
   let selectedItems = {}; // itemId -> { item, qty }
   let currentTab = 'suggested';
   let fromSuggested = false;
+  const manualExpandedCats = new Set(); // tracks which category accordions are open
 
   function switchTab(tab) {
     currentTab = tab;
@@ -229,47 +240,101 @@
       groups[cat].push(item);
     });
 
-    let html = `<table class="items-table">
-      <thead><tr>
-        <th style="width:32px"></th>
-        <th>Item</th>
-        <th>Cost</th>
-        <th>Current Stock</th>
-        <th>Order Qty</th>
-        <th>Subtotal</th>
-      </tr></thead><tbody>`;
-
+    let html = '';
     Object.keys(groups).sort().forEach(cat => {
-      html += `<tr class="group-header"><td colspan="6">📁 ${cat}</td></tr>`;
-      groups[cat].forEach(item => {
-        const sel = selectedItems[item.id];
-        const checked = sel ? 'checked' : '';
-        const qty = sel ? sel.qty : 1;
-        const subtotal = sel ? (item.cost || 0) * sel.qty : 0;
-        html += `<tr>
-          <td><input type="checkbox" ${checked} onchange="toggleItem('${item.id}', this.checked)" /></td>
-          <td>
-            <div style="font-weight:600">${item.group_name ? item.group_name + ' — ' : ''}${item.variant_name}</div>
-            <div style="font-size:11px;color:#999">${item.category}</div>
-          </td>
-          <td>$${(item.cost || 0).toFixed(2)}</td>
-          <td style="color:#666">${item.clover_qty || 0}</td>
-          <td><input type="number" class="qty-input" id="qty_${item.id}" value="${qty}" min="1"
-            onchange="updateQty('${item.id}', this.value)"
-            ${!sel ? 'disabled' : ''} /></td>
-          <td id="sub_${item.id}" style="font-weight:600">$${subtotal.toFixed(2)}</td>
-        </tr>`;
+      const catKey = 'mcat-' + cat.replace(/[^a-zA-Z0-9]/g, '-');
+      const catItems = groups[cat];
+      const addedCount = catItems.filter(i => selectedItems[i.id]).length;
+      // Open if searching or user manually expanded
+      const isExpanded = !!search || manualExpandedCats.has(cat);
+
+      html += `<div class="manual-cat">
+        <div class="manual-cat-header" onclick="toggleManualCat('${cat.replace(/'/g, "\\'")}', '${catKey}')">
+          <span>${cat} <span class="cat-count">${catItems.length} item${catItems.length !== 1 ? 's' : ''}${addedCount > 0 ? ` · <span style="color:#38761d;font-weight:700">${addedCount} added</span>` : ''}</span></span>
+          <span class="cat-chevron" id="chev-${catKey}">${isExpanded ? '▲' : '▼'}</span>
+        </div>
+        <div id="${catKey}" style="${isExpanded ? '' : 'display:none'}">
+          <table class="items-table">
+            <thead><tr>
+              <th>Item</th>
+              <th>Cost</th>
+              <th>In Stock</th>
+              <th style="width:80px">Qty</th>
+              <th style="width:90px"></th>
+            </tr></thead>
+            <tbody>`;
+
+      catItems.forEach(item => {
+        const isAdded = !!selectedItems[item.id];
+        const currentQty = isAdded ? selectedItems[item.id].qty : 1;
+        const itemLabel = (item.group_name ? item.group_name + ' — ' : '') + item.variant_name;
+
+        if (isAdded) {
+          html += `<tr class="manual-item-added">
+            <td style="font-weight:600">${itemLabel}</td>
+            <td>$${(item.cost || 0).toFixed(2)}</td>
+            <td style="color:#666">${item.clover_qty || 0}</td>
+            <td><input type="number" class="qty-input" value="${currentQty}" min="1"
+              onchange="updateManualQty('${item.id}', this.value)" /></td>
+            <td><button class="btn-remove-item" onclick="removeManualItem('${item.id}')">✕ Remove</button></td>
+          </tr>`;
+        } else {
+          html += `<tr>
+            <td style="font-weight:500">${itemLabel}</td>
+            <td>$${(item.cost || 0).toFixed(2)}</td>
+            <td style="color:#666">${item.clover_qty || 0}</td>
+            <td><input type="number" class="qty-input" id="mq_${item.id}" value="1" min="1" /></td>
+            <td><button class="btn-add-item" onclick="addManualItem('${item.id}')">+ Add</button></td>
+          </tr>`;
+        }
       });
+
+      html += `</tbody></table></div></div>`;
     });
 
-    html += '</tbody></table>';
     el.innerHTML = html;
+  }
+
+  function toggleManualCat(cat, catKey) {
+    const el = document.getElementById(catKey);
+    const chevron = document.getElementById('chev-' + catKey);
+    if (!el) return;
+    const isHidden = el.style.display === 'none';
+    el.style.display = isHidden ? '' : 'none';
+    if (chevron) chevron.textContent = isHidden ? '▲' : '▼';
+    if (isHidden) manualExpandedCats.add(cat);
+    else manualExpandedCats.delete(cat);
+  }
+
+  function addManualItem(itemId) {
+    const item = allInventory.find(i => i.id === itemId);
+    if (!item) return;
+    const qtyInput = document.getElementById('mq_' + itemId);
+    const qty = Math.max(1, parseInt(qtyInput?.value) || 1);
+    selectedItems[itemId] = { item, qty };
+    updateSummary();
+    renderManualTable();
+  }
+
+  function updateManualQty(itemId, val) {
+    const qty = Math.max(1, parseInt(val) || 1);
+    if (selectedItems[itemId]) {
+      selectedItems[itemId].qty = qty;
+      updateSummary();
+    }
+  }
+
+  function removeManualItem(itemId) {
+    delete selectedItems[itemId];
+    updateSummary();
+    renderManualTable();
   }
 
   function filterManual() {
     renderManualTable();
   }
 
+  // Keep toggleItem for the suggested tab (still uses checkboxes)
   function toggleItem(itemId, checked) {
     const item = allInventory.find(i => i.id === itemId);
     if (!item) return;

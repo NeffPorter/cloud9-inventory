@@ -46,6 +46,19 @@
     .notes-area { width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; font-family: inherit; resize: vertical; min-height: 80px; outline: none; }
     .notes-area:focus { border-color: #2f5597; }
     .loading { text-align: center; padding: 60px; color: #999; }
+    .add-items-panel { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 20px; border: 2px solid #2f5597; }
+    .add-items-panel h3 { font-size: 16px; font-weight: 700; color: #1a1a2e; margin-bottom: 16px; }
+    .add-search { width: 100%; padding: 9px 14px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; outline: none; margin-bottom: 12px; }
+    .add-search:focus { border-color: #2f5597; }
+    .add-cat { margin-bottom: 5px; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
+    .add-cat-header { background: #f0f4ff; padding: 10px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 13px; font-weight: 700; color: #2f5597; user-select: none; }
+    .add-cat-header:hover { background: #dce8ff; }
+    .add-item-row td { padding: 7px 12px; border-bottom: 1px solid #f8f8f8; font-size: 13px; }
+    .add-item-row:last-child td { border-bottom: none; }
+    .add-qty-input { width: 65px; padding: 5px 7px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 13px; text-align: center; outline: none; }
+    .add-qty-input:focus { border-color: #2f5597; }
+    .btn-add-line { border: none; padding: 5px 13px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; background: #2f5597; color: white; }
+    .btn-add-line:hover { background: #1e3a6e; }
     @media print {
       .no-print { display: none !important; }
       nav { display: none !important; }
@@ -62,7 +75,17 @@
     <button class="btn btn-gray" onclick="window.location.href='/pos'">← Back to POs</button>
     <button class="btn btn-blue" onclick="window.print()">🖨️ Print</button>
     <div id="receiveBtn"></div>
+    <div id="addItemsBtn"></div>
     <div id="deleteBtn"></div>
+  </div>
+
+  <div class="add-items-panel no-print" id="addItemsPanel" style="display:none">
+    <h3>➕ Add Items to PO</h3>
+    <input type="text" class="add-search" id="addItemSearch" placeholder="Search items..." oninput="renderAddItemsList()" />
+    <div id="addItemsList"></div>
+    <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end">
+      <button class="btn btn-gray" onclick="closeAddItems()">Close</button>
+    </div>
   </div>
 
   <div id="poContainer" class="loading">Loading purchase order...</div>
@@ -104,6 +127,10 @@
     if (po.status !== 'received') {
       document.getElementById('receiveBtn').innerHTML =
         `<button class="btn btn-green" onclick="toggleReceiveMode()">📦 Receive Items</button>`;
+      document.getElementById('addItemsBtn').innerHTML =
+        `<button class="btn btn-blue" onclick="openAddItems()">➕ Add Items</button>`;
+    } else {
+      document.getElementById('addItemsBtn').innerHTML = '';
     }
     document.getElementById('deleteBtn').innerHTML =
       `<button class="btn btn-red" onclick="deletePO()">🗑️ Cancel PO</button>`;
@@ -306,6 +333,141 @@
       window.location.href = '/pos';
     } catch (err) {
       alert('Error deleting PO: ' + err.message);
+    }
+  }
+
+  // ---- Add Items to PO ----
+  let allInventory = [];
+  const addExpandedCats = new Set();
+
+  async function loadInventoryForAdd() {
+    if (allInventory.length > 0) return; // already loaded
+    const storeId = po?.store_id;
+    if (!storeId) return;
+    const res = await fetch(`/api/inventory/items?store_id=${storeId}`, {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const data = await res.json();
+    allInventory = (data.items || []).filter(i => i.status !== 'Not Tracking');
+  }
+
+  async function openAddItems() {
+    const panel = document.getElementById('addItemsPanel');
+    panel.style.display = '';
+    await loadInventoryForAdd();
+    renderAddItemsList();
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function closeAddItems() {
+    document.getElementById('addItemsPanel').style.display = 'none';
+    addExpandedCats.clear();
+  }
+
+  function renderAddItemsList() {
+    const el = document.getElementById('addItemsList');
+    const search = (document.getElementById('addItemSearch')?.value || '').toLowerCase();
+    const filtered = allInventory.filter(i => {
+      const name = `${i.group_name} ${i.variant_name} ${i.category}`.toLowerCase();
+      return !search || name.includes(search);
+    });
+
+    if (filtered.length === 0) {
+      el.innerHTML = '<div style="text-align:center;padding:30px;color:#999">No items found.</div>';
+      return;
+    }
+
+    const cats = {};
+    filtered.forEach(item => {
+      const cat = item.category || 'No Category';
+      if (!cats[cat]) cats[cat] = [];
+      cats[cat].push(item);
+    });
+
+    let html = '';
+    Object.keys(cats).sort().forEach(cat => {
+      const catKey = 'addcat-' + cat.replace(/[^a-zA-Z0-9]/g, '-');
+      const isExpanded = !!search || addExpandedCats.has(cat);
+      const catItems = cats[cat];
+
+      html += `<div class="add-cat">
+        <div class="add-cat-header" onclick="toggleAddCat('${cat.replace(/'/g, "\\'")}', '${catKey}')">
+          <span>${cat} <span style="font-size:12px;font-weight:400;color:#999">${catItems.length} items</span></span>
+          <span id="achev-${catKey}">${isExpanded ? '▲' : '▼'}</span>
+        </div>
+        <div id="${catKey}" style="${isExpanded ? '' : 'display:none'}">
+          <table style="width:100%;border-collapse:collapse">
+            <thead><tr style="background:#f8f9fa">
+              <th style="text-align:left;padding:7px 12px;font-size:11px;color:#999;font-weight:700;text-transform:uppercase">Item</th>
+              <th style="text-align:left;padding:7px 12px;font-size:11px;color:#999;font-weight:700;text-transform:uppercase">Cost</th>
+              <th style="text-align:left;padding:7px 12px;font-size:11px;color:#999;font-weight:700;text-transform:uppercase;width:80px">Qty</th>
+              <th style="width:90px"></th>
+            </tr></thead>
+            <tbody>`;
+
+      catItems.forEach(item => {
+        const label = (item.group_name ? item.group_name + ' — ' : '') + item.variant_name;
+        html += `<tr class="add-item-row">
+          <td style="font-weight:500">${label}</td>
+          <td>$${(item.cost || 0).toFixed(2)}</td>
+          <td><input type="number" class="add-qty-input" id="aq_${item.id}" value="1" min="1" /></td>
+          <td><button class="btn-add-line" onclick="addItemToPO('${item.id}')">+ Add</button></td>
+        </tr>`;
+      });
+
+      html += `</tbody></table></div></div>`;
+    });
+
+    el.innerHTML = html;
+  }
+
+  function toggleAddCat(cat, catKey) {
+    const el = document.getElementById(catKey);
+    const chev = document.getElementById('achev-' + catKey);
+    if (!el) return;
+    const isHidden = el.style.display === 'none';
+    el.style.display = isHidden ? '' : 'none';
+    if (chev) chev.textContent = isHidden ? '▲' : '▼';
+    if (isHidden) addExpandedCats.add(cat);
+    else addExpandedCats.delete(cat);
+  }
+
+  async function addItemToPO(itemId) {
+    const item = allInventory.find(i => i.id === itemId);
+    if (!item) return;
+    const qtyInput = document.getElementById('aq_' + itemId);
+    const qty = Math.max(1, parseInt(qtyInput?.value) || 1);
+
+    const btn = qtyInput?.parentElement?.nextElementSibling?.querySelector('button');
+    if (btn) { btn.disabled = true; btn.textContent = '...'; }
+
+    try {
+      const res = await fetch(`/api/pos/${poId}/items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({
+          items: [{
+            item_id: item.id,
+            category: item.category || '',
+            group_name: item.group_name || '',
+            variant_name: item.variant_name || '',
+            unit_cost: item.cost || 0,
+            unit_price: item.price || 0,
+            ordered_qty: qty
+          }]
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      if (btn) { btn.textContent = '✓ Added'; btn.style.background = '#38761d'; }
+      if (qtyInput) qtyInput.value = 1;
+
+      // Refresh PO data
+      await loadPO();
+    } catch (err) {
+      alert('Error adding item: ' + err.message);
+      if (btn) { btn.disabled = false; btn.textContent = '+ Add'; }
     }
   }
 

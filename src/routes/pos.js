@@ -290,6 +290,64 @@ router.post('/:id/receive', auth, async (req, res) => {
   }
 });
 
+// Add items to an existing PO
+router.post('/:id/items', auth, async (req, res) => {
+  try {
+    const { items } = req.body;
+    if (!items || items.length === 0) {
+      return res.status(400).json({ error: 'items required' });
+    }
+
+    const { data: po } = await supabase
+      .from('purchase_orders')
+      .select('*')
+      .eq('id', req.params.id)
+      .single();
+
+    if (!po) return res.status(404).json({ error: 'PO not found' });
+    if (req.user.role === 'manager' && po.store_id !== req.user.store_id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    if (po.status === 'received') {
+      return res.status(400).json({ error: 'Cannot add items to a fully received PO' });
+    }
+
+    const lineItems = items.map(item => ({
+      po_id: po.id,
+      item_id: item.item_id,
+      category: item.category || '',
+      group_name: item.group_name || '',
+      variant_name: item.variant_name || '',
+      unit_cost: item.unit_cost || 0,
+      unit_price: item.unit_price || 0,
+      ordered_qty: item.ordered_qty || 0,
+      received_qty: 0,
+      remaining_qty: item.ordered_qty || 0
+    }));
+
+    const { error: itemsError } = await supabase
+      .from('purchase_order_items')
+      .insert(lineItems);
+
+    if (itemsError) throw itemsError;
+
+    const addedCost = items.reduce((sum, i) => sum + ((i.unit_cost || 0) * (i.ordered_qty || 0)), 0);
+    await supabase
+      .from('purchase_orders')
+      .update({
+        total_cost: Math.round(((po.total_cost || 0) + addedCost) * 100) / 100,
+        remaining_balance: Math.round(((po.remaining_balance || 0) + addedCost) * 100) / 100,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', req.params.id);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Add items to PO error:', err);
+    res.status(500).json({ error: err.message || 'Failed to add items' });
+  }
+});
+
 // Delete/cancel a PO (push remaining qty back to suggested_order)
 router.delete('/:id', auth, async (req, res) => {
   try {
