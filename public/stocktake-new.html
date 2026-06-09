@@ -745,6 +745,7 @@ async function pushCategoryToClover(discrepancies) {
     const totalOverages = allDiscrepancies.filter(d => d.diff > 0).length;
     const totalShortQty = allDiscrepancies.filter(d => d.diff < 0).reduce((a, d) => a + Math.abs(d.diff), 0);
     const totalOverQty = allDiscrepancies.filter(d => d.diff > 0).reduce((a, d) => a + d.diff, 0);
+    const totalLossValue = allDiscrepancies.filter(d => d.diff < 0).reduce((a, d) => a + (Math.abs(d.diff) * (d.item.cost || 0)), 0);
     const wasApplied = document.getElementById('applyBtn').textContent.includes('Applied');
 
     try {
@@ -755,19 +756,21 @@ async function pushCategoryToClover(discrepancies) {
           store_id: storeId,
           categories: Object.keys(catStatus),
           total_counted: totalCounted,
-          total_matches: totalMatches,
+          total_matches: totalCounted - Object.keys(counts).filter(id => counts[id] !== (allItems.find(i => i.id === id)?.clover_qty || 0)).length,
           total_shortages: totalShortages,
           total_overages: totalOverages,
           total_short_qty: totalShortQty,
           total_over_qty: totalOverQty,
+          total_loss_value: Math.round(totalLossValue * 100) / 100,
           discrepancies: allDiscrepancies.map(d => ({
             item_id: d.item.id,
             item_name: d.item.variant_name,
             group_name: d.item.group_name,
             category: d.item.category,
-            system_qty: d.system,
+            system_qty: d.item.clover_qty || 0,
             counted_qty: d.counted,
-            difference: d.diff
+            difference: d.diff,
+            cost: d.item.cost || 0
           })),
           applied_to_clover: wasApplied
         })

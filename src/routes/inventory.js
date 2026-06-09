@@ -344,6 +344,47 @@ router.post('/stocktake/reports', auth, async (req, res) => {
   }
 });
 
+// Update stock take report (status, notes, applied_to_clover)
+router.put('/stocktake/reports/:id', auth, async (req, res) => {
+  try {
+    const { status, notes, applied_to_clover } = req.body;
+
+    // Managers can only update reports for their own store, and only set status to 'resolved'
+    if (req.user.role === 'manager') {
+      const { data: report } = await supabase
+        .from('stock_take_reports')
+        .select('store_id')
+        .eq('id', req.params.id)
+        .single();
+
+      if (!report || report.store_id !== req.user.store_id) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      if (status && status !== 'resolved') {
+        return res.status(403).json({ error: 'Managers can only mark reports as resolved' });
+      }
+    }
+
+    const updateData = {};
+    if (status !== undefined) updateData.status = status;
+    if (notes !== undefined) updateData.notes = notes;
+    if (applied_to_clover !== undefined) updateData.applied_to_clover = applied_to_clover;
+
+    const { data, error } = await supabase
+      .from('stock_take_reports')
+      .update(updateData)
+      .eq('id', req.params.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json({ report: data });
+  } catch (err) {
+    console.error('Update report error:', err);
+    res.status(500).json({ error: 'Failed to update report' });
+  }
+});
+
 // Get stock take reports for a store
 router.get('/stocktake/reports', auth, async (req, res) => {
   try {

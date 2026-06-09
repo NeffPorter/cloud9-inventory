@@ -150,11 +150,7 @@
     <button class="btn btn-gray" onclick="window.location.href='/stocktake'">← Back to Stock Takes</button>
     <button class="btn btn-blue" onclick="window.print()">🖨️ Print / Save PDF</button>
     <button class="btn btn-green" id="applyBtn" onclick="applyToClover()">✅ Apply to Clover</button>
-    <select id="statusSelect" onchange="updateStatus(this.value)" style="padding:10px;border:2px solid #e0e0e0;border-radius:8px;font-size:14px;font-weight:600;outline:none;background:white">
-      <option value="pending">Status: Pending</option>
-      <option value="reviewed">Status: Reviewed</option>
-      <option value="resolved">Status: Resolved</option>
-    </select>
+    <div id="statusActions"></div>
   </div>
 
   <div id="reportContainer" class="loading">Loading report...</div>
@@ -186,8 +182,8 @@
         return;
       }
 
-      // Set status select
-      document.getElementById('statusSelect').value = report.status;
+      // Render role-based status actions
+      renderStatusActions();
 
       // Hide apply button if already applied
       if (report.applied_to_clover) {
@@ -259,6 +255,10 @@
             <div class="stat-val" style="color:#c55a11">+${report.total_over_qty || 0}</div>
             <div class="stat-lbl">Total Over Qty</div>
           </div>
+          <div class="stat-box" style="border: 2px solid #fee; background:#fff0f0">
+            <div class="stat-val" style="color:#c00">$${(report.total_loss_value || 0).toFixed(2)}</div>
+            <div class="stat-lbl">Est. $ Lost</div>
+          </div>
         </div>
 
         ${discrepancies.length === 0 ? `
@@ -315,6 +315,18 @@
     `;
   }
 
+  function renderStatusActions() {
+    const container = document.getElementById('statusActions');
+    if (!container) return;
+    if (report.status === 'pending' && user.role === 'admin') {
+      container.innerHTML = `<button class="btn btn-blue" onclick="updateStatus('reviewed')">👁️ Mark Reviewed</button>`;
+    } else if (report.status === 'reviewed' && (user.role === 'admin' || user.role === 'manager')) {
+      container.innerHTML = `<button class="btn btn-green" onclick="updateStatus('resolved')">✅ Mark Resolved</button>`;
+    } else {
+      container.innerHTML = `<span class="status-badge status-${report.status}" style="padding:10px 16px;font-size:13px">${report.status.charAt(0).toUpperCase() + report.status.slice(1)}</span>`;
+    }
+  }
+
   async function updateStatus(status) {
     try {
       await fetch(`/api/inventory/stocktake/reports/${reportId}`, {
@@ -323,6 +335,10 @@
         body: JSON.stringify({ status })
       });
       report.status = status;
+      renderStatusActions();
+      // Also update the badge inside the report
+      const badge = document.querySelector('.status-badge.status-pending, .status-badge.status-reviewed, .status-badge.status-resolved');
+      if (badge) { badge.className = `status-badge status-${status}`; badge.textContent = status; }
     } catch (err) {
       console.error('Update status error:', err);
     }

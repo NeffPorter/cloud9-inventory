@@ -344,7 +344,7 @@
                 <span class="status-badge status-${report.status}">${report.status}</span>
               </div>
               <div class="report-categories">📁 ${cats.length > 60 ? cats.substring(0, 60) + '...' : cats}</div>
-              <div class="report-stats">
+              <div class="report-stats" style="grid-template-columns: repeat(5, 1fr)">
                 <div class="report-stat">
                   <div class="report-stat-value">${report.total_counted || 0}</div>
                   <div class="report-stat-label">Counted</div>
@@ -360,6 +360,10 @@
                 <div class="report-stat">
                   <div class="report-stat-value" style="color:#c55a11">${report.total_overages || 0}</div>
                   <div class="report-stat-label">Overages</div>
+                </div>
+                <div class="report-stat" style="background:#fff0f0">
+                  <div class="report-stat-value" style="color:#c00;font-size:14px">$${(report.total_loss_value || 0).toFixed(2)}</div>
+                  <div class="report-stat-label">$ Lost</div>
                 </div>
               </div>
               <div class="report-footer">
