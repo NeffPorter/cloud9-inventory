@@ -204,7 +204,7 @@
           </div>
         </div>
         <div class="po-footer">
-          <span>By: ${po.created_by_name || 'Unknown'}</span>
+          <span>By: ${po.created_by_name || user.name || user.email || 'Unknown'}</span>
           <span style="color:#2f5597;font-weight:600;font-size:12px">View Details →</span>
         </div>
       </div>`;

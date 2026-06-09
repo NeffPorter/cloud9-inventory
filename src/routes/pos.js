@@ -110,8 +110,7 @@ router.post('/', auth, async (req, res) => {
         distributor,
         status: 'ordered',
         total_cost: Math.round(totalCost * 100) / 100,
-        remaining_balance: Math.round(totalCost * 100) / 100,
-        created_by_name: req.user.name || req.user.email
+        remaining_balance: Math.round(totalCost * 100) / 100
       }])
       .select()
       .single();

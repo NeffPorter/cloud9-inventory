@@ -174,7 +174,7 @@
         <div class="po-title">🛒 PO ${po.po_number}</div>
         <div class="po-meta">📦 Distributor: <strong>${po.distributor}</strong></div>
         <div class="po-meta">📅 Created: ${date}</div>
-        <div class="po-meta">👤 By: ${po.created_by_name || 'Unknown'}</div>
+        <div class="po-meta">👤 By: ${po.created_by_name || user.name || user.email || 'Unknown'}</div>
         <span class="status-badge status-${po.status}">${po.status === 'ordered' ? '📦 Ordered' : po.status === 'partial' ? '⏳ Partially Received' : '✅ Received'}</span>
 
         <div class="stats-grid">
