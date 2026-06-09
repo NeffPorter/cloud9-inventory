@@ -52,20 +52,12 @@ router.get('/best-prices', auth, async (req, res) => {
   }
 });
 
-// List distributors for a store
+// List all distributors (global — not store-scoped)
 router.get('/', auth, async (req, res) => {
   try {
-    const { store_id } = req.query;
-    if (!store_id) return res.status(400).json({ error: 'store_id required' });
-
-    if (req.user.role === 'manager' && req.user.store_id !== store_id) {
-      return res.status(403).json({ error: 'Access denied' });
-    }
-
     const { data, error } = await supabase
       .from('distributors')
       .select('*')
-      .eq('store_id', store_id)
       .order('name');
 
     if (error) throw error;
@@ -105,12 +97,12 @@ router.get('/:id/prices', auth, async (req, res) => {
 // Create distributor (admin only)
 router.post('/', auth, adminOnly, async (req, res) => {
   try {
-    const { store_id, name, rep_name, rep_email, rep_phone, website, notes } = req.body;
-    if (!store_id || !name) return res.status(400).json({ error: 'store_id and name required' });
+    const { name, rep_name, rep_email, rep_phone, website, notes } = req.body;
+    if (!name) return res.status(400).json({ error: 'name required' });
 
     const { data, error } = await supabase
       .from('distributors')
-      .insert([{ store_id, name, rep_name: rep_name || null, rep_email: rep_email || null, rep_phone: rep_phone || null, website: website || null, notes: notes || null }])
+      .insert([{ name, rep_name: rep_name || null, rep_email: rep_email || null, rep_phone: rep_phone || null, website: website || null, notes: notes || null }])
       .select()
       .single();
 

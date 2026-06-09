@@ -109,48 +109,16 @@
   const user = JSON.parse(localStorage.getItem('user') || '{}');
   if (!token) window.location.href = '/';
 
-  let allStores = [];
   let allDists = [];
-  let selectedStore = '';
   let editingId = null;
 
-  const params = new URLSearchParams(window.location.search);
-  if (params.get('store')) selectedStore = params.get('store');
-
-  async function loadStores() {
-    const res = await fetch('/api/inventory/stores', { headers: { 'Authorization': 'Bearer ' + token } });
-    const data = await res.json();
-    allStores = data.stores || [];
-
-    if (user.role === 'admin') {
-      document.getElementById('addBtn').innerHTML = `<button class="btn btn-blue" onclick="openModal()">➕ Add Distributor</button>`;
-    }
-
-    if (allStores.length === 1 && !selectedStore) selectedStore = allStores[0].id;
-
-    if (allStores.length > 1) {
-      const filter = document.getElementById('storeFilter');
-      filter.innerHTML = allStores.map(s => {
-        const active = selectedStore === s.id ? 'active' : '';
-        return `<button class="filter-btn ${active}" onclick="filterStore('${s.id}', this)">${s.name}</button>`;
-      }).join('');
-    }
-  }
-
-  function filterStore(storeId, btn) {
-    selectedStore = storeId;
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    loadDists();
+  if (user.role === 'admin') {
+    document.getElementById('addBtn').innerHTML = `<button class="btn btn-blue" onclick="openModal()">➕ Add Distributor</button>`;
   }
 
   async function loadDists() {
-    if (!selectedStore) {
-      document.getElementById('distContainer').innerHTML = '<div class="loading">Select a store to view distributors.</div>';
-      return;
-    }
     try {
-      const res = await fetch(`/api/distributors?store_id=${selectedStore}`, {
+      const res = await fetch('/api/distributors', {
         headers: { 'Authorization': 'Bearer ' + token }
       });
       const data = await res.json();
@@ -206,18 +174,7 @@
     document.getElementById('distWebsite').value = '';
     document.getElementById('distNotes').value = '';
     document.getElementById('saveDistBtn').textContent = 'Add Distributor';
-
-    // If admin with multiple stores and no store selected, show store picker
-    const storeGroup = document.getElementById('storeSelectGroup');
-    if (allStores.length > 1 && !selectedStore) {
-      storeGroup.style.display = '';
-      document.getElementById('distStore').innerHTML = allStores.map(s =>
-        `<option value="${s.id}">${s.name}</option>`
-      ).join('');
-    } else {
-      storeGroup.style.display = 'none';
-    }
-
+    document.getElementById('storeSelectGroup').style.display = 'none';
     document.getElementById('distModal').classList.add('open');
     setTimeout(() => document.getElementById('distName').focus(), 100);
   }
@@ -253,14 +210,6 @@
     if (!rep_email) { alert('Please enter the rep email.'); return; }
     if (!rep_phone) { alert('Please enter the rep phone number.'); return; }
 
-    // Resolve store_id for new distributors
-    const storeId = editingId ? null : (
-      allStores.length > 1 && !selectedStore
-        ? document.getElementById('distStore').value
-        : selectedStore
-    );
-    if (!editingId && !storeId) { alert('Please select a store.'); return; }
-
     const btn = document.getElementById('saveDistBtn');
     btn.disabled = true;
     btn.textContent = 'Saving...';
@@ -286,7 +235,7 @@
         res = await fetch('/api/distributors', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-          body: JSON.stringify({ ...payload, store_id: storeId })
+          body: JSON.stringify(payload)
         });
       }
       const data = await res.json();
@@ -320,7 +269,7 @@
     if (e.target === this) closeModal();
   });
 
-  loadStores().then(loadDists);
+  loadDists();
 </script>
 <script>loadNavbar();</script>
 </body>
