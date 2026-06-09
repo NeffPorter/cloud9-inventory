@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Budget – Cloud 9</title>
+  <script src="/navbar.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f7fa; color: #1a1a2e; }
+
+    .page-wrap { max-width: 980px; margin: 0 auto; padding: 32px 20px; }
+
+    /* ── Header ── */
+    .back-link { color: #2f5597; font-size: 13px; font-weight: 600; cursor: pointer; margin-bottom: 16px; display: inline-block; }
+    .back-link:hover { text-decoration: underline; }
+
+    .page-header { margin-bottom: 24px; }
+    .store-name { font-size: 13px; font-weight: 600; color: #888; margin-bottom: 4px; }
+    .week-label { font-size: 28px; font-weight: 800; margin-bottom: 4px; }
+    .prev-sales-line { font-size: 14px; color: #555; }
+
+    /* ── Approval banner ── */
+    .approval-banner {
+      background: #fff3e0; border: 1.5px solid #ffb74d; border-radius: 12px;
+      padding: 16px 20px; display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; margin-bottom: 20px; flex-wrap: wrap;
+    }
+    .approval-banner .msg { font-size: 14px; font-weight: 600; color: #e65100; }
+    .btn-approve { background: #2f5597; color: white; border: none; padding: 10px 22px; border-radius: 8px; font-weight: 700; font-size: 14px; cursor: pointer; }
+    .btn-approve:hover { background: #1a3a70; }
+
+    .approved-banner {
+      background: #e3f2fd; border: 1.5px solid #42a5f5; border-radius: 12px;
+      padding: 16px 20px; margin-bottom: 20px; font-size: 14px; font-weight: 600; color: #1565c0;
+    }
+
+    .complete-banner {
+      background: #f3f3f3; border: 1.5px solid #ccc; border-radius: 12px;
+      padding: 16px 20px; margin-bottom: 20px; font-size: 14px; font-weight: 600; color: #666;
+    }
+
+    /* ── Budget summary cards ── */
+    .summary-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 28px; }
+    .summary-card {
+      flex: 1; min-width: 160px; background: white; border-radius: 14px;
+      padding: 18px 20px; box-shadow: 0 1px 8px rgba(0,0,0,0.07);
+    }
+    .summary-card-label { font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .summary-card-value { font-size: 22px; font-weight: 800; }
+    .summary-card.highlight { background: linear-gradient(135deg,#1a1a2e,#2f5597); color: white; }
+    .summary-card.highlight .summary-card-label { color: rgba(255,255,255,0.7); }
+
+    /* ── Progress bar ── */
+    .progress-section { background: white; border-radius: 14px; padding: 20px 24px; margin-bottom: 28px; box-shadow: 0 1px 8px rgba(0,0,0,0.07); }
+    .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .progress-label { font-size: 14px; font-weight: 700; }
+    .progress-pct { font-size: 16px; font-weight: 800; }
+    .progress-bg { background: #eee; border-radius: 8px; height: 16px; overflow: hidden; margin-bottom: 8px; }
+    .progress-fill { height: 100%; border-radius: 8px; transition: width 0.5s; }
+    .progress-sub { font-size: 12px; color: #888; display: flex; justify-content: space-between; }
+
+    /* ── Invoice section ── */
+    .section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 14px; flex-wrap: wrap; gap: 8px;
+    }
+    .section-title { font-size: 17px; font-weight: 800; }
+
+    .btn-add-invoice {
+      background: #2f5597; color: white; border: none; padding: 9px 18px;
+      border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;
+    }
+    .btn-add-invoice:hover { background: #1a3a70; }
+    .btn-add-invoice:disabled { background: #ccc; cursor: not-allowed; }
+
+    /* Invoice table */
+    .invoice-table-wrap { background: white; border-radius: 14px; overflow: hidden; box-shadow: 0 1px 8px rgba(0,0,0,0.07); margin-bottom: 28px; }
+    .invoice-table { width: 100%; border-collapse: collapse; }
+    .invoice-table th {
+      background: #f8f9fa; font-size: 11px; font-weight: 700; color: #888;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      padding: 10px 16px; text-align: left; border-bottom: 1px solid #f0f0f0;
+    }
+    .invoice-table td { padding: 12px 16px; font-size: 14px; border-bottom: 1px solid #f7f7f7; vertical-align: middle; }
+    .invoice-table tr:last-child td { border-bottom: none; }
+
+    .invoice-table input[type="text"],
+    .invoice-table input[type="number"] {
+      border: 1px solid #ddd; border-radius: 6px; padding: 6px 10px;
+      font-size: 13px; width: 100%; background: white;
+    }
+    .invoice-table input:focus { outline: none; border-color: #2f5597; }
+
+    .btn-save-row { background: #e8f5e9; color: #2e7d32; border: none; padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .btn-save-row:hover { background: #c8e6c9; }
+    .btn-del-row { background: #fef2f2; color: #c0392b; border: none; padding: 6px 10px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; margin-left: 4px; }
+    .btn-del-row:hover { background: #fde8e8; }
+
+    .upload-label {
+      display: inline-block; padding: 5px 12px; border-radius: 6px;
+      border: 1px dashed #aaa; color: #555; font-size: 12px; cursor: pointer;
+      background: #fafafa; white-space: nowrap;
+    }
+    .upload-label:hover { background: #f0f4ff; border-color: #2f5597; color: #2f5597; }
+    .upload-label input { display: none; }
+
+    .pdf-link { color: #2f5597; font-size: 12px; font-weight: 600; text-decoration: none; display: inline-block; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; }
+    .pdf-link:hover { text-decoration: underline; }
+
+    .empty-invoices { padding: 32px; text-align: center; color: #aaa; font-size: 14px; }
+
+    /* ── Bottom actions ── */
+    .bottom-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+    .btn-complete { background: #1a1a2e; color: white; border: none; padding: 11px 24px; border-radius: 10px; font-weight: 700; font-size: 14px; cursor: pointer; }
+    .btn-complete:hover { background: #2f5597; }
+    .btn-complete:disabled { background: #ccc; cursor: not-allowed; }
+    .btn-print { background: white; color: #1a1a2e; border: 1.5px solid #ddd; padding: 11px 24px; border-radius: 10px; font-weight: 700; font-size: 14px; cursor: pointer; }
+    .btn-print:hover { background: #f0f4ff; border-color: #2f5597; color: #2f5597; }
+
+    /* ── Add Invoice Modal ── */
+    .modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center; }
+    .modal-overlay.open { display:flex; }
+    .modal { background:white; border-radius:16px; padding:28px; width:100%; max-width:480px; margin:20px; box-shadow:0 20px 60px rgba(0,0,0,0.2); }
+    .modal-title { font-size:18px; font-weight:800; margin-bottom:20px; }
+    .form-row { margin-bottom:14px; }
+    .form-label { font-size:12px; font-weight:700; color:#555; margin-bottom:5px; display:block; text-transform:uppercase; letter-spacing:0.3px; }
+    .form-input {
+      width:100%; padding:10px 12px; border:1.5px solid #e0e0e0; border-radius:8px;
+      font-size:14px; background:white; transition:border-color 0.2s;
+    }
+    .form-input:focus { outline:none; border-color:#2f5597; }
+    .form-select { width:100%; padding:10px 12px; border:1.5px solid #e0e0e0; border-radius:8px; font-size:14px; background:white; }
+    .modal-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:20px; }
+    .btn-cancel { background:#f3f3f3; color:#555; border:none; padding:10px 20px; border-radius:8px; font-weight:600; cursor:pointer; }
+    .btn-cancel:hover { background:#e0e0e0; }
+    .btn-submit { background:#2f5597; color:white; border:none; padding:10px 20px; border-radius:8px; font-weight:700; cursor:pointer; }
+    .btn-submit:hover { background:#1a3a70; }
+    .btn-submit:disabled { background:#ccc; }
+
+    .file-drop {
+      border: 2px dashed #ddd; border-radius: 10px; padding: 20px;
+      text-align: center; cursor: pointer; color: #888; font-size: 13px;
+      transition: all 0.2s; position: relative;
+    }
+    .file-drop:hover, .file-drop.dragover { border-color: #2f5597; background: #f0f4ff; color: #2f5597; }
+    .file-drop input { position:absolute; inset:0; opacity:0; cursor:pointer; }
+    .file-selected { font-size:12px; color:#2e7d32; font-weight:600; margin-top:4px; }
+
+    .spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,0.3); border-top-color:white; border-radius:50%; animation:spin 0.7s linear infinite; vertical-align:middle; margin-right:6px; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+
+    /* Print styles */
+    @media print {
+      .navbar-hide, .back-link, .btn-add-invoice, .btn-save-row, .btn-del-row,
+      .upload-label, .bottom-actions, .approval-banner .btn-approve { display:none !important; }
+      .page-wrap { padding: 0; }
+      body { background: white; }
+    }
+  </style>
+</head>
+<body>
+<script>loadNavbar();</script>
+
+<div class="page-wrap" id="pageContent">
+  <div style="text-align:center;padding:60px;color:#aaa">Loading budget…</div>
+</div>
+
+<!-- Add Invoice Modal -->
+<div class="modal-overlay" id="addInvoiceModal">
+  <div class="modal">
+    <div class="modal-title">📄 Add Invoice</div>
+
+    <div class="form-row">
+      <label class="form-label">Distributor</label>
+      <select class="form-select" id="modalDist">
+        <option value="">— Select distributor —</option>
+      </select>
+    </div>
+
+    <div class="form-row">
+      <label class="form-label">Invoice Total ($)</label>
+      <input class="form-input" type="number" id="modalAmount" step="0.01" min="0" placeholder="0.00">
+    </div>
+
+    <div class="form-row">
+      <label class="form-label">Upload Invoice PDF <span style="color:#aaa;font-weight:400">(optional)</span></label>
+      <div class="file-drop" id="fileDropZone">
+        <input type="file" id="modalFile" accept=".pdf,.jpg,.jpeg,.png" onchange="onFileSelect(this)">
+        📎 Click or drag file here
+      </div>
+      <div class="file-selected" id="fileSelectedLabel"></div>
+    </div>
+
+    <div class="form-row">
+      <label class="form-label">Notes <span style="color:#aaa;font-weight:400">(optional)</span></label>
+      <input class="form-input" type="text" id="modalNotes" placeholder="e.g. Invoice #1234">
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-submit" id="modalSubmitBtn" onclick="submitInvoice()">Add Invoice</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem('token');
+const user = JSON.parse(localStorage.getItem('user') || '{}');
+const urlParams = new URLSearchParams(window.location.search);
+const budgetId = urlParams.get('id');
+
+let budget = null;
+let invoices = [];
+let storeName = '';
+let distributors = [];
+let selectedFile = null;
+
+async function init() {
+  if (!token || !budgetId) { window.location.href = '/budgets'; return; }
+
+  const [budgetRes, distRes] = await Promise.all([
+    fetch(`/api/budgets/${budgetId}`, { headers: { Authorization: 'Bearer ' + token } }),
+    fetch('/api/distributors', { headers: { Authorization: 'Bearer ' + token } })
+  ]);
+
+  const budgetData = await budgetRes.json();
+  const distData = await distRes.json();
+
+  budget = budgetData.budget;
+  invoices = budgetData.invoices || [];
+  storeName = budgetData.store_name || '';
+  distributors = distData.distributors || [];
+
+  if (!budget) { document.getElementById('pageContent').innerHTML = '<div style="padding:40px;text-align:center;color:#aaa">Budget not found.</div>'; return; }
+
+  populateDistSelect();
+  renderPage();
+}
+
+function populateDistSelect() {
+  const sel = document.getElementById('modalDist');
+  distributors.forEach(d => {
+    const opt = document.createElement('option');
+    opt.value = d.id; opt.textContent = d.name;
+    sel.appendChild(opt);
+  });
+}
+
+function formatDate(d) {
+  if (!d) return '';
+  const [y, m, day] = d.split('-');
+  return `${m}/${day}/${y.slice(2)}`;
+}
+
+function formatMoney(n) {
+  return '$' + (n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function spendColor(pct) {
+  if (pct >= 100) return '#e53e3e';
+  if (pct >= 85) return '#e65100';
+  return '#2f5597';
+}
+
+function renderPage() {
+  const activeBudget = budget.status === 'approved_extended' ? budget.budget_45 : budget.budget_30;
+  const spent = budget.total_invoiced || 0;
+  const remaining = Math.max(0, activeBudget - spent);
+  const pct = activeBudget > 0 ? Math.min(100, (spent / activeBudget) * 100) : 0;
+  const color = spendColor(pct);
+  const isComplete = budget.status === 'complete';
+  const isAdmin = user.role === 'admin';
+
+  let html = `
+    <div onclick="window.location.href='/budgets${budget.store_id ? '?store=' + budget.store_id : ''}'" class="back-link">← Back to Budget Reports</div>
+
+    <div class="page-header">
+      <div class="store-name">☁️ ${storeName}</div>
+      <div class="week-label">Week of ${formatDate(budget.week_start)} – ${formatDate(budget.week_end)}</div>
+      <div class="prev-sales-line">Prior week net sales (${formatDate(budget.prev_week_start)} – ${formatDate(budget.prev_week_end)}): <strong>${formatMoney(budget.prev_week_net_sales)}</strong></div>
+    </div>`;
+
+  // Status banners
+  if (budget.status === 'pending_approval' && isAdmin) {
+    html += `
+      <div class="approval-banner">
+        <div class="msg">⚠️ Spending has exceeded 30% budget — approval required to continue up to 45%.</div>
+        <button class="btn-approve" onclick="approveBudget()">Approve Extended Budget</button>
+      </div>`;
+  } else if (budget.status === 'pending_approval' && !isAdmin) {
+    html += `<div class="approval-banner"><div class="msg">⚠️ Budget limit reached. Waiting for admin approval to continue spending.</div></div>`;
+  } else if (budget.status === 'approved_extended') {
+    html += `<div class="approved-banner">✅ Extended budget approved by ${budget.approved_by || 'admin'} — spending up to 45% is authorized.</div>`;
+  } else if (isComplete) {
+    html += `<div class="complete-banner">✔ This budget is marked complete.</div>`;
+  }
+
+  // Summary cards
+  html += `<div class="summary-row">
+    <div class="summary-card">
+      <div class="summary-card-label">Prior Week Sales</div>
+      <div class="summary-card-value">${formatMoney(budget.prev_week_net_sales)}</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-card-label">30% Budget</div>
+      <div class="summary-card-value">${formatMoney(budget.budget_30)}</div>
+    </div>`;
+
+  if (budget.status === 'approved_extended' || budget.status === 'pending_approval') {
+    html += `<div class="summary-card">
+      <div class="summary-card-label">45% (Extended)</div>
+      <div class="summary-card-value">${formatMoney(budget.budget_45)}</div>
+    </div>`;
+  }
+
+  html += `
+    <div class="summary-card highlight">
+      <div class="summary-card-label">Spent</div>
+      <div class="summary-card-value">${formatMoney(spent)}</div>
+    </div>
+    <div class="summary-card">
+      <div class="summary-card-label">Remaining</div>
+      <div class="summary-card-value" style="color:${remaining <= 0 ? '#e53e3e' : '#2e7d32'}">${formatMoney(remaining)}</div>
+    </div>
+  </div>`;
+
+  // Progress bar
+  html += `
+    <div class="progress-section">
+      <div class="progress-header">
+        <div class="progress-label">Budget Used</div>
+        <div class="progress-pct" style="color:${color}">${pct.toFixed(1)}%</div>
+      </div>
+      <div class="progress-bg">
+        <div class="progress-fill" style="width:${pct}%;background:${color}"></div>
+      </div>
+      <div class="progress-sub">
+        <span>${formatMoney(spent)} spent</span>
+        <span>${formatMoney(remaining)} remaining of ${formatMoney(activeBudget)}</span>
+      </div>
+    </div>`;
+
+  // Invoice table
+  html += `
+    <div class="section-header">
+      <div class="section-title">📄 Invoices</div>
+      ${!isComplete ? `<button class="btn-add-invoice" onclick="openModal()">+ Add Invoice</button>` : ''}
+    </div>
+    <div class="invoice-table-wrap">`;
+
+  if (invoices.length === 0) {
+    html += `<div class="empty-invoices">No invoices added yet. Click "+ Add Invoice" to get started.</div>`;
+  } else {
+    html += `<table class="invoice-table">
+      <thead><tr>
+        <th>Distributor</th>
+        <th>Invoice PDF</th>
+        <th>Amount</th>
+        <th>Notes</th>
+        ${!isComplete ? '<th>Actions</th>' : ''}
+      </tr></thead><tbody id="invoiceTbody">`;
+
+    invoices.forEach(inv => {
+      const distName = inv.distributor_name || distributors.find(d => d.id === inv.distributor_id)?.name || '—';
+      html += `<tr id="inv-row-${inv.id}">
+        <td style="font-weight:600">${distName}</td>
+        <td>
+          ${inv.invoice_pdf_url
+            ? `<a class="pdf-link" href="${inv.invoice_pdf_url}" target="_blank" title="${inv.invoice_pdf_name || 'Invoice'}">📎 ${inv.invoice_pdf_name || 'View PDF'}</a>`
+            : `<span style="color:#bbb;font-size:12px">No file</span>`}
+        </td>
+        <td>
+          ${!isComplete
+            ? `<input type="number" step="0.01" min="0" value="${(inv.invoice_amount || 0).toFixed(2)}"
+                 id="amt-${inv.id}" style="width:110px"
+                 onchange="updateInvoiceAmount('${inv.id}', this.value)">`
+            : `<strong>${formatMoney(inv.invoice_amount)}</strong>`}
+        </td>
+        <td style="color:#888;font-size:13px">${inv.notes || ''}</td>
+        ${!isComplete ? `<td>
+          <button class="btn-del-row" onclick="deleteInvoice('${inv.id}')">🗑</button>
+        </td>` : ''}
+      </tr>`;
+    });
+
+    html += `</tbody></table>`;
+  }
+
+  html += `</div>`;
+
+  // Bottom actions
+  if (!isComplete) {
+    html += `
+      <div class="bottom-actions">
+        <button class="btn-complete" onclick="markComplete()" id="btnComplete">✔ Mark Budget Complete</button>
+        <button class="btn-print" onclick="window.print()">🖨️ Print / Download PDF</button>
+      </div>`;
+  } else {
+    html += `<div class="bottom-actions"><button class="btn-print" onclick="window.print()">🖨️ Print / Download PDF</button></div>`;
+  }
+
+  document.getElementById('pageContent').innerHTML = html;
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────
+
+function openModal() {
+  document.getElementById('modalAmount').value = '';
+  document.getElementById('modalNotes').value = '';
+  document.getElementById('modalDist').value = '';
+  document.getElementById('fileSelectedLabel').textContent = '';
+  document.getElementById('modalFile').value = '';
+  selectedFile = null;
+  document.getElementById('addInvoiceModal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('addInvoiceModal').classList.remove('open');
+  selectedFile = null;
+}
+
+function onFileSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+  selectedFile = file;
+  document.getElementById('fileSelectedLabel').textContent = `✓ ${file.name} (${(file.size/1024).toFixed(1)} KB)`;
+}
+
+async function submitInvoice() {
+  const distEl = document.getElementById('modalDist');
+  const amount = parseFloat(document.getElementById('modalAmount').value) || 0;
+  const notes = document.getElementById('modalNotes').value.trim();
+  const distId = distEl.value;
+  const distName = distId ? distEl.options[distEl.selectedIndex].text : '';
+
+  if (!distId && !distName) {
+    alert('Please select a distributor.'); return;
+  }
+
+  const btn = document.getElementById('modalSubmitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Saving…';
+
+  try {
+    let pdfUrl = null, pdfName = null;
+
+    // Upload PDF if selected
+    if (selectedFile) {
+      const base64 = await fileToBase64(selectedFile);
+      const uploadRes = await fetch(`/api/budgets/${budgetId}/upload-pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ file_base64: base64, file_name: selectedFile.name, file_type: selectedFile.type })
+      });
+      const uploadData = await uploadRes.json();
+      if (uploadRes.ok) { pdfUrl = uploadData.url; pdfName = uploadData.name; }
+    }
+
+    const res = await fetch(`/api/budgets/${budgetId}/invoices`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({
+        distributor_id: distId || null,
+        distributor_name: distName || null,
+        invoice_amount: amount,
+        invoice_pdf_url: pdfUrl,
+        invoice_pdf_name: pdfName,
+        notes: notes || null
+      })
+    });
+    const data = await res.json();
+
+    if (!res.ok) { alert(data.error || 'Failed to add invoice'); return; }
+
+    // Refresh
+    budget.total_invoiced = data.new_total;
+    budget.status = data.new_status;
+    invoices.push(data.invoice);
+    closeModal();
+    renderPage();
+  } catch (err) {
+    alert('Error: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Add Invoice';
+  }
+}
+
+async function updateInvoiceAmount(invoiceId, value) {
+  const amount = parseFloat(value) || 0;
+  try {
+    const res = await fetch(`/api/budgets/${budgetId}/invoices/${invoiceId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ invoice_amount: amount })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      budget.total_invoiced = data.new_total;
+      budget.status = data.new_status;
+      const inv = invoices.find(i => i.id === invoiceId);
+      if (inv) inv.invoice_amount = amount;
+      renderPage();
+    }
+  } catch (err) { console.error(err); }
+}
+
+async function deleteInvoice(invoiceId) {
+  if (!confirm('Remove this invoice?')) return;
+  try {
+    const res = await fetch(`/api/budgets/${budgetId}/invoices/${invoiceId}`, {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    const data = await res.json();
+    if (res.ok) {
+      budget.total_invoiced = data.new_total;
+      invoices = invoices.filter(i => i.id !== invoiceId);
+      renderPage();
+    }
+  } catch (err) { console.error(err); }
+}
+
+async function approveBudget() {
+  if (!confirm('Approve extended budget (up to 45%)?')) return;
+  try {
+    const res = await fetch(`/api/budgets/${budgetId}/approve`, {
+      method: 'PUT',
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    const data = await res.json();
+    if (res.ok) { budget = data.budget; renderPage(); }
+    else alert(data.error || 'Failed to approve');
+  } catch (err) { console.error(err); }
+}
+
+async function markComplete() {
+  if (!confirm('Mark this budget as complete? You won\'t be able to add more invoices.')) return;
+  try {
+    const res = await fetch(`/api/budgets/${budgetId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ status: 'complete' })
+    });
+    const data = await res.json();
+    if (res.ok) { budget = data.budget; renderPage(); }
+    else alert(data.error || 'Failed to update');
+  } catch (err) { console.error(err); }
+}
+
+// ── Utility ───────────────────────────────────────────────────────────────
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// Close modal on overlay click
+document.getElementById('addInvoiceModal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) closeModal();
+});
+
+init();
+</script>
+</body>
+</html>

@@ -46,6 +46,14 @@ function loadNavbar() {
           </div>
 
           <div class="nav-item" style="position:relative">
+            <button class="nav-btn" onclick="toggleDropdown('budgetDropdown', this)">💰 Budget Reports <span style="font-size:10px">▼</span></button>
+            <div class="dropdown" id="budgetDropdown">
+              <div class="dropdown-header">By Store</div>
+              <div id="budgetStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
+            </div>
+          </div>
+
+          <div class="nav-item" style="position:relative">
             <button class="nav-btn" onclick="window.location.href='/stocktake'">📋 Stock Take</button>
           </div>
           <div class="nav-item" style="position:relative">
@@ -181,6 +189,11 @@ async function loadNavbarStores() {
           <button class="nav-btn" onclick="window.location.href='/suggested?store=${store.id}'">📋 Purchase Planner</button>
         </div>`;
 
+      document.getElementById('budgetStoreList').closest('.nav-item').outerHTML = `
+        <div class="nav-item" style="position:relative">
+          <button class="nav-btn" onclick="window.location.href='/budgets?store=${store.id}'">💰 Budget Reports</button>
+        </div>`;
+
     } else {
       const inventoryLinks = stores.map(s =>
         `<button class="dropdown-item" onclick="window.location.href='/inventory?store=${s.id}'">${s.name}</button>`
@@ -194,9 +207,14 @@ async function loadNavbarStores() {
         `<button class="dropdown-item" onclick="window.location.href='/suggested?store=${s.id}'">${s.name}</button>`
       ).join('') || '<div style="padding:12px 16px;color:#999;font-size:13px">No stores yet</div>';
 
+      const budgetLinks = stores.map(s =>
+        `<button class="dropdown-item" onclick="window.location.href='/budgets?store=${s.id}'">${s.name}</button>`
+      ).join('') || '<div style="padding:12px 16px;color:#999;font-size:13px">No stores yet</div>';
+
       document.getElementById('inventoryStoreList').innerHTML = inventoryLinks;
       document.getElementById('poStoreList').innerHTML = poLinks;
       document.getElementById('suggestedStoreList').innerHTML = suggestedLinks;
+      document.getElementById('budgetStoreList').innerHTML = budgetLinks;
     }
   } catch (err) {
     console.error('Navbar stores error:', err);
