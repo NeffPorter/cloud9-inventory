@@ -160,6 +160,16 @@
       background: white;
       cursor: pointer;
     }
+    .group-status-select {
+      font-size: 11px;
+      padding: 3px 6px;
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: white;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .group-status-select option { background: #333; color: white; }
     .edit-input {
       width: 70px;
       padding: 4px 8px;
@@ -350,7 +360,22 @@
           let html = '';
 
           if (grpName !== '___standalone') {
-            html += `<tr class="group-row"><td colspan="6">${grpName}</td></tr>`;
+            const escapedGrp = grpName.replace(/"/g, '&quot;');
+            const escapedCat = catName.replace(/"/g, '&quot;');
+            html += `<tr class="group-row">
+              <td colspan="5">${grpName}</td>
+              <td>
+                <select class="group-status-select" title="Set status for all items in this group"
+                  data-group="${escapedGrp}" data-cat="${escapedCat}"
+                  onchange="updateGroupStatus(this)">
+                  <option value="">Set all...</option>
+                  <option value="Active">Active</option>
+                  <option value="Dropping">Dropping</option>
+                  <option value="On Hold">On Hold</option>
+                  <option value="Not Tracking">Not Tracking</option>
+                </select>
+              </td>
+            </tr>`;
           } else if (hasNamedGroups) {
             // Clearly separate ungrouped items when mixed with grouped items
             html += `<tr class="group-row ungrouped-row"><td colspan="6">— Other items (no group) —</td></tr>`;
@@ -564,6 +589,33 @@
       } catch (err) {
         console.error('Update status error:', err);
       }
+    }
+
+    async function updateGroupStatus(selectEl) {
+      const status = selectEl.value;
+      if (!status) return;
+      const groupName = selectEl.dataset.group;
+      const catName = selectEl.dataset.cat;
+
+      const groupItems = allItems.filter(i =>
+        i.group_name === groupName &&
+        (i.category || 'No Category') === catName
+      );
+
+      selectEl.disabled = true;
+      for (const item of groupItems) {
+        try {
+          await fetch(`/api/inventory/items/${item.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+            body: JSON.stringify({ status })
+          });
+          item.status = status;
+        } catch (err) {
+          console.error('Error updating group status:', err);
+        }
+      }
+      renderInventory(allItems);
     }
 
     async function clearSuggestedOrder(itemId) {

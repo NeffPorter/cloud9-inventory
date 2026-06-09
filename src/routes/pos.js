@@ -290,6 +290,85 @@ router.post('/:id/receive', auth, async (req, res) => {
   }
 });
 
+// Update a PO line item's ordered qty
+router.put('/:id/items/:itemId', auth, async (req, res) => {
+  try {
+    const { ordered_qty } = req.body;
+
+    const { data: po } = await supabase.from('purchase_orders').select('*').eq('id', req.params.id).single();
+    if (!po) return res.status(404).json({ error: 'PO not found' });
+    if (req.user.role === 'manager' && po.store_id !== req.user.store_id) return res.status(403).json({ error: 'Access denied' });
+
+    const { data: poItem } = await supabase
+      .from('purchase_order_items').select('*')
+      .eq('id', req.params.itemId).eq('po_id', req.params.id).single();
+    if (!poItem) return res.status(404).json({ error: 'Item not found' });
+
+    // Can't set ordered qty below what's already received
+    const newOrdered = Math.max(poItem.received_qty, parseInt(ordered_qty) || 0);
+    const newRemaining = newOrdered - poItem.received_qty;
+
+    await supabase.from('purchase_order_items')
+      .update({ ordered_qty: newOrdered, remaining_qty: newRemaining })
+      .eq('id', req.params.itemId);
+
+    // Recalculate PO totals using updated values
+    const { data: allPOItems } = await supabase.from('purchase_order_items').select('*').eq('po_id', req.params.id);
+    const newTotal = (allPOItems || []).reduce((sum, i) => {
+      const qty = i.id === req.params.itemId ? newOrdered : i.ordered_qty;
+      return sum + qty * i.unit_cost;
+    }, 0);
+    const newBalance = (allPOItems || []).reduce((sum, i) => {
+      const rem = i.id === req.params.itemId ? newRemaining : i.remaining_qty;
+      return sum + rem * i.unit_cost;
+    }, 0);
+
+    await supabase.from('purchase_orders').update({
+      total_cost: Math.round(newTotal * 100) / 100,
+      remaining_balance: Math.round(newBalance * 100) / 100,
+      updated_at: new Date().toISOString()
+    }).eq('id', req.params.id);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Update PO item error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Remove a PO line item
+router.delete('/:id/items/:itemId', auth, async (req, res) => {
+  try {
+    const { data: po } = await supabase.from('purchase_orders').select('*').eq('id', req.params.id).single();
+    if (!po) return res.status(404).json({ error: 'PO not found' });
+    if (req.user.role === 'manager' && po.store_id !== req.user.store_id) return res.status(403).json({ error: 'Access denied' });
+
+    const { data: poItem } = await supabase
+      .from('purchase_order_items').select('*')
+      .eq('id', req.params.itemId).eq('po_id', req.params.id).single();
+    if (!poItem) return res.status(404).json({ error: 'Item not found' });
+    if (poItem.received_qty > 0) return res.status(400).json({ error: 'Cannot remove an item that has already been partially received' });
+
+    await supabase.from('purchase_order_items').delete().eq('id', req.params.itemId);
+
+    // Recalculate PO totals
+    const { data: remaining } = await supabase.from('purchase_order_items').select('*').eq('po_id', req.params.id);
+    const newTotal = (remaining || []).reduce((sum, i) => sum + i.ordered_qty * i.unit_cost, 0);
+    const newBalance = (remaining || []).reduce((sum, i) => sum + i.remaining_qty * i.unit_cost, 0);
+
+    await supabase.from('purchase_orders').update({
+      total_cost: Math.round(newTotal * 100) / 100,
+      remaining_balance: Math.round(newBalance * 100) / 100,
+      updated_at: new Date().toISOString()
+    }).eq('id', req.params.id);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Remove PO item error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Add items to an existing PO
 router.post('/:id/items', auth, async (req, res) => {
   try {

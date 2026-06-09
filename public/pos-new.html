@@ -144,6 +144,9 @@
       allInventory = data.items || [];
       suggestedItems = allInventory.filter(i => (i.suggested_order || 0) > 0);
 
+      // Always populate the manual tab now that inventory is loaded
+      renderManualTable();
+
       if (suggestedItems.length === 0) {
         document.getElementById('suggestedContent').innerHTML = `
           <div class="empty-msg">
@@ -159,7 +162,6 @@
       });
       fromSuggested = true;
       renderSuggestedTable();
-      renderManualTable();
       updateSummary();
     } catch (err) {
       document.getElementById('suggestedContent').innerHTML = '<div class="empty-msg">Error loading items.</div>';

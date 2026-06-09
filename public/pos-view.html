@@ -46,6 +46,10 @@
     .notes-area { width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; font-family: inherit; resize: vertical; min-height: 80px; outline: none; }
     .notes-area:focus { border-color: #2f5597; }
     .loading { text-align: center; padding: 60px; color: #999; }
+    .edit-qty-input { width: 65px; padding: 5px 7px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 13px; text-align: center; outline: none; }
+    .edit-qty-input:focus { border-color: #c55a11; }
+    .btn-remove-line { border: none; padding: 4px 10px; border-radius: 5px; font-size: 12px; font-weight: 700; cursor: pointer; background: #ffe0e0; color: #c00; }
+    .btn-remove-line:hover { background: #ffc0c0; }
     .add-items-panel { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 20px; border: 2px solid #2f5597; }
     .add-items-panel h3 { font-size: 16px; font-weight: 700; color: #1a1a2e; margin-bottom: 16px; }
     .add-search { width: 100%; padding: 9px 14px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; outline: none; margin-bottom: 12px; }
@@ -75,6 +79,7 @@
     <button class="btn btn-gray" onclick="window.location.href='/pos'">← Back to POs</button>
     <button class="btn btn-blue" onclick="window.print()">🖨️ Print</button>
     <div id="receiveBtn"></div>
+    <div id="editItemsBtn"></div>
     <div id="addItemsBtn"></div>
     <div id="deleteBtn"></div>
   </div>
@@ -103,6 +108,7 @@
   let po = null;
   let items = [];
   let receiveMode = false;
+  let editItemsMode = false;
 
   async function loadPO() {
     try {
@@ -127,9 +133,12 @@
     if (po.status !== 'received') {
       document.getElementById('receiveBtn').innerHTML =
         `<button class="btn btn-green" onclick="toggleReceiveMode()">📦 Receive Items</button>`;
+      document.getElementById('editItemsBtn').innerHTML =
+        `<button class="btn btn-orange" onclick="toggleEditItemsMode()">✏️ Edit Items</button>`;
       document.getElementById('addItemsBtn').innerHTML =
         `<button class="btn btn-blue" onclick="openAddItems()">➕ Add Items</button>`;
     } else {
+      document.getElementById('editItemsBtn').innerHTML = '';
       document.getElementById('addItemsBtn').innerHTML = '';
     }
     document.getElementById('deleteBtn').innerHTML =
@@ -160,22 +169,27 @@
                 <thead><tr>
                   <th>Item</th>
                   <th>Unit Cost</th>
-                  <th>Ordered</th>
+                  <th>${editItemsMode ? 'Order Qty' : 'Ordered'}</th>
                   <th>Received</th>
                   <th>Remaining</th>
-                  ${receiveMode ? '<th>Receive Now</th>' : '<th>Subtotal</th>'}
+                  ${receiveMode ? '<th>Receive Now</th>' : editItemsMode ? '<th></th>' : '<th>Subtotal</th>'}
                 </tr></thead>
                 <tbody>
                   ${catItems.map(item => {
                     const fullyReceived = item.remaining_qty === 0;
                     const rowClass = fullyReceived ? 'fully-received' : '';
                     const subtotal = (item.unit_cost * item.ordered_qty).toFixed(2);
+                    const canRemove = item.received_qty === 0;
                     return `<tr class="${rowClass}">
                       <td>
                         <strong>${item.group_name ? item.group_name + ' — ' : ''}${item.variant_name}</strong>
                       </td>
                       <td>$${(item.unit_cost || 0).toFixed(2)}</td>
-                      <td>${item.ordered_qty}</td>
+                      <td>${editItemsMode
+                        ? `<input type="number" class="edit-qty-input" value="${item.ordered_qty}" min="${item.received_qty}"
+                            onchange="saveItemQty('${item.id}', this.value, this)" />`
+                        : item.ordered_qty
+                      }</td>
                       <td style="color:#38761d;font-weight:${item.received_qty > 0 ? '700' : '400'}">${item.received_qty}</td>
                       <td style="color:${item.remaining_qty > 0 ? '#c55a11' : '#38761d'};font-weight:700">${item.remaining_qty}</td>
                       ${receiveMode
@@ -185,7 +199,12 @@
                                 value="${item.remaining_qty}" min="0" max="${item.remaining_qty}"
                                 placeholder="0" />`
                           }</td>`
-                        : `<td>$${subtotal}</td>`
+                        : editItemsMode
+                          ? `<td>${canRemove
+                              ? `<button class="btn-remove-line" onclick="removeItem('${item.id}')">✕ Remove</button>`
+                              : '<span style="font-size:11px;color:#aaa">Partial</span>'
+                            }</td>`
+                          : `<td>$${subtotal}</td>`
                       }
                     </tr>`;
                   }).join('')}
@@ -243,6 +262,18 @@
         </div>
       ` : ''}
 
+      ${editItemsMode ? `
+        <div class="card no-print" style="border:2px solid #c55a11;background:#fff8f0">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
+            <div>
+              <div style="font-size:16px;font-weight:700;color:#c55a11">✏️ Editing Items</div>
+              <div style="font-size:13px;color:#666;margin-top:4px">Change order quantities or remove items. Can't remove items already partially received.</div>
+            </div>
+            <button class="btn btn-gray" onclick="toggleEditItemsMode()">Done Editing</button>
+          </div>
+        </div>
+      ` : ''}
+
       <div id="itemsList">${itemsHTML}</div>
 
       <div class="card no-print">
@@ -251,6 +282,43 @@
         <button class="btn btn-blue" style="margin-top:8px" onclick="saveNotes()">Save Notes</button>
       </div>
     `;
+  }
+
+  function toggleEditItemsMode() {
+    editItemsMode = !editItemsMode;
+    if (editItemsMode) receiveMode = false;
+    renderPO();
+  }
+
+  async function saveItemQty(itemId, val, input) {
+    const qty = Math.max(0, parseInt(val) || 0);
+    try {
+      const res = await fetch(`/api/pos/${poId}/items/${itemId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ ordered_qty: qty })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      await loadPO();
+    } catch (err) {
+      alert('Error updating qty: ' + err.message);
+    }
+  }
+
+  async function removeItem(itemId) {
+    if (!confirm('Remove this item from the PO?')) return;
+    try {
+      const res = await fetch(`/api/pos/${poId}/items/${itemId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      await loadPO();
+    } catch (err) {
+      alert('Error removing item: ' + err.message);
+    }
   }
 
   function toggleReceiveMode() {
