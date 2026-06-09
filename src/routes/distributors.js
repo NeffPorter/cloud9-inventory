@@ -105,12 +105,12 @@ router.get('/:id/prices', auth, async (req, res) => {
 // Create distributor (admin only)
 router.post('/', auth, adminOnly, async (req, res) => {
   try {
-    const { store_id, name, website, notes } = req.body;
+    const { store_id, name, rep_name, rep_email, rep_phone, website, notes } = req.body;
     if (!store_id || !name) return res.status(400).json({ error: 'store_id and name required' });
 
     const { data, error } = await supabase
       .from('distributors')
-      .insert([{ store_id, name, website: website || null, notes: notes || null }])
+      .insert([{ store_id, name, rep_name: rep_name || null, rep_email: rep_email || null, rep_phone: rep_phone || null, website: website || null, notes: notes || null }])
       .select()
       .single();
 
@@ -124,9 +124,12 @@ router.post('/', auth, adminOnly, async (req, res) => {
 // Update distributor info (admin only)
 router.put('/:id', auth, adminOnly, async (req, res) => {
   try {
-    const { name, website, notes } = req.body;
+    const { name, rep_name, rep_email, rep_phone, website, notes } = req.body;
     const updates = { updated_at: new Date().toISOString() };
     if (name !== undefined) updates.name = name;
+    if (rep_name !== undefined) updates.rep_name = rep_name;
+    if (rep_email !== undefined) updates.rep_email = rep_email;
+    if (rep_phone !== undefined) updates.rep_phone = rep_phone;
     if (website !== undefined) updates.website = website;
     if (notes !== undefined) updates.notes = notes;
 

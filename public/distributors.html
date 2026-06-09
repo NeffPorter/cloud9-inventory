@@ -37,7 +37,7 @@
     /* Modal */
     .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
     .modal-overlay.open { display: flex; }
-    .modal { background: white; border-radius: 14px; padding: 28px; width: 100%; max-width: 460px; box-shadow: 0 16px 48px rgba(0,0,0,0.2); }
+    .modal { background: white; border-radius: 14px; padding: 28px; width: 100%; max-width: 500px; box-shadow: 0 16px 48px rgba(0,0,0,0.2); }
     .modal-title { font-size: 18px; font-weight: 800; color: #1a1a2e; margin-bottom: 20px; }
     .form-group { margin-bottom: 16px; }
     .form-group label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 6px; }
@@ -69,9 +69,25 @@
 <div class="modal-overlay" id="distModal">
   <div class="modal">
     <div class="modal-title" id="modalTitle">Add Distributor</div>
+    <div class="form-group" id="storeSelectGroup" style="display:none">
+      <label>Store *</label>
+      <select id="distStore"></select>
+    </div>
     <div class="form-group">
       <label>Distributor Name *</label>
       <input type="text" id="distName" placeholder="e.g. ABC Wholesale, Smith Distributors..." />
+    </div>
+    <div class="form-group">
+      <label>Rep Name *</label>
+      <input type="text" id="distRepName" placeholder="e.g. John Smith" />
+    </div>
+    <div class="form-group">
+      <label>Rep Email *</label>
+      <input type="email" id="distRepEmail" placeholder="john@distributor.com" />
+    </div>
+    <div class="form-group">
+      <label>Rep Phone *</label>
+      <input type="tel" id="distRepPhone" placeholder="(555) 555-5555" />
     </div>
     <div class="form-group">
       <label>Website (optional)</label>
@@ -79,7 +95,7 @@
     </div>
     <div class="form-group">
       <label>Notes (optional)</label>
-      <textarea id="distNotes" placeholder="Rep name, phone, order minimums..."></textarea>
+      <textarea id="distNotes" placeholder="Order minimums, delivery schedule..."></textarea>
     </div>
     <div class="modal-actions">
       <button class="btn btn-gray" onclick="closeModal()">Cancel</button>
@@ -167,6 +183,9 @@
     return `
       <div class="dist-card">
         <div class="dist-name">${d.name}</div>
+        ${d.rep_name ? `<div class="dist-meta">👤 ${d.rep_name}</div>` : ''}
+        ${d.rep_email ? `<div class="dist-meta">✉️ <a href="mailto:${d.rep_email}" style="color:#2f5597">${d.rep_email}</a></div>` : ''}
+        ${d.rep_phone ? `<div class="dist-meta">📞 <a href="tel:${d.rep_phone}" style="color:#2f5597">${d.rep_phone}</a></div>` : ''}
         ${d.website ? `<div class="dist-meta">🌐 <a href="${d.website}" target="_blank" style="color:#2f5597">${d.website}</a></div>` : ''}
         ${d.notes ? `<div class="dist-meta">📝 ${d.notes}</div>` : ''}
         <div class="dist-stat" style="color:#666;font-size:12px">Last updated: ${updated}</div>
@@ -177,13 +196,28 @@
       </div>`;
   }
 
-  function openModal(dist) {
+  function openModal() {
     editingId = null;
     document.getElementById('modalTitle').textContent = 'Add Distributor';
     document.getElementById('distName').value = '';
+    document.getElementById('distRepName').value = '';
+    document.getElementById('distRepEmail').value = '';
+    document.getElementById('distRepPhone').value = '';
     document.getElementById('distWebsite').value = '';
     document.getElementById('distNotes').value = '';
     document.getElementById('saveDistBtn').textContent = 'Add Distributor';
+
+    // If admin with multiple stores and no store selected, show store picker
+    const storeGroup = document.getElementById('storeSelectGroup');
+    if (allStores.length > 1 && !selectedStore) {
+      storeGroup.style.display = '';
+      document.getElementById('distStore').innerHTML = allStores.map(s =>
+        `<option value="${s.id}">${s.name}</option>`
+      ).join('');
+    } else {
+      storeGroup.style.display = 'none';
+    }
+
     document.getElementById('distModal').classList.add('open');
     setTimeout(() => document.getElementById('distName').focus(), 100);
   }
@@ -194,8 +228,12 @@
     editingId = id;
     document.getElementById('modalTitle').textContent = 'Edit Distributor';
     document.getElementById('distName').value = d.name || '';
+    document.getElementById('distRepName').value = d.rep_name || '';
+    document.getElementById('distRepEmail').value = d.rep_email || '';
+    document.getElementById('distRepPhone').value = d.rep_phone || '';
     document.getElementById('distWebsite').value = d.website || '';
     document.getElementById('distNotes').value = d.notes || '';
+    document.getElementById('storeSelectGroup').style.display = 'none';
     document.getElementById('saveDistBtn').textContent = 'Save Changes';
     document.getElementById('distModal').classList.add('open');
   }
@@ -206,7 +244,22 @@
 
   async function saveDist() {
     const name = document.getElementById('distName').value.trim();
+    const rep_name = document.getElementById('distRepName').value.trim();
+    const rep_email = document.getElementById('distRepEmail').value.trim();
+    const rep_phone = document.getElementById('distRepPhone').value.trim();
+
     if (!name) { alert('Please enter a distributor name.'); return; }
+    if (!rep_name) { alert('Please enter the rep name.'); return; }
+    if (!rep_email) { alert('Please enter the rep email.'); return; }
+    if (!rep_phone) { alert('Please enter the rep phone number.'); return; }
+
+    // Resolve store_id for new distributors
+    const storeId = editingId ? null : (
+      allStores.length > 1 && !selectedStore
+        ? document.getElementById('distStore').value
+        : selectedStore
+    );
+    if (!editingId && !storeId) { alert('Please select a store.'); return; }
 
     const btn = document.getElementById('saveDistBtn');
     btn.disabled = true;
@@ -214,6 +267,9 @@
 
     const payload = {
       name,
+      rep_name,
+      rep_email,
+      rep_phone,
       website: document.getElementById('distWebsite').value.trim() || null,
       notes: document.getElementById('distNotes').value.trim() || null
     };
@@ -230,7 +286,7 @@
         res = await fetch('/api/distributors', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-          body: JSON.stringify({ ...payload, store_id: selectedStore })
+          body: JSON.stringify({ ...payload, store_id: storeId })
         });
       }
       const data = await res.json();
