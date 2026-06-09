@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloud 9 - Price Sheet</title>
+  <script src="/navbar.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; min-height: 100vh; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+    .btn { border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .btn-blue { background: #2f5597; color: white; }
+    .btn-blue:hover { background: #1e3a6e; }
+    .btn-gray { background: #666; color: white; }
+    .btn-gray:hover { background: #444; }
+    .btn-green { background: #38761d; color: white; }
+    .btn-green:hover { background: #2a5a14; }
+    .btn:disabled { background: #bbb; cursor: not-allowed; }
+    .card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 20px; }
+    .dist-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; }
+    .dist-title { font-size: 22px; font-weight: 800; color: #1a1a2e; }
+    .dist-meta { font-size: 13px; color: #888; margin-top: 4px; }
+    .search-bar { padding: 10px 14px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; outline: none; width: 280px; }
+    .search-bar:focus { border-color: #2f5597; }
+    .category-section { margin-bottom: 20px; }
+    .category-header { background: #2f5597; color: white; padding: 11px 16px; border-radius: 10px 10px 0 0; font-size: 14px; font-weight: 700; display: flex; justify-content: space-between; align-items: center; }
+    .category-body { background: white; border-radius: 0 0 10px 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; font-size: 11px; font-weight: 700; color: #999; text-transform: uppercase; padding: 9px 14px; background: #f8f9fa; border-bottom: 2px solid #f0f0f0; }
+    td { padding: 8px 14px; border-bottom: 1px solid #f8f8f8; font-size: 13px; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafbff; }
+    .group-row td { background: #f0f4ff; font-weight: 700; color: #2f5597; font-size: 13px; }
+    .price-input {
+      width: 90px; padding: 6px 9px; border: 2px solid #e0e0e0; border-radius: 6px;
+      font-size: 13px; text-align: center; outline: none; background: white;
+    }
+    .price-input:focus { border-color: #2f5597; }
+    .price-input.changed { border-color: #c55a11; background: #fff8f0; }
+    .price-input:read-only { background: #f8f9fa; color: #888; cursor: default; border-color: #eee; }
+    .savings-badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+    .savings-positive { background: #d9ead3; color: #38761d; }
+    .savings-negative { background: #fce8e6; color: #c00; }
+    .savings-neutral { color: #aaa; font-size: 11px; }
+    .changes-bar {
+      position: fixed; bottom: 24px; right: 24px; background: #1a1a2e; color: white;
+      padding: 16px 24px; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      z-index: 1000; display: flex; align-items: center; gap: 16px; font-size: 14px; font-weight: 600;
+      transform: translateY(150px); transition: transform 0.3s;
+    }
+    .changes-bar.visible { transform: translateY(0); }
+    .action-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 20px; }
+    .stat-chip { background: white; border-radius: 8px; padding: 10px 16px; font-size: 13px; font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,0.06); color: #444; }
+    .stat-chip span { font-weight: 800; color: #1a1a2e; }
+    .loading { text-align: center; padding: 60px; color: #999; }
+    .empty { text-align: center; padding: 40px; color: #999; }
+    /* Edit distributor inline */
+    .edit-field { border: none; background: transparent; font-size: inherit; font-weight: inherit; color: inherit; font-family: inherit; padding: 2px 4px; border-radius: 4px; }
+    .edit-field:focus { outline: 2px solid #2f5597; background: #f0f4ff; }
+  </style>
+</head>
+<body>
+
+<div class="changes-bar" id="changesBar">
+  <span id="changesCount">0 changes</span>
+  <button class="btn btn-gray" onclick="cancelChanges()">✖ Cancel</button>
+  <button class="btn btn-green" id="saveBtn" onclick="saveChanges()">💾 Save Prices</button>
+</div>
+
+<div class="container">
+  <div class="action-row">
+    <button class="btn btn-gray" onclick="window.location.href='/distributors'">← Back to Distributors</button>
+    <input type="text" class="search-bar" id="searchInput" placeholder="🔍 Search items..." oninput="renderPrices()" />
+    <div style="margin-left:auto;display:flex;gap:10px" id="headerActions"></div>
+  </div>
+
+  <div id="distInfo" class="loading">Loading...</div>
+  <div id="statsRow" style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap"></div>
+  <div id="pricesContainer"></div>
+</div>
+
+<script>
+  const token = localStorage.getItem('token');
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  if (!token) window.location.href = '/';
+
+  const params = new URLSearchParams(window.location.search);
+  const distId = params.get('id');
+  if (!distId) window.location.href = '/distributors';
+
+  let distributor = null;
+  let allInventory = [];
+  let priceMap = {}; // item_id -> unit_cost
+  let pendingChanges = {}; // item_id -> new unit_cost
+  const isAdmin = user.role === 'admin';
+
+  async function loadAll() {
+    try {
+      // Load distributor + its prices
+      const res = await fetch(`/api/distributors/${distId}/prices`, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      distributor = data.distributor;
+      priceMap = {};
+      (data.prices || []).forEach(p => { priceMap[p.item_id] = p.unit_cost; });
+
+      // Load inventory for this store
+      const invRes = await fetch(`/api/inventory/items?store_id=${distributor.store_id}`, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const invData = await invRes.json();
+      allInventory = invData.items || [];
+
+      renderHeader();
+      renderStats();
+      renderPrices();
+    } catch (err) {
+      document.getElementById('distInfo').innerHTML = `<div class="empty">Error: ${err.message}</div>`;
+    }
+  }
+
+  function renderHeader() {
+    const updated = distributor.updated_at
+      ? new Date(distributor.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : '—';
+
+    document.getElementById('distInfo').innerHTML = `
+      <div class="card">
+        <div class="dist-header">
+          <div>
+            <div class="dist-title">🏭 ${distributor.name}</div>
+            ${distributor.website ? `<div class="dist-meta">🌐 <a href="${distributor.website}" target="_blank" style="color:#2f5597">${distributor.website}</a></div>` : ''}
+            ${distributor.notes ? `<div class="dist-meta">📝 ${distributor.notes}</div>` : ''}
+            <div class="dist-meta" style="margin-top:6px">Last updated: ${updated}</div>
+          </div>
+          ${isAdmin ? `
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-blue" onclick="exportCSV()" title="Download as CSV">⬇ Export CSV</button>
+          </div>` : ''}
+        </div>
+      </div>`;
+  }
+
+  function renderStats() {
+    const pricedItems = Object.keys(priceMap).filter(id => priceMap[id] > 0).length;
+    const totalItems = allInventory.filter(i => i.status !== 'Not Tracking').length;
+    const savings = allInventory.filter(i => priceMap[i.id] > 0 && priceMap[i.id] < (i.cost || 0)).length;
+
+    document.getElementById('statsRow').innerHTML = `
+      <div class="stat-chip"><span>${pricedItems}</span> / ${totalItems} items priced</div>
+      <div class="stat-chip" style="color:#38761d"><span style="color:#38761d">${savings}</span> items cheaper than inventory cost</div>
+      ${isAdmin ? '<div class="stat-chip" style="color:#666;font-size:12px">✏️ Click any price to edit</div>' : ''}
+    `;
+  }
+
+  function renderPrices() {
+    const el = document.getElementById('pricesContainer');
+    const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
+
+    const items = allInventory.filter(i => {
+      if (i.status === 'Not Tracking') return false;
+      if (!search) return true;
+      return `${i.group_name} ${i.variant_name} ${i.category}`.toLowerCase().includes(search);
+    });
+
+    if (items.length === 0) {
+      el.innerHTML = '<div class="empty">No items match your search.</div>';
+      return;
+    }
+
+    // Group by category → group
+    const categories = {};
+    items.forEach(item => {
+      const cat = item.category || 'No Category';
+      if (!categories[cat]) categories[cat] = {};
+      const grp = item.group_name || '___standalone';
+      if (!categories[cat][grp]) categories[cat][grp] = [];
+      categories[cat][grp].push(item);
+    });
+
+    let html = '';
+    Object.keys(categories).sort().forEach(cat => {
+      const groups = categories[cat];
+      const catItems = Object.values(groups).flat();
+      const pricedCount = catItems.filter(i => (pendingChanges[i.id] ?? priceMap[i.id] ?? 0) > 0).length;
+
+      let rows = '';
+      Object.keys(groups).sort().map(grp => {
+        const grpItems = groups[grp];
+        if (grp !== '___standalone') {
+          rows += `<tr class="group-row"><td colspan="5">${grp}</td></tr>`;
+        }
+        grpItems.forEach(item => {
+          const currentPrice = pendingChanges.hasOwnProperty(item.id) ? pendingChanges[item.id] : (priceMap[item.id] ?? '');
+          const invCost = item.cost || 0;
+          const numPrice = parseFloat(currentPrice) || 0;
+          let savingsCell = '<span class="savings-neutral">—</span>';
+          if (numPrice > 0 && invCost > 0) {
+            const diff = invCost - numPrice;
+            const pct = Math.round((diff / invCost) * 100);
+            if (diff > 0) {
+              savingsCell = `<span class="savings-badge savings-positive">Save $${diff.toFixed(2)} (${pct}%)</span>`;
+            } else if (diff < 0) {
+              savingsCell = `<span class="savings-badge savings-negative">+$${Math.abs(diff).toFixed(2)} over cost</span>`;
+            } else {
+              savingsCell = `<span class="savings-neutral">Same</span>`;
+            }
+          }
+
+          const inputAttrs = isAdmin
+            ? `oninput="markChanged('${item.id}', this.value)"`
+            : 'readonly';
+          const changedClass = pendingChanges.hasOwnProperty(item.id) ? 'changed' : '';
+
+          rows += `<tr>
+            <td style="font-weight:500">${item.variant_name}</td>
+            <td style="color:#666">$${invCost.toFixed(2)}</td>
+            <td>
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="color:#888;font-size:13px">$</span>
+                <input type="number" step="0.01" min="0" class="price-input ${changedClass}"
+                  value="${currentPrice}" placeholder="—"
+                  id="price_${item.id}" ${inputAttrs} />
+              </div>
+            </td>
+            <td>${savingsCell}</td>
+            <td style="color:#aaa;font-size:11px">${priceMap[item.id] ? new Date().toLocaleDateString('en-US', {month:'short',day:'numeric'}) : ''}</td>
+          </tr>`;
+        });
+      });
+
+      html += `
+        <div class="category-section">
+          <div class="category-header">
+            <span>${cat}</span>
+            <span style="font-size:12px;opacity:0.8">${pricedCount}/${catItems.length} priced</span>
+          </div>
+          <div class="category-body">
+            <table>
+              <thead><tr>
+                <th>Item / Variant</th>
+                <th>Inventory Cost</th>
+                <th>${distributor.name} Price</th>
+                <th>vs. Inventory</th>
+                <th>Updated</th>
+              </tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </div>`;
+    });
+
+    el.innerHTML = html;
+  }
+
+  function markChanged(itemId, val) {
+    const numVal = parseFloat(val);
+    const stored = priceMap[itemId] ?? null;
+
+    if (!isNaN(numVal) && numVal >= 0) {
+      // Only count as changed if different from stored
+      if (numVal !== stored) {
+        pendingChanges[itemId] = numVal;
+      } else {
+        delete pendingChanges[itemId];
+      }
+    } else {
+      delete pendingChanges[itemId];
+    }
+
+    const input = document.getElementById('price_' + itemId);
+    if (input) input.classList.toggle('changed', pendingChanges.hasOwnProperty(itemId));
+
+    updateChangesBar();
+    // Re-render savings for this row without full re-render
+    renderPrices();
+  }
+
+  function updateChangesBar() {
+    const count = Object.keys(pendingChanges).length;
+    const bar = document.getElementById('changesBar');
+    bar.classList.toggle('visible', count > 0);
+    document.getElementById('changesCount').textContent = `${count} price${count !== 1 ? 's' : ''} changed`;
+  }
+
+  function cancelChanges() {
+    pendingChanges = {};
+    updateChangesBar();
+    renderPrices();
+  }
+
+  async function saveChanges() {
+    const entries = Object.entries(pendingChanges);
+    if (entries.length === 0) return;
+
+    const btn = document.getElementById('saveBtn');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    const prices = entries.map(([item_id, unit_cost]) => ({ item_id, unit_cost }));
+
+    try {
+      const res = await fetch(`/api/distributors/${distId}/prices`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ prices })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      // Apply changes to priceMap
+      entries.forEach(([item_id, unit_cost]) => {
+        priceMap[item_id] = unit_cost;
+      });
+      pendingChanges = {};
+      updateChangesBar();
+      renderStats();
+      renderPrices();
+    } catch (err) {
+      alert('Error saving: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '💾 Save Prices';
+    }
+  }
+
+  function exportCSV() {
+    const rows = [['Item', 'Category', 'Group', 'Inventory Cost', `${distributor.name} Price`, 'Savings']];
+    allInventory.filter(i => i.status !== 'Not Tracking').forEach(item => {
+      const price = priceMap[item.id] ?? '';
+      const savings = price && item.cost ? (item.cost - price).toFixed(2) : '';
+      rows.push([
+        item.variant_name,
+        item.category || '',
+        item.group_name || '',
+        (item.cost || 0).toFixed(2),
+        price !== '' ? parseFloat(price).toFixed(2) : '',
+        savings
+      ]);
+    });
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${distributor.name.replace(/[^a-z0-9]/gi, '_')}_prices.csv`;
+    a.click();
+  }
+
+  loadAll();
+</script>
+<script>loadNavbar();</script>
+</body>
+</html>

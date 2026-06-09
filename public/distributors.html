@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloud 9 - Distributors</title>
+  <script src="/navbar.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; min-height: 100vh; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 28px; flex-wrap: wrap; gap: 12px; }
+    .page-title { font-size: 24px; font-weight: 700; color: #1a1a2e; }
+    .page-subtitle { color: #666; font-size: 14px; margin-top: 4px; }
+    .btn { border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .btn-blue { background: #2f5597; color: white; }
+    .btn-blue:hover { background: #1e3a6e; }
+    .btn-gray { background: #666; color: white; }
+    .btn-gray:hover { background: #444; }
+    .btn-sm { padding: 6px 14px; font-size: 12px; }
+    .store-filter { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+    .filter-btn { padding: 6px 16px; border-radius: 20px; border: 2px solid #e0e0e0; background: white; font-size: 13px; font-weight: 600; cursor: pointer; color: #444; transition: all 0.2s; }
+    .filter-btn.active { border-color: #2f5597; background: #2f5597; color: white; }
+    .dist-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+    .dist-card { background: white; border-radius: 12px; padding: 22px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border-left: 4px solid #2f5597; }
+    .dist-name { font-size: 17px; font-weight: 800; color: #1a1a2e; margin-bottom: 6px; }
+    .dist-meta { font-size: 13px; color: #888; margin-bottom: 4px; }
+    .dist-stat { font-size: 13px; color: #444; margin-top: 10px; }
+    .dist-actions { display: flex; gap: 8px; margin-top: 16px; }
+    .btn-outline { border: 2px solid #2f5597; color: #2f5597; background: white; padding: 6px 14px; border-radius: 7px; font-size: 12px; font-weight: 700; cursor: pointer; }
+    .btn-outline:hover { background: #f0f4ff; }
+    .btn-outline-red { border-color: #c00; color: #c00; }
+    .btn-outline-red:hover { background: #fff0f0; }
+    .empty { text-align: center; padding: 60px; color: #999; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .empty h3 { font-size: 18px; color: #666; margin-bottom: 8px; }
+    .loading { text-align: center; padding: 60px; color: #999; }
+    /* Modal */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: white; border-radius: 14px; padding: 28px; width: 100%; max-width: 460px; box-shadow: 0 16px 48px rgba(0,0,0,0.2); }
+    .modal-title { font-size: 18px; font-weight: 800; color: #1a1a2e; margin-bottom: 20px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 6px; }
+    .form-group input, .form-group textarea, .form-group select {
+      width: 100%; padding: 10px 14px; border: 2px solid #e0e0e0; border-radius: 8px;
+      font-size: 14px; outline: none; font-family: inherit;
+    }
+    .form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: #2f5597; }
+    .form-group textarea { resize: vertical; min-height: 70px; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="page-header">
+    <div>
+      <div class="page-title">🏭 Distributors</div>
+      <div class="page-subtitle">Manage vendor price sheets per location</div>
+    </div>
+    <div id="addBtn"></div>
+  </div>
+
+  <div class="store-filter" id="storeFilter"></div>
+  <div id="distContainer" class="loading">Loading distributors...</div>
+</div>
+
+<!-- Add / Edit Modal -->
+<div class="modal-overlay" id="distModal">
+  <div class="modal">
+    <div class="modal-title" id="modalTitle">Add Distributor</div>
+    <div class="form-group">
+      <label>Distributor Name *</label>
+      <input type="text" id="distName" placeholder="e.g. ABC Wholesale, Smith Distributors..." />
+    </div>
+    <div class="form-group">
+      <label>Website (optional)</label>
+      <input type="text" id="distWebsite" placeholder="https://..." />
+    </div>
+    <div class="form-group">
+      <label>Notes (optional)</label>
+      <textarea id="distNotes" placeholder="Rep name, phone, order minimums..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-blue" id="saveDistBtn" onclick="saveDist()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const token = localStorage.getItem('token');
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  if (!token) window.location.href = '/';
+
+  let allStores = [];
+  let allDists = [];
+  let selectedStore = '';
+  let editingId = null;
+
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('store')) selectedStore = params.get('store');
+
+  async function loadStores() {
+    const res = await fetch('/api/inventory/stores', { headers: { 'Authorization': 'Bearer ' + token } });
+    const data = await res.json();
+    allStores = data.stores || [];
+
+    if (user.role === 'admin') {
+      document.getElementById('addBtn').innerHTML = `<button class="btn btn-blue" onclick="openModal()">➕ Add Distributor</button>`;
+    }
+
+    if (allStores.length === 1 && !selectedStore) selectedStore = allStores[0].id;
+
+    if (allStores.length > 1) {
+      const filter = document.getElementById('storeFilter');
+      filter.innerHTML = allStores.map(s => {
+        const active = selectedStore === s.id ? 'active' : '';
+        return `<button class="filter-btn ${active}" onclick="filterStore('${s.id}', this)">${s.name}</button>`;
+      }).join('');
+    }
+  }
+
+  function filterStore(storeId, btn) {
+    selectedStore = storeId;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadDists();
+  }
+
+  async function loadDists() {
+    if (!selectedStore) {
+      document.getElementById('distContainer').innerHTML = '<div class="loading">Select a store to view distributors.</div>';
+      return;
+    }
+    try {
+      const res = await fetch(`/api/distributors?store_id=${selectedStore}`, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const data = await res.json();
+      allDists = data.distributors || [];
+      renderDists();
+    } catch (err) {
+      document.getElementById('distContainer').innerHTML = '<div class="empty"><h3>Error loading distributors</h3></div>';
+    }
+  }
+
+  function renderDists() {
+    const container = document.getElementById('distContainer');
+    if (allDists.length === 0) {
+      container.innerHTML = `
+        <div class="empty">
+          <h3>No distributors yet</h3>
+          <p>${user.role === 'admin' ? 'Click "Add Distributor" to get started.' : 'An admin needs to add distributors for this store.'}</p>
+        </div>`;
+      return;
+    }
+    container.innerHTML = `<div class="dist-grid">${allDists.map(distCard).join('')}</div>`;
+  }
+
+  function distCard(d) {
+    const updated = d.updated_at ? new Date(d.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+    const adminBtns = user.role === 'admin' ? `
+      <button class="btn-outline btn-sm" onclick="editDist('${d.id}')">✏️ Edit</button>
+      <button class="btn-outline btn-outline-red btn-sm" onclick="deleteDist('${d.id}', '${d.name.replace(/'/g, "\\'")}')">🗑️ Delete</button>
+    ` : '';
+    return `
+      <div class="dist-card">
+        <div class="dist-name">${d.name}</div>
+        ${d.website ? `<div class="dist-meta">🌐 <a href="${d.website}" target="_blank" style="color:#2f5597">${d.website}</a></div>` : ''}
+        ${d.notes ? `<div class="dist-meta">📝 ${d.notes}</div>` : ''}
+        <div class="dist-stat" style="color:#666;font-size:12px">Last updated: ${updated}</div>
+        <div class="dist-actions">
+          <button class="btn btn-blue btn-sm" onclick="window.location.href='/distributor-prices?id=${d.id}'">📋 View Price Sheet</button>
+          ${adminBtns}
+        </div>
+      </div>`;
+  }
+
+  function openModal(dist) {
+    editingId = null;
+    document.getElementById('modalTitle').textContent = 'Add Distributor';
+    document.getElementById('distName').value = '';
+    document.getElementById('distWebsite').value = '';
+    document.getElementById('distNotes').value = '';
+    document.getElementById('saveDistBtn').textContent = 'Add Distributor';
+    document.getElementById('distModal').classList.add('open');
+    setTimeout(() => document.getElementById('distName').focus(), 100);
+  }
+
+  function editDist(id) {
+    const d = allDists.find(x => x.id === id);
+    if (!d) return;
+    editingId = id;
+    document.getElementById('modalTitle').textContent = 'Edit Distributor';
+    document.getElementById('distName').value = d.name || '';
+    document.getElementById('distWebsite').value = d.website || '';
+    document.getElementById('distNotes').value = d.notes || '';
+    document.getElementById('saveDistBtn').textContent = 'Save Changes';
+    document.getElementById('distModal').classList.add('open');
+  }
+
+  function closeModal() {
+    document.getElementById('distModal').classList.remove('open');
+  }
+
+  async function saveDist() {
+    const name = document.getElementById('distName').value.trim();
+    if (!name) { alert('Please enter a distributor name.'); return; }
+
+    const btn = document.getElementById('saveDistBtn');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    const payload = {
+      name,
+      website: document.getElementById('distWebsite').value.trim() || null,
+      notes: document.getElementById('distNotes').value.trim() || null
+    };
+
+    try {
+      let res;
+      if (editingId) {
+        res = await fetch(`/api/distributors/${editingId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify(payload)
+        });
+      } else {
+        res = await fetch('/api/distributors', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ ...payload, store_id: selectedStore })
+        });
+      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      closeModal();
+      loadDists();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = editingId ? 'Save Changes' : 'Add Distributor';
+    }
+  }
+
+  async function deleteDist(id, name) {
+    if (!confirm(`Delete distributor "${name}"? This will also delete all their price data.`)) return;
+    try {
+      const res = await fetch(`/api/distributors/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (!res.ok) throw new Error('Delete failed');
+      loadDists();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  }
+
+  // Close modal on overlay click
+  document.getElementById('distModal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+  });
+
+  loadStores().then(loadDists);
+</script>
+<script>loadNavbar();</script>
+</body>
+</html>

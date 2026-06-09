@@ -47,6 +47,8 @@
     .empty-msg { text-align: center; padding: 40px; color: #999; }
     .group-header td { background: #f0f4ff; font-weight: 700; color: #2f5597; font-size: 12px; padding: 6px 10px; }
     .suggested-badge { background: #d9ead3; color: #38761d; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+    .best-price-badge { background: #e8f4fd; color: #1565c0; padding: 2px 7px; border-radius: 8px; font-size: 10px; font-weight: 700; margin-left: 5px; white-space: nowrap; }
+    .best-price-savings { color: #38761d; font-size: 10px; font-weight: 600; margin-left: 3px; }
     .manual-cat { margin-bottom: 6px; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
     .manual-cat-header { background: #f0f4ff; padding: 11px 16px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: 700; color: #2f5597; user-select: none; }
     .manual-cat-header:hover { background: #dce8ff; }
@@ -70,10 +72,12 @@
   </div>
 
   <!-- Step 1: Distributor -->
-  <div class="card">
+  <div class="card" id="distroCard">
     <div class="card-title">📦 Distributor</div>
-    <label for="distroInput">Distributor / Vendor Name</label>
-    <input type="text" id="distroInput" placeholder="e.g. ABC Wholesale, Smith Distributors..." />
+    <div id="distroSelector">
+      <label for="distroInput">Distributor / Vendor Name</label>
+      <input type="text" id="distroInput" placeholder="e.g. ABC Wholesale, Smith Distributors..." />
+    </div>
   </div>
 
   <!-- Step 2: Item Source -->
@@ -126,6 +130,10 @@
   let currentTab = 'suggested';
   let fromSuggested = false;
   const manualExpandedCats = new Set(); // tracks which category accordions are open
+  let bestPrices = {}; // item_id -> { unit_cost, distributor_name }
+  let distPrices = {}; // item_id -> unit_cost for the currently selected known distributor
+  let selectedDistId = null; // id of the selected known distributor (null = "other")
+  let knownDistributors = []; // list of distributor objects for this store
 
   function switchTab(tab) {
     currentTab = tab;
@@ -137,12 +145,24 @@
 
   async function loadSuggested() {
     try {
-      const res = await fetch(`/api/inventory/items?store_id=${storeId}`, {
-        headers: { 'Authorization': 'Bearer ' + token }
-      });
-      const data = await res.json();
+      const [invRes, priceRes, distRes] = await Promise.all([
+        fetch(`/api/inventory/items?store_id=${storeId}`, { headers: { 'Authorization': 'Bearer ' + token } }),
+        fetch(`/api/distributors/best-prices?store_id=${storeId}`, { headers: { 'Authorization': 'Bearer ' + token } }),
+        fetch(`/api/distributors?store_id=${storeId}`, { headers: { 'Authorization': 'Bearer ' + token } })
+      ]);
+      const data = await invRes.json();
       allInventory = data.items || [];
       suggestedItems = allInventory.filter(i => (i.suggested_order || 0) > 0);
+
+      if (priceRes.ok) {
+        const priceData = await priceRes.json();
+        bestPrices = priceData.best_prices || {};
+      }
+      if (distRes.ok) {
+        const distData = await distRes.json();
+        knownDistributors = distData.distributors || [];
+        renderDistributorSelector();
+      }
 
       // Always populate the manual tab now that inventory is loaded
       renderManualTable();
@@ -166,6 +186,80 @@
     } catch (err) {
       document.getElementById('suggestedContent').innerHTML = '<div class="empty-msg">Error loading items.</div>';
     }
+  }
+
+  // ---- Distributor selector ----
+
+  function renderDistributorSelector() {
+    if (knownDistributors.length === 0) return; // keep plain text input
+    const container = document.getElementById('distroSelector');
+    container.innerHTML = `
+      <label>Distributor</label>
+      <select id="distroSelect" onchange="onDistributorChange(this)"
+        style="width:100%;padding:10px 14px;border:2px solid #e0e0e0;border-radius:8px;font-size:14px;outline:none;font-family:inherit">
+        <option value="">— Select distributor —</option>
+        ${knownDistributors.map(d => `<option value="${d.id}" data-name="${d.name.replace(/"/g,'&quot;')}">${d.name}</option>`).join('')}
+        <option value="other">Other (type manually)...</option>
+      </select>
+      <div id="distroOtherWrap" style="display:none;margin-top:12px">
+        <label>Distributor Name</label>
+        <input type="text" id="distroInput" placeholder="e.g. ABC Wholesale, Smith Distributors..." style="width:100%;padding:10px 14px;border:2px solid #e0e0e0;border-radius:8px;font-size:14px;outline:none;font-family:inherit" />
+      </div>`;
+  }
+
+  async function onDistributorChange(select) {
+    const val = select.value;
+    document.getElementById('distroOtherWrap').style.display = val === 'other' ? '' : 'none';
+
+    distPrices = {};
+    selectedDistId = null;
+
+    if (val && val !== 'other') {
+      selectedDistId = val;
+      try {
+        const res = await fetch(`/api/distributors/${val}/prices`, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await res.json();
+        (data.prices || []).forEach(p => {
+          if (p.unit_cost > 0) distPrices[p.item_id] = p.unit_cost;
+        });
+      } catch (e) {
+        console.error('Error loading distributor prices:', e);
+      }
+    }
+
+    renderSuggestedTable();
+    renderManualTable();
+    updateSummary();
+  }
+
+  // Returns the unit cost to use for a given item given the currently selected distributor
+  function getUnitCost(item) {
+    if (selectedDistId && distPrices.hasOwnProperty(item.id)) {
+      return distPrices[item.id];
+    }
+    return item.cost || 0;
+  }
+
+  // Returns the display name of the currently selected distributor
+  function getDistributorName() {
+    const select = document.getElementById('distroSelect');
+    if (!select) return (document.getElementById('distroInput')?.value || '').trim();
+    if (!select.value || select.value === 'other') {
+      return (document.getElementById('distroInput')?.value || '').trim();
+    }
+    return select.options[select.selectedIndex]?.dataset?.name || '';
+  }
+
+  // ---- Price badges ----
+
+  function bestPriceBadge(itemId, invCost) {
+    const bp = bestPrices[itemId];
+    if (!bp || bp.unit_cost <= 0) return '';
+    const savings = invCost > 0 && bp.unit_cost < invCost
+      ? `<span class="best-price-savings">save $${(invCost - bp.unit_cost).toFixed(2)}</span>` : '';
+    return `<span class="best-price-badge">💰 $${bp.unit_cost.toFixed(2)} · ${bp.distributor_name}</span>${savings}`;
   }
 
   function renderSuggestedTable() {
@@ -196,14 +290,18 @@
         const sel = selectedItems[item.id];
         const checked = sel ? 'checked' : '';
         const qty = sel ? sel.qty : item.suggested_order;
-        const subtotal = sel ? (item.cost || 0) * sel.qty : 0;
+        const unitCost = getUnitCost(item);
+        const subtotal = sel ? unitCost * sel.qty : 0;
+        const costLabel = selectedDistId && distPrices.hasOwnProperty(item.id)
+          ? `<span style="color:#2f5597;font-weight:700">$${unitCost.toFixed(2)}</span>`
+          : `$${unitCost.toFixed(2)}`;
         html += `<tr>
           <td><input type="checkbox" ${checked} onchange="toggleItem('${item.id}', this.checked)" /></td>
           <td>
-            <div style="font-weight:600">${item.group_name ? item.group_name + ' — ' : ''}${item.variant_name}</div>
+            <div style="font-weight:600">${item.group_name ? item.group_name + ' — ' : ''}${item.variant_name} ${bestPriceBadge(item.id, item.cost || 0)}</div>
             <div style="font-size:11px;color:#999">${item.category}</div>
           </td>
-          <td>$${(item.cost || 0).toFixed(2)}</td>
+          <td>${costLabel}</td>
           <td><span class="suggested-badge">${item.suggested_order}</span></td>
           <td><input type="number" class="qty-input" id="qty_${item.id}" value="${qty}" min="1"
             onchange="updateQty('${item.id}', this.value)"
@@ -270,11 +368,13 @@
         const isAdded = !!selectedItems[item.id];
         const currentQty = isAdded ? selectedItems[item.id].qty : 1;
         const itemLabel = (item.group_name ? item.group_name + ' — ' : '') + item.variant_name;
+        const priceBadge = bestPriceBadge(item.id, item.cost || 0);
 
+        const unitCostDisplay = getUnitCost(item);
         if (isAdded) {
           html += `<tr class="manual-item-added">
-            <td style="font-weight:600">${itemLabel}</td>
-            <td>$${(item.cost || 0).toFixed(2)}</td>
+            <td style="font-weight:600">${itemLabel} ${priceBadge}</td>
+            <td>${selectedDistId && distPrices.hasOwnProperty(item.id) ? `<span style="color:#2f5597;font-weight:700">$${unitCostDisplay.toFixed(2)}</span>` : `$${unitCostDisplay.toFixed(2)}`}</td>
             <td style="color:#666">${item.clover_qty || 0}</td>
             <td><input type="number" class="qty-input" value="${currentQty}" min="1"
               onchange="updateManualQty('${item.id}', this.value)" /></td>
@@ -282,8 +382,8 @@
           </tr>`;
         } else {
           html += `<tr>
-            <td style="font-weight:500">${itemLabel}</td>
-            <td>$${(item.cost || 0).toFixed(2)}</td>
+            <td style="font-weight:500">${itemLabel} ${priceBadge}</td>
+            <td>${selectedDistId && distPrices.hasOwnProperty(item.id) ? `<span style="color:#2f5597;font-weight:700">$${unitCostDisplay.toFixed(2)}</span>` : `$${unitCostDisplay.toFixed(2)}`}</td>
             <td style="color:#666">${item.clover_qty || 0}</td>
             <td><input type="number" class="qty-input" id="mq_${item.id}" value="1" min="1" /></td>
             <td><button class="btn-add-item" onclick="addManualItem('${item.id}')">+ Add</button></td>
@@ -370,7 +470,7 @@
     if (!subEl) return;
     const sel = selectedItems[itemId];
     if (sel) {
-      const sub = (sel.item.cost || 0) * sel.qty;
+      const sub = getUnitCost(sel.item) * sel.qty;
       subEl.textContent = '$' + sub.toFixed(2);
     } else {
       subEl.textContent = '$0.00';
@@ -379,7 +479,7 @@
 
   function updateSummary() {
     const items = Object.values(selectedItems);
-    const total = items.reduce((sum, s) => sum + (s.item.cost || 0) * s.qty, 0);
+    const total = items.reduce((sum, s) => sum + getUnitCost(s.item) * s.qty, 0);
     document.getElementById('totalCostDisplay').textContent = '$' + total.toFixed(2);
 
     const card = document.getElementById('summaryCard');
@@ -407,8 +507,8 @@
         html += `<tr>
           <td><strong>${s.item.group_name ? s.item.group_name + ' — ' : ''}${s.item.variant_name}</strong></td>
           <td>${s.qty}</td>
-          <td>$${(s.item.cost || 0).toFixed(2)}</td>
-          <td>$${((s.item.cost || 0) * s.qty).toFixed(2)}</td>
+          <td>$${getUnitCost(s.item).toFixed(2)}</td>
+          <td>$${(getUnitCost(s.item) * s.qty).toFixed(2)}</td>
         </tr>`;
       });
     });
@@ -418,8 +518,8 @@
   }
 
   async function createPO() {
-    const distributor = document.getElementById('distroInput').value.trim();
-    if (!distributor) { alert('Please enter a distributor name.'); return; }
+    const distributor = getDistributorName();
+    if (!distributor) { alert('Please select or enter a distributor name.'); return; }
 
     const items = Object.values(selectedItems);
     if (items.length === 0) { alert('Please select at least one item.'); return; }
@@ -437,7 +537,7 @@
         category: s.item.category,
         group_name: s.item.group_name,
         variant_name: s.item.variant_name,
-        unit_cost: s.item.cost || 0,
+        unit_cost: getUnitCost(s.item),
         unit_price: s.item.price || 0,
         ordered_qty: s.qty
       }))

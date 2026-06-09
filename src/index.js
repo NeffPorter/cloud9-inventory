@@ -13,6 +13,7 @@ app.use(express.json());
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/inventory', require('./routes/inventory'));
 app.use('/api/pos', require('./routes/pos'));
+app.use('/api/distributors', require('./routes/distributors'));
 app.use('/api/sales', require('./routes/sales'));
 
 // Static files
@@ -62,6 +63,12 @@ app.get('/pos/new', (req, res) => {
 });
 app.get('/pos/view', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/pos-view.html'));
+});
+app.get('/distributors', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/distributors.html'));
+});
+app.get('/distributor-prices', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/distributor-prices.html'));
 });
 
 module.exports = app;

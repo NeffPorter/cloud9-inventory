@@ -58,6 +58,7 @@ function loadNavbar() {
               <div class="dropdown-header">Management</div>
               <button class="dropdown-item" onclick="window.location.href='/stores'">🏪 Manage Stores</button>
               <button class="dropdown-item" onclick="window.location.href='/users'">👥 Manage Users</button>
+              <button class="dropdown-item" onclick="window.location.href='/distributors'">🏭 Distributors & Prices</button>
             </div>
           </div>
           ` : ''}
