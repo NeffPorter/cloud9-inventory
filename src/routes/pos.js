@@ -151,7 +151,7 @@ router.post('/', auth, async (req, res) => {
     res.json({ po });
   } catch (err) {
     console.error('Create PO error:', err);
-    res.status(500).json({ error: 'Failed to create purchase order' });
+    res.status(500).json({ error: err.message || 'Failed to create purchase order' });
   }
 });
 
