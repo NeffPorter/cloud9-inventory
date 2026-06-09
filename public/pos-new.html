@@ -80,6 +80,9 @@
     </div>
   </div>
 
+  <!-- Lead time mismatch warning -->
+  <div id="leadTimeWarning" style="display:none;background:#fffbeb;border:2px solid #f6ad55;border-radius:10px;padding:16px 20px;margin-bottom:20px;color:#744210;"></div>
+
   <!-- Step 2: Item Source -->
   <div class="card">
     <div class="card-title">📋 Items to Order</div>
@@ -129,10 +132,11 @@
   let currentTab = 'suggested';
   let fromSuggested = false;
   const manualExpandedCats = new Set(); // tracks which category accordions are open
-  let bestPrices = {}; // item_id -> { unit_cost, distributor_name }
+  let bestPrices = {}; // item_id -> { unit_cost, distributor_id, distributor_name }
   let distPrices = {}; // item_id -> unit_cost for the currently selected known distributor
   let selectedDistId = null; // id of the selected known distributor (null = "other")
   let knownDistributors = []; // list of distributor objects for this store
+  let distLeadTimes = {}; // distributor_id -> lead_time_days for this store
 
   function switchTab(tab) {
     currentTab = tab;
@@ -144,10 +148,11 @@
 
   async function loadSuggested() {
     try {
-      const [invRes, priceRes, distRes] = await Promise.all([
+      const [invRes, priceRes, distRes, ltRes] = await Promise.all([
         fetch(`/api/inventory/items?store_id=${storeId}`, { headers: { 'Authorization': 'Bearer ' + token } }),
         fetch(`/api/distributors/best-prices?store_id=${storeId}`, { headers: { 'Authorization': 'Bearer ' + token } }),
-        fetch(`/api/distributors`, { headers: { 'Authorization': 'Bearer ' + token } })
+        fetch(`/api/distributors`, { headers: { 'Authorization': 'Bearer ' + token } }),
+        fetch(`/api/distributors/lead-times?store_id=${storeId}`, { headers: { 'Authorization': 'Bearer ' + token } })
       ]);
       const data = await invRes.json();
       allInventory = data.items || [];
@@ -156,6 +161,11 @@
       if (priceRes.ok) {
         const priceData = await priceRes.json();
         bestPrices = priceData.best_prices || {};
+      }
+      if (ltRes.ok) {
+        const ltData = await ltRes.json();
+        distLeadTimes = {};
+        (ltData.lead_times || []).forEach(lt => { distLeadTimes[lt.distributor_id] = lt.lead_time_days; });
       }
       if (distRes.ok) {
         const distData = await distRes.json();
@@ -231,6 +241,66 @@
     renderSuggestedTable();
     renderManualTable();
     updateSummary();
+    checkLeadTimeWarning();
+  }
+
+  // ---- Lead time mismatch warning ----
+
+  function checkLeadTimeWarning() {
+    const warningEl = document.getElementById('leadTimeWarning');
+    if (!warningEl) return;
+    warningEl.style.display = 'none';
+
+    // Only warn if a known distributor is selected and suggested items exist
+    if (!selectedDistId || suggestedItems.length === 0) return;
+
+    const poLeadTime = distLeadTimes[selectedDistId];
+    if (poLeadTime == null) return; // no lead time set for this dist — can't compare
+
+    // Find items where cheapest source is a DIFFERENT distributor with a SHORTER lead time
+    const affected = [];
+    suggestedItems.forEach(item => {
+      const best = bestPrices[item.id];
+      if (!best || !best.distributor_id) return;
+      if (best.distributor_id === selectedDistId) return; // same distributor, no issue
+      const bestLeadTime = distLeadTimes[best.distributor_id];
+      if (bestLeadTime == null) return; // unknown — can't compare
+      if (poLeadTime > bestLeadTime) {
+        // This item's suggested qty was based on best's (shorter) lead time
+        // Extra days = poLeadTime - bestLeadTime
+        affected.push({
+          name: (item.group_name ? item.group_name + ' — ' : '') + item.variant_name,
+          suggested: item.suggested_order,
+          bestDist: best.distributor_name,
+          bestLead: bestLeadTime,
+          extraDays: poLeadTime - bestLeadTime
+        });
+      }
+    });
+
+    if (affected.length === 0) return;
+
+    const poDistName = knownDistributors.find(d => d.id === selectedDistId)?.name || 'this distributor';
+    const itemList = affected.slice(0, 5).map(a =>
+      `<li><strong>${a.name}</strong> — suggested ${a.suggested} units (based on ${a.bestDist}'s ${a.bestLead}-day lead time, ${a.extraDays} extra days with ${poDistName})</li>`
+    ).join('');
+    const moreNote = affected.length > 5 ? `<li style="color:#888">...and ${affected.length - 5} more</li>` : '';
+
+    warningEl.innerHTML = `
+      <div style="display:flex;align-items:flex-start;gap:12px">
+        <span style="font-size:22px;line-height:1">⚠️</span>
+        <div>
+          <div style="font-weight:700;font-size:14px;margin-bottom:6px">
+            Suggested quantities may be too low — ${poDistName} has a ${poLeadTime}-day lead time
+          </div>
+          <div style="font-size:13px;color:#744210;margin-bottom:8px">
+            ${affected.length} item${affected.length !== 1 ? 's' : ''} ${affected.length !== 1 ? 'were' : 'was'} calculated using a faster distributor's lead time.
+            Consider increasing these quantities to cover the extra transit days:
+          </div>
+          <ul style="font-size:12px;color:#744210;padding-left:18px;line-height:1.8">${itemList}${moreNote}</ul>
+        </div>
+      </div>`;
+    warningEl.style.display = 'block';
   }
 
   // Returns the unit cost to use for a given item given the currently selected distributor

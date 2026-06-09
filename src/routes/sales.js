@@ -169,12 +169,39 @@ async function updateInventoryItem(store, itemId) {
     const category = item.categories?.elements?.[0]?.name || 'No Category';
     const groupName = item.itemGroup?.name || '';
 
-    const { data: settings } = await supabase
-      .from('store_settings').select('*')
-      .eq('store_id', store.id).single();
+    // --- Lead time: cheapest distributor for this item at this store ---
+    let leadTime = 7; // default if no distributor prices exist
+    try {
+      const { data: distPrices } = await supabase
+        .from('distributor_prices')
+        .select('distributor_id, unit_cost')
+        .eq('item_id', itemId)
+        .eq('store_id', store.id)
+        .gt('unit_cost', 0);
 
-    const leadTime = settings?.lead_time || 5;
-    const bufferDays = settings?.buffer_days || 14;
+      if (distPrices && distPrices.length > 0) {
+        const cheapest = distPrices.reduce((a, b) => a.unit_cost < b.unit_cost ? a : b);
+        const { data: lt } = await supabase
+          .from('distributor_lead_times')
+          .select('lead_time_days')
+          .eq('distributor_id', cheapest.distributor_id)
+          .eq('store_id', store.id)
+          .single();
+        if (lt?.lead_time_days != null) leadTime = lt.lead_time_days;
+      }
+    } catch (_) {}
+
+    // --- Buffer days: per category setting ---
+    let bufferDays = 3; // default
+    try {
+      const { data: catSetting } = await supabase
+        .from('category_settings')
+        .select('buffer_days')
+        .eq('store_id', store.id)
+        .eq('category', category)
+        .single();
+      if (catSetting?.buffer_days != null) bufferDays = catSetting.buffer_days;
+    } catch (_) {}
 
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - 14);
@@ -194,7 +221,8 @@ async function updateInventoryItem(store, itemId) {
       });
     });
 
-    const suggested = calculateSuggestedOrder(cloverQty, Math.max(0, unitsSold), leadTime, bufferDays);
+    const dailyRate = Math.max(0, unitsSold) / 14;
+    const suggested = Math.max(0, Math.ceil(dailyRate * (leadTime + bufferDays) - cloverQty));
 
     // Check if item already exists - if so preserve existing metadata
 const { data: existingItem } = await supabase

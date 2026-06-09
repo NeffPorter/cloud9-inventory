@@ -544,11 +544,11 @@ router.get('/category-stats', auth, async (req, res) => {
   }
 });
 
-// Upsert category settings (admin only)
+// Upsert category settings (admin only) — buffer_days only, lead time comes from cheapest distributor
 router.put('/category-settings', auth, async (req, res) => {
   try {
     if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-    const { store_id, category, lead_time_days, buffer_days } = req.body;
+    const { store_id, category, buffer_days } = req.body;
     if (!store_id || !category) return res.status(400).json({ error: 'store_id and category required' });
 
     const { data, error } = await supabase
@@ -556,7 +556,6 @@ router.put('/category-settings', auth, async (req, res) => {
       .upsert([{
         store_id,
         category,
-        lead_time_days: parseInt(lead_time_days) || 7,
         buffer_days: parseInt(buffer_days) || 3,
         updated_at: new Date().toISOString()
       }], { onConflict: 'store_id,category' })
@@ -570,14 +569,14 @@ router.put('/category-settings', auth, async (req, res) => {
   }
 });
 
-// Recalculate suggested orders for a category using given lead time + buffer days
+// Recalculate suggested orders for a category.
+// Lead time comes from cheapest distributor per item; buffer_days is per category.
 router.post('/category-settings/recalculate', auth, async (req, res) => {
   try {
     if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-    const { store_id, category, lead_time_days, buffer_days, lookback_days } = req.body;
+    const { store_id, category, buffer_days, lookback_days } = req.body;
     if (!store_id || !category) return res.status(400).json({ error: 'store_id and category required' });
 
-    const lead = parseInt(lead_time_days) || 7;
     const buffer = parseInt(buffer_days) || 3;
     const lookback = parseInt(lookback_days) || 14;
 
@@ -593,7 +592,34 @@ router.post('/category-settings/recalculate', auth, async (req, res) => {
 
     const itemIdSet = new Set(items.map(i => i.id));
 
-    // Get sales data for lookback period
+    // Build cheapest-distributor map per item
+    const { data: allPrices } = await supabase
+      .from('distributor_prices')
+      .select('item_id, distributor_id, unit_cost')
+      .eq('store_id', store_id)
+      .gt('unit_cost', 0);
+
+    const cheapestDistMap = {}; // item_id -> distributor_id
+    (allPrices || []).forEach(p => {
+      if (!itemIdSet.has(p.item_id)) return;
+      if (!cheapestDistMap[p.item_id] || p.unit_cost < cheapestDistMap[p.item_id].cost) {
+        cheapestDistMap[p.item_id] = { distributor_id: p.distributor_id, cost: p.unit_cost };
+      }
+    });
+
+    // Load lead times for every distinct cheapest distributor at this store
+    const distIds = [...new Set(Object.values(cheapestDistMap).map(v => v.distributor_id))];
+    const leadTimeMap = {}; // distributor_id -> lead_time_days
+    if (distIds.length > 0) {
+      const { data: lts } = await supabase
+        .from('distributor_lead_times')
+        .select('distributor_id, lead_time_days')
+        .eq('store_id', store_id)
+        .in('distributor_id', distIds);
+      (lts || []).forEach(lt => { leadTimeMap[lt.distributor_id] = lt.lead_time_days; });
+    }
+
+    // Sales data for lookback period
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - lookback);
 
@@ -603,7 +629,6 @@ router.post('/category-settings/recalculate', auth, async (req, res) => {
       .eq('store_id', store_id)
       .gte('created_at', cutoff.toISOString());
 
-    // Count units sold per item
     const soldMap = {};
     items.forEach(i => { soldMap[i.id] = 0; });
 
@@ -618,13 +643,19 @@ router.post('/category-settings/recalculate', auth, async (req, res) => {
       });
     });
 
-    // Calculate and update suggested orders for each item
+    // Calculate and update each item
     let updated = 0;
     for (const item of items) {
       const unitsSold = Math.max(0, soldMap[item.id] || 0);
       const dailyRate = unitsSold / lookback;
-      const coverageDays = lead + buffer;
-      const suggestedQty = Math.max(0, Math.ceil((dailyRate * coverageDays) - (item.clover_qty || 0)));
+
+      // Lead time = cheapest distributor's lead time at this store, default 7
+      const cheapest = cheapestDistMap[item.id];
+      const leadTime = cheapest && leadTimeMap[cheapest.distributor_id] != null
+        ? leadTimeMap[cheapest.distributor_id]
+        : 7;
+
+      const suggestedQty = Math.max(0, Math.ceil((dailyRate * (leadTime + buffer)) - (item.clover_qty || 0)));
 
       await supabase
         .from('inventory_items')

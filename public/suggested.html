@@ -126,7 +126,7 @@
   <!-- Category Settings -->
   <div class="section">
     <div class="section-title">📦 Category Reorder Settings</div>
-    <div class="section-desc">Adjust lead time and buffer days per category, then click Save & Recalculate to update suggested order quantities.</div>
+    <div class="section-desc">Set buffer (safety stock) days per category. Lead time is pulled automatically from the cheapest distributor for each item. Click Save & Recalculate to update suggested order quantities.</div>
     <div id="catGrid" class="cat-grid"><div class="loading-msg">Select a store to load data.</div></div>
   </div>
 </div>
@@ -356,7 +356,6 @@
   function catCard(cat) {
     const stats = catStats[cat] || { item_count: 0, total_stock: 0, total_suggested: 0, reorder_count: 0 };
     const settings = catSettings[cat] || {};
-    const lead = settings.lead_time_days != null ? settings.lead_time_days : 7;
     const buffer = settings.buffer_days != null ? settings.buffer_days : 3;
 
     const hasReorder = stats.total_suggested > 0;
@@ -392,11 +391,6 @@
         </div>
         <div class="cat-settings">
           <div class="setting-row">
-            <label>Lead Time</label>
-            <input type="number" class="day-input" id="lt-cat-${encCat}" value="${lead}" min="0" max="365" ${inputAttr}>
-            <span class="day-label">days to arrival</span>
-          </div>
-          <div class="setting-row">
             <label>Buffer Days</label>
             <input type="number" class="day-input" id="buf-cat-${encCat}" value="${buffer}" min="0" max="365" ${inputAttr}>
             <span class="day-label">safety stock days</span>
@@ -409,7 +403,6 @@
   async function saveAndRecalc(cat, btn) {
     if (!currentStoreId) return;
     const encCat = encodeURIComponent(cat);
-    const lead = parseInt(document.getElementById(`lt-cat-${encCat}`).value) || 7;
     const buf = parseInt(document.getElementById(`buf-cat-${encCat}`).value) || 3;
 
     btn.disabled = true;
@@ -418,7 +411,7 @@
       const saveRes = await fetch('/api/inventory/category-settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ store_id: currentStoreId, category: cat, lead_time_days: lead, buffer_days: buf })
+        body: JSON.stringify({ store_id: currentStoreId, category: cat, buffer_days: buf })
       });
       if (!saveRes.ok) { const e = await saveRes.json(); throw new Error(e.error); }
 
@@ -427,7 +420,7 @@
       const calcRes = await fetch('/api/inventory/category-settings/recalculate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ store_id: currentStoreId, category: cat, lead_time_days: lead, buffer_days: buf, lookback_days: 14 })
+        body: JSON.stringify({ store_id: currentStoreId, category: cat, buffer_days: buf, lookback_days: 14 })
       });
       const calcData = await calcRes.json();
       if (!calcRes.ok) throw new Error(calcData.error);
