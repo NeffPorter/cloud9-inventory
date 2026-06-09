@@ -48,10 +48,10 @@ function loadNavbar() {
           </div>
 
           <div class="nav-item" style="position:relative">
-            <button class="nav-btn" onclick="window.location.href='/sales'">📊 Sales</button>
+            <button class="nav-btn" onclick="window.location.href='/stocktake'">📋 Stock Take</button>
           </div>
           <div class="nav-item" style="position:relative">
-            <button class="nav-btn" onclick="window.location.href='/stocktake'">📋 Stock Take</button>
+            <button class="nav-btn" onclick="window.location.href='/sales'">📊 Sales</button>
           </div>
           ${user.role === 'admin' ? `
           <div class="nav-item" style="position:relative">
