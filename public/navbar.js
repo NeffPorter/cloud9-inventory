@@ -38,7 +38,7 @@ function loadNavbar() {
           </div>
 
           <div class="nav-item" style="position:relative">
-            <button class="nav-btn" onclick="toggleDropdown('suggestedDropdown', this)">📋 Suggested Orders <span style="font-size:10px">▼</span></button>
+            <button class="nav-btn" onclick="toggleDropdown('suggestedDropdown', this)">📋 Purchase Planner <span style="font-size:10px">▼</span></button>
             <div class="dropdown" id="suggestedDropdown">
               <div class="dropdown-header">By Store</div>
               <div id="suggestedStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
@@ -178,7 +178,7 @@ async function loadNavbarStores() {
 
       document.getElementById('suggestedStoreList').closest('.nav-item').outerHTML = `
         <div class="nav-item" style="position:relative">
-          <button class="nav-btn" onclick="window.location.href='/suggested?store=${store.id}'">📋 Suggested Orders</button>
+          <button class="nav-btn" onclick="window.location.href='/suggested?store=${store.id}'">📋 Purchase Planner</button>
         </div>`;
 
     } else {

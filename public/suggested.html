@@ -3,25 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cloud 9 - Suggested Orders</title>
+  <title>Cloud 9 - Purchase Planner</title>
   <script src="/navbar.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; min-height: 100vh; }
     .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
 
-    /* Header */
     .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
     .page-title { font-size: 24px; font-weight: 700; color: #1a1a2e; }
     .page-subtitle { color: #666; font-size: 14px; margin-top: 4px; }
-    .header-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .store-select { padding: 8px 14px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; font-weight: 600; color: #1a1a2e; background: white; cursor: pointer; outline: none; }
     .store-select:focus { border-color: #2f5597; }
-
-    /* Lookback toggle */
-    .lookback-toggle { display: flex; background: #e8edf5; border-radius: 8px; padding: 3px; gap: 3px; }
-    .lb-btn { padding: 6px 14px; border-radius: 6px; border: none; font-size: 13px; font-weight: 600; cursor: pointer; color: #666; background: transparent; transition: all 0.2s; }
-    .lb-btn.active { background: white; color: #2f5597; box-shadow: 0 1px 3px rgba(0,0,0,0.12); }
 
     /* Summary bar */
     .summary-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 28px; }
@@ -41,19 +34,19 @@
     .dist-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
     .dist-lead-card { background: white; border-radius: 10px; padding: 18px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); border-left: 4px solid #2f5597; }
     .dl-name { font-size: 15px; font-weight: 800; color: #1a1a2e; margin-bottom: 4px; }
-    .dl-rep { font-size: 12px; color: #888; margin-bottom: 12px; }
+    .dl-rep { font-size: 12px; color: #888; margin-bottom: 12px; min-height: 16px; }
     .dl-lead-row { display: flex; align-items: center; gap: 8px; }
-    .dl-lead-row label { font-size: 12px; font-weight: 600; color: #555; }
+    .dl-lead-row label { font-size: 12px; font-weight: 600; color: #555; white-space: nowrap; }
     .day-input { width: 60px; padding: 5px 8px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 14px; font-weight: 700; color: #1a1a2e; text-align: center; outline: none; }
     .day-input:focus { border-color: #2f5597; }
-    .day-label { font-size: 13px; color: #555; }
-    .save-lead-btn { padding: 5px 12px; background: #2f5597; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; margin-left: auto; }
+    .day-label { font-size: 13px; color: #555; flex: 1; }
+    .save-lead-btn { padding: 5px 12px; background: #2f5597; color: white; border: none; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer; }
     .save-lead-btn:hover { background: #1e3a6e; }
     .save-lead-btn:disabled { background: #aaa; cursor: default; }
 
     /* Category cards */
     .cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
-    .cat-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border-top: 4px solid #ccc; transition: box-shadow 0.2s; }
+    .cat-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); border-top: 4px solid #ccc; }
     .cat-card.status-reorder { border-top-color: #e53e3e; }
     .cat-card.status-ok { border-top-color: #38a169; }
     .cat-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
@@ -62,33 +55,27 @@
     .badge-reorder { background: #fff0f0; color: #c53030; }
     .badge-ok { background: #f0fff4; color: #276749; }
 
-    /* Category stats row */
     .cat-stats { display: flex; gap: 0; margin-bottom: 16px; border: 1px solid #eee; border-radius: 8px; overflow: hidden; }
     .cat-stat { flex: 1; text-align: center; padding: 10px 8px; border-right: 1px solid #eee; }
     .cat-stat:last-child { border-right: none; }
     .cat-stat-val { font-size: 20px; font-weight: 800; color: #1a1a2e; display: block; }
     .cat-stat-lbl { font-size: 10px; color: #999; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; display: block; margin-top: 1px; }
 
-    /* Settings rows */
     .cat-settings { margin-bottom: 14px; }
     .setting-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
     .setting-row label { font-size: 12px; font-weight: 600; color: #555; width: 90px; flex-shrink: 0; }
     .setting-row .day-input { width: 55px; }
     .setting-row .day-label { font-size: 12px; color: #777; }
 
-    .cat-actions { display: flex; gap: 8px; }
-    .btn-recalc { flex: 1; padding: 8px; background: #2f5597; color: white; border: none; border-radius: 7px; font-size: 12px; font-weight: 700; cursor: pointer; transition: background 0.2s; }
+    .btn-recalc { width: 100%; padding: 8px; background: #2f5597; color: white; border: none; border-radius: 7px; font-size: 12px; font-weight: 700; cursor: pointer; transition: background 0.2s; }
     .btn-recalc:hover { background: #1e3a6e; }
     .btn-recalc:disabled { background: #aaa; cursor: default; }
-    .btn-recalc-only { flex: 1; padding: 8px; background: white; color: #2f5597; border: 2px solid #2f5597; border-radius: 7px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
-    .btn-recalc-only:hover { background: #f0f4ff; }
 
-    /* Empty / loading states */
-    .loading-msg { text-align: center; padding: 40px; color: #999; background: white; border-radius: 10px; }
+    .loading-msg { text-align: center; padding: 40px; color: #999; background: white; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
     .empty-msg { text-align: center; padding: 40px; color: #999; background: white; border-radius: 10px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
     .setup-banner { background: #fffbeb; border: 2px solid #f6ad55; border-radius: 10px; padding: 16px 20px; margin-bottom: 24px; }
-    .setup-banner p { color: #744210; font-size: 14px; }
-    .setup-banner code { background: #fff; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 13px; border: 1px solid #e0c080; }
+    .setup-banner p { color: #744210; font-size: 13px; line-height: 1.6; }
+    .setup-banner code { background: #fff; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 12px; border: 1px solid #e0c080; word-break: break-all; }
 
     .toast { position: fixed; bottom: 24px; right: 24px; background: #1a1a2e; color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; z-index: 9999; opacity: 0; transform: translateY(8px); transition: all 0.3s; pointer-events: none; }
     .toast.show { opacity: 1; transform: translateY(0); }
@@ -99,18 +86,12 @@
 <div class="container">
   <div class="page-header">
     <div>
-      <div class="page-title">📋 Suggested Orders</div>
+      <div class="page-title">🗒️ Purchase Planner</div>
       <div class="page-subtitle">Per-category lead times and reorder planning</div>
     </div>
-    <div class="header-controls">
-      <select id="storeSel" class="store-select" onchange="onStoreChange()">
-        <option value="">Select store...</option>
-      </select>
-      <div class="lookback-toggle">
-        <button class="lb-btn active" data-days="14" onclick="setLookback(14, this)">14 days</button>
-        <button class="lb-btn" data-days="30" onclick="setLookback(30, this)">30 days</button>
-      </div>
-    </div>
+    <select id="storeSel" class="store-select" onchange="onStoreChange()">
+      <option value="">Select store...</option>
+    </select>
   </div>
 
   <div id="setupBanner" style="display:none"></div>
@@ -138,14 +119,14 @@
   <!-- Distributor Lead Times -->
   <div class="section">
     <div class="section-title">🚚 Distributor Lead Times</div>
-    <div class="section-desc">How many days after placing an order you expect it to arrive.</div>
+    <div class="section-desc" id="distDesc">Select a store to view and edit lead times for that location.</div>
     <div id="distGrid" class="dist-grid"><div class="loading-msg">Select a store to load data.</div></div>
   </div>
 
   <!-- Category Settings -->
   <div class="section">
     <div class="section-title">📦 Category Reorder Settings</div>
-    <div class="section-desc">Adjust lead time and buffer days per category, then click Save & Recalculate to update suggested order quantities on the inventory page.</div>
+    <div class="section-desc">Adjust lead time and buffer days per category, then click Save & Recalculate to update suggested order quantities.</div>
     <div id="catGrid" class="cat-grid"><div class="loading-msg">Select a store to load data.</div></div>
   </div>
 </div>
@@ -159,16 +140,15 @@
 
   let allStores = [];
   let allDists = [];
+  let distLeadTimes = {};   // keyed by distributor_id → lead_time_days for current store
   let catStats = {};
-  let catSettings = {}; // keyed by category
+  let catSettings = {};     // keyed by category
   let currentStoreId = null;
-  let lookbackDays = 14;
   const isAdmin = user.role === 'admin';
 
   // ─── Init ────────────────────────────────────────────────────────────────────
 
   async function init() {
-    // Load stores
     try {
       const res = await fetch('/api/inventory/stores', { headers: { 'Authorization': 'Bearer ' + token } });
       const data = await res.json();
@@ -176,12 +156,11 @@
     } catch (e) { allStores = []; }
 
     const sel = document.getElementById('storeSel');
-    if (allStores.length === 0) {
+    if (!allStores.length) {
       sel.innerHTML = '<option value="">No stores</option>';
       return;
     }
 
-    // Pre-select from URL param or user store
     const urlStore = new URLSearchParams(window.location.search).get('store');
     let defaultStore = urlStore || (user.role === 'manager' ? user.store_id : allStores[0]?.id);
 
@@ -189,18 +168,15 @@
       `<option value="${s.id}" ${s.id === defaultStore ? 'selected' : ''}>${s.name}</option>`
     ).join('');
 
+    if (user.role === 'manager') sel.disabled = true;
+
+    // Load global distributor list (names/reps)
+    await loadDists();
+
     if (defaultStore) {
       currentStoreId = defaultStore;
       loadAll(defaultStore);
     }
-
-    // Manager sees only their store
-    if (user.role === 'manager') {
-      sel.disabled = true;
-    }
-
-    // Load distributors (global)
-    loadDists();
   }
 
   function onStoreChange() {
@@ -211,28 +187,52 @@
     history.replaceState(null, '', `?store=${storeId}`);
   }
 
-  function setLookback(days, btn) {
-    lookbackDays = days;
-    document.querySelectorAll('.lb-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-  }
-
   // ─── Load data ───────────────────────────────────────────────────────────────
 
   async function loadAll(storeId) {
     document.getElementById('catGrid').innerHTML = '<div class="loading-msg">Loading...</div>';
+    document.getElementById('distGrid').innerHTML = '<div class="loading-msg">Loading...</div>';
     document.getElementById('summaryBar').style.display = 'none';
 
-    const [statsOk, settingsOk] = await Promise.all([
+    const storeName = allStores.find(s => s.id === storeId)?.name || '';
+    document.getElementById('distDesc').textContent =
+      `Lead times for ${storeName} — how many days after placing an order you expect it to arrive at this location.`;
+
+    await Promise.all([
       loadCatStats(storeId),
-      loadCatSettings(storeId)
+      loadCatSettings(storeId),
+      loadDistLeadTimes(storeId)
     ]);
 
+    renderDists();
     renderCategories();
 
-    if (statsOk) {
-      document.getElementById('summaryBar').style.display = 'grid';
-      renderSummary();
+    document.getElementById('summaryBar').style.display = 'grid';
+    renderSummary();
+  }
+
+  async function loadDists() {
+    try {
+      const res = await fetch('/api/distributors', { headers: { 'Authorization': 'Bearer ' + token } });
+      const data = await res.json();
+      allDists = data.distributors || [];
+    } catch (e) { allDists = []; }
+  }
+
+  async function loadDistLeadTimes(storeId) {
+    try {
+      const res = await fetch(`/api/distributors/lead-times?store_id=${storeId}`, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (!res.ok) {
+        distLeadTimes = {};
+        return;
+      }
+      const data = await res.json();
+      distLeadTimes = {};
+      (data.lead_times || []).forEach(lt => { distLeadTimes[lt.distributor_id] = lt.lead_time_days; });
+    } catch (e) {
+      distLeadTimes = {};
     }
   }
 
@@ -243,11 +243,7 @@
       });
       const data = await res.json();
       catStats = data.categories || {};
-      return true;
-    } catch (e) {
-      catStats = {};
-      return false;
-    }
+    } catch (e) { catStats = {}; }
   }
 
   async function loadCatSettings(storeId) {
@@ -256,39 +252,20 @@
         headers: { 'Authorization': 'Bearer ' + token }
       });
       if (!res.ok) {
-        // Table may not exist yet
-        const err = await res.json();
         document.getElementById('setupBanner').style.display = 'block';
         document.getElementById('setupBanner').innerHTML = `
           <div class="setup-banner">
-            <p>⚠️ <strong>One-time setup needed.</strong> Run this SQL in your Supabase editor, then refresh:<br><br>
-            <code>CREATE TABLE IF NOT EXISTS category_settings (id uuid DEFAULT gen_random_uuid() PRIMARY KEY, store_id text NOT NULL, category text NOT NULL, lead_time_days integer DEFAULT 7, buffer_days integer DEFAULT 3, updated_at timestamptz DEFAULT now(), UNIQUE(store_id, category)); GRANT ALL ON category_settings TO anon, authenticated; ALTER TABLE distributors ADD COLUMN IF NOT EXISTS lead_time_days integer DEFAULT 7; NOTIFY pgrst, 'reload schema';</code>
-            </p>
+            <p>⚠️ <strong>One-time setup needed.</strong> Run this SQL in your Supabase editor, then refresh:</p>
+            <p style="margin-top:8px"><code>CREATE TABLE IF NOT EXISTS category_settings (id uuid DEFAULT gen_random_uuid() PRIMARY KEY, store_id text NOT NULL, category text NOT NULL, lead_time_days integer DEFAULT 7, buffer_days integer DEFAULT 3, updated_at timestamptz DEFAULT now(), UNIQUE(store_id, category)); CREATE TABLE IF NOT EXISTS distributor_lead_times (id uuid DEFAULT gen_random_uuid() PRIMARY KEY, distributor_id uuid REFERENCES distributors(id) ON DELETE CASCADE, store_id text NOT NULL, lead_time_days integer DEFAULT 7, updated_at timestamptz DEFAULT now(), UNIQUE(distributor_id, store_id)); GRANT ALL ON category_settings TO anon, authenticated; GRANT ALL ON distributor_lead_times TO anon, authenticated; NOTIFY pgrst, 'reload schema';</code></p>
           </div>`;
         catSettings = {};
-        return false;
+        return;
       }
       document.getElementById('setupBanner').style.display = 'none';
       const data = await res.json();
       catSettings = {};
       (data.settings || []).forEach(s => { catSettings[s.category] = s; });
-      return true;
-    } catch (e) {
-      catSettings = {};
-      return false;
-    }
-  }
-
-  async function loadDists() {
-    try {
-      const res = await fetch('/api/distributors', { headers: { 'Authorization': 'Bearer ' + token } });
-      const data = await res.json();
-      allDists = data.distributors || [];
-      renderDists();
-    } catch (e) {
-      allDists = [];
-      document.getElementById('distGrid').innerHTML = '<div class="empty-msg">Could not load distributors.</div>';
-    }
+    } catch (e) { catSettings = {}; }
   }
 
   // ─── Summary ─────────────────────────────────────────────────────────────────
@@ -296,8 +273,11 @@
   function renderSummary() {
     let reorderCats = 0, okCats = 0, reorderItems = 0, totalUnits = 0;
     Object.values(catStats).forEach(s => {
-      if (s.total_suggested > 0) { reorderCats++; reorderItems += s.reorder_count; totalUnits += s.total_suggested; }
-      else okCats++;
+      if (s.total_suggested > 0) {
+        reorderCats++;
+        reorderItems += s.reorder_count;
+        totalUnits += s.total_suggested;
+      } else okCats++;
     });
     document.getElementById('sumReorderCats').textContent = reorderCats;
     document.getElementById('sumReorderItems').textContent = reorderItems;
@@ -317,14 +297,17 @@
   }
 
   function distCard(d) {
-    const lead = d.lead_time_days != null ? d.lead_time_days : '';
-    const repLine = [d.rep_name, d.rep_phone].filter(Boolean).join(' · ');
+    const lead = distLeadTimes[d.id] != null ? distLeadTimes[d.id] : '';
+    const repParts = [d.rep_name, d.rep_phone].filter(Boolean);
+    const repLine = repParts.join(' · ');
     const inputAttr = isAdmin ? '' : 'disabled';
-    const btnHtml = isAdmin ? `<button class="save-lead-btn" onclick="saveDistLead('${d.id}', this)">Save</button>` : '';
+    const btnHtml = isAdmin
+      ? `<button class="save-lead-btn" onclick="saveDistLead('${d.id}', this)">Save</button>`
+      : '';
     return `
       <div class="dist-lead-card">
         <div class="dl-name">${d.name}</div>
-        ${repLine ? `<div class="dl-rep">${repLine}</div>` : '<div class="dl-rep" style="opacity:0">—</div>'}
+        <div class="dl-rep">${repLine || '&nbsp;'}</div>
         <div class="dl-lead-row">
           <label>Lead Time</label>
           <input type="number" class="day-input" id="lt-${d.id}" value="${lead}" min="0" max="365" placeholder="—" ${inputAttr}>
@@ -335,21 +318,20 @@
   }
 
   async function saveDistLead(distId, btn) {
+    if (!currentStoreId) return;
     const input = document.getElementById(`lt-${distId}`);
     const val = input.value.trim();
     btn.disabled = true;
     btn.textContent = '...';
     try {
-      const res = await fetch(`/api/distributors/${distId}`, {
+      const res = await fetch(`/api/distributors/${distId}/lead-time`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ lead_time_days: val === '' ? null : parseInt(val) })
+        body: JSON.stringify({ store_id: currentStoreId, lead_time_days: val === '' ? null : parseInt(val) })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      // Update local allDists
-      const idx = allDists.findIndex(d => d.id === distId);
-      if (idx >= 0) allDists[idx].lead_time_days = data.distributor.lead_time_days;
+      distLeadTimes[distId] = data.lead_time?.lead_time_days ?? null;
       showToast('✓ Lead time saved');
     } catch (e) {
       showToast('Error: ' + e.message);
@@ -365,7 +347,7 @@
     const grid = document.getElementById('catGrid');
     const cats = Object.keys(catStats).sort();
     if (!cats.length) {
-      grid.innerHTML = '<div class="empty-msg">No inventory data. Try syncing inventory first.</div>';
+      grid.innerHTML = '<div class="empty-msg">No inventory data found. Try syncing inventory first.</div>';
       return;
     }
     grid.innerHTML = cats.map(cat => catCard(cat)).join('');
@@ -380,17 +362,16 @@
     const hasReorder = stats.total_suggested > 0;
     const statusClass = hasReorder ? 'status-reorder' : 'status-ok';
     const badgeClass = hasReorder ? 'badge-reorder' : 'badge-ok';
-    const badgeText = hasReorder ? `🔴 ${stats.reorder_count} items to reorder` : '🟢 Stocked';
+    const badgeText = hasReorder ? `🔴 ${stats.reorder_count} item${stats.reorder_count !== 1 ? 's' : ''} to reorder` : '🟢 Stocked';
 
     const escaped = cat.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    const encCat = encodeURIComponent(cat);
     const inputAttr = isAdmin ? '' : 'disabled';
     const actionsHtml = isAdmin ? `
-      <div class="cat-actions">
-        <button class="btn-recalc" onclick="saveAndRecalc('${escaped}', this)">💾 Save & Recalculate</button>
-      </div>` : '';
+      <button class="btn-recalc" onclick="saveAndRecalc('${escaped}', this)">💾 Save & Recalculate</button>` : '';
 
     return `
-      <div class="cat-card ${statusClass}" id="catcard-${encodeURIComponent(cat)}">
+      <div class="cat-card ${statusClass}">
         <div class="cat-card-header">
           <div class="cat-name">${cat}</div>
           <div class="status-badge ${badgeClass}">${badgeText}</div>
@@ -412,12 +393,12 @@
         <div class="cat-settings">
           <div class="setting-row">
             <label>Lead Time</label>
-            <input type="number" class="day-input" id="lt-cat-${encodeURIComponent(cat)}" value="${lead}" min="0" max="365" ${inputAttr}>
+            <input type="number" class="day-input" id="lt-cat-${encCat}" value="${lead}" min="0" max="365" ${inputAttr}>
             <span class="day-label">days to arrival</span>
           </div>
           <div class="setting-row">
             <label>Buffer Days</label>
-            <input type="number" class="day-input" id="buf-cat-${encodeURIComponent(cat)}" value="${buffer}" min="0" max="365" ${inputAttr}>
+            <input type="number" class="day-input" id="buf-cat-${encCat}" value="${buffer}" min="0" max="365" ${inputAttr}>
             <span class="day-label">safety stock days</span>
           </div>
         </div>
@@ -428,16 +409,12 @@
   async function saveAndRecalc(cat, btn) {
     if (!currentStoreId) return;
     const encCat = encodeURIComponent(cat);
-    const ltInput = document.getElementById(`lt-cat-${encCat}`);
-    const bufInput = document.getElementById(`buf-cat-${encCat}`);
-    const lead = parseInt(ltInput.value) || 7;
-    const buf = parseInt(bufInput.value) || 3;
+    const lead = parseInt(document.getElementById(`lt-cat-${encCat}`).value) || 7;
+    const buf = parseInt(document.getElementById(`buf-cat-${encCat}`).value) || 3;
 
     btn.disabled = true;
     btn.textContent = 'Saving...';
-
     try {
-      // 1. Save settings
       const saveRes = await fetch('/api/inventory/category-settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
@@ -447,29 +424,18 @@
 
       btn.textContent = 'Recalculating...';
 
-      // 2. Recalculate suggested orders for this category
       const calcRes = await fetch('/api/inventory/category-settings/recalculate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({
-          store_id: currentStoreId,
-          category: cat,
-          lead_time_days: lead,
-          buffer_days: buf,
-          lookback_days: lookbackDays
-        })
+        body: JSON.stringify({ store_id: currentStoreId, category: cat, lead_time_days: lead, buffer_days: buf, lookback_days: 14 })
       });
       const calcData = await calcRes.json();
       if (!calcRes.ok) throw new Error(calcData.error);
 
-      // 3. Update local catSettings
       catSettings[cat] = { category: cat, store_id: currentStoreId, lead_time_days: lead, buffer_days: buf };
-
-      // 4. Refresh stats for this store so the card updates
       await loadCatStats(currentStoreId);
       renderCategories();
       renderSummary();
-
       showToast(`✓ ${cat}: updated ${calcData.updated} items`);
     } catch (e) {
       showToast('Error: ' + e.message);
@@ -490,7 +456,6 @@
     toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
   }
 
-  // ─── Start ───────────────────────────────────────────────────────────────────
   init();
 </script>
 <script>loadNavbar();</script>

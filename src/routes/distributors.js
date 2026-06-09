@@ -52,6 +52,26 @@ router.get('/best-prices', auth, async (req, res) => {
   }
 });
 
+// Get per-store lead times for all distributors
+// IMPORTANT: must come before /:id routes
+router.get('/lead-times', auth, async (req, res) => {
+  try {
+    const { store_id } = req.query;
+    if (!store_id) return res.status(400).json({ error: 'store_id required' });
+    if (req.user.role === 'manager' && req.user.store_id !== store_id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    const { data, error } = await supabase
+      .from('distributor_lead_times')
+      .select('*')
+      .eq('store_id', store_id);
+    if (error) throw error;
+    res.json({ lead_times: data || [] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // List all distributors (global — not store-scoped)
 router.get('/', auth, async (req, res) => {
   try {
@@ -225,6 +245,30 @@ router.put('/:id/prices', auth, adminOnly, async (req, res) => {
     res.json({ success: true, updated: upsertData.length });
   } catch (err) {
     console.error('Upsert prices error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Upsert per-store lead time for a distributor (admin only)
+router.put('/:id/lead-time', auth, adminOnly, async (req, res) => {
+  try {
+    const { store_id, lead_time_days } = req.body;
+    if (!store_id) return res.status(400).json({ error: 'store_id required' });
+
+    const { data, error } = await supabase
+      .from('distributor_lead_times')
+      .upsert([{
+        distributor_id: req.params.id,
+        store_id,
+        lead_time_days: lead_time_days != null ? parseInt(lead_time_days) : null,
+        updated_at: new Date().toISOString()
+      }], { onConflict: 'distributor_id,store_id' })
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json({ lead_time: data });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
