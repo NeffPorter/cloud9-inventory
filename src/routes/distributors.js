@@ -67,9 +67,11 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
-// Get single distributor + its prices
+// Get single distributor + its prices for a store
 router.get('/:id/prices', auth, async (req, res) => {
   try {
+    const { store_id } = req.query;
+
     const { data: dist, error: distError } = await supabase
       .from('distributors')
       .select('*')
@@ -77,16 +79,17 @@ router.get('/:id/prices', auth, async (req, res) => {
       .single();
 
     if (distError || !dist) return res.status(404).json({ error: 'Distributor not found' });
-    if (req.user.role === 'manager' && req.user.store_id !== dist.store_id) {
+    if (req.user.role === 'manager' && store_id && req.user.store_id !== store_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const { data: prices, error: pricesError } = await supabase
+    let query = supabase
       .from('distributor_prices')
       .select('*')
-      .eq('distributor_id', req.params.id)
-      .eq('store_id', dist.store_id);
+      .eq('distributor_id', req.params.id);
+    if (store_id) query = query.eq('store_id', store_id);
 
+    const { data: prices, error: pricesError } = await query;
     if (pricesError) throw pricesError;
     res.json({ distributor: dist, prices: prices || [] });
   } catch (err) {
@@ -143,22 +146,15 @@ router.put('/:id', auth, adminOnly, async (req, res) => {
 // Body: { prices: [{ item_id, unit_cost }] }
 router.put('/:id/prices', auth, adminOnly, async (req, res) => {
   try {
-    const { prices } = req.body;
+    const { prices, store_id } = req.body;
     if (!prices || prices.length === 0) return res.status(400).json({ error: 'prices required' });
-
-    const { data: dist } = await supabase
-      .from('distributors')
-      .select('store_id')
-      .eq('id', req.params.id)
-      .single();
-
-    if (!dist) return res.status(404).json({ error: 'Distributor not found' });
+    if (!store_id) return res.status(400).json({ error: 'store_id required' });
 
     const upsertData = prices
       .filter(p => p.item_id)
       .map(p => ({
         distributor_id: req.params.id,
-        store_id: dist.store_id,
+        store_id,
         item_id: p.item_id,
         unit_cost: Math.round((parseFloat(p.unit_cost) || 0) * 100) / 100,
         updated_at: new Date().toISOString()
@@ -176,7 +172,7 @@ router.put('/:id/prices', auth, adminOnly, async (req, res) => {
     if (itemsWithPrices.length > 0) {
       // Load store credentials once
       const { data: store } = await supabase
-        .from('stores').select('*').eq('id', dist.store_id).single();
+        .from('stores').select('*').eq('id', store_id).single();
 
       for (const p of itemsWithPrices) {
         try {
@@ -185,7 +181,7 @@ router.put('/:id/prices', auth, adminOnly, async (req, res) => {
             .from('distributor_prices')
             .select('unit_cost')
             .eq('item_id', p.item_id)
-            .eq('store_id', dist.store_id)
+            .eq('store_id', store_id)
             .gt('unit_cost', 0);
 
           if (!allPrices || allPrices.length === 0) continue;
@@ -196,7 +192,7 @@ router.put('/:id/prices', auth, adminOnly, async (req, res) => {
             .from('inventory_items')
             .select('cost, price')
             .eq('id', p.item_id)
-            .eq('store_id', dist.store_id)
+            .eq('store_id', store_id)
             .single();
 
           if (!invItem || invItem.cost === cheapest) continue;
@@ -206,7 +202,7 @@ router.put('/:id/prices', auth, adminOnly, async (req, res) => {
             .from('inventory_items')
             .update({ cost: cheapest })
             .eq('id', p.item_id)
-            .eq('store_id', dist.store_id);
+            .eq('store_id', store_id);
 
           // Push cost to Clover (keep existing selling price)
           if (store) {

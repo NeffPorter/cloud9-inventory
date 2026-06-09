@@ -8,41 +8,37 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; min-height: 100vh; }
-    .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 32px 24px 100px; }
     .btn { border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-    .btn-blue { background: #2f5597; color: white; }
-    .btn-blue:hover { background: #1e3a6e; }
-    .btn-gray { background: #666; color: white; }
-    .btn-gray:hover { background: #444; }
-    .btn-green { background: #38761d; color: white; }
-    .btn-green:hover { background: #2a5a14; }
+    .btn-blue { background: #2f5597; color: white; } .btn-blue:hover { background: #1e3a6e; }
+    .btn-gray { background: #666; color: white; } .btn-gray:hover { background: #444; }
+    .btn-green { background: #38761d; color: white; } .btn-green:hover { background: #2a5a14; }
     .btn:disabled { background: #bbb; cursor: not-allowed; }
-    .card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 20px; }
-    .dist-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; }
+    .card { background: white; border-radius: 12px; padding: 20px 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 16px; }
     .dist-title { font-size: 22px; font-weight: 800; color: #1a1a2e; }
-    .dist-meta { font-size: 13px; color: #888; margin-top: 4px; }
-    .search-bar { padding: 10px 14px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; outline: none; width: 280px; }
-    .search-bar:focus { border-color: #2f5597; }
-    .category-section { margin-bottom: 20px; }
-    .category-header { background: #2f5597; color: white; padding: 11px 16px; border-radius: 10px 10px 0 0; font-size: 14px; font-weight: 700; display: flex; justify-content: space-between; align-items: center; }
-    .category-body { background: white; border-radius: 0 0 10px 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); overflow: hidden; }
+    .dist-meta { font-size: 13px; color: #888; margin-top: 3px; }
+    .action-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+    .store-chip { padding: 6px 14px; border-radius: 20px; border: 2px solid #e0e0e0; background: white; font-size: 13px; font-weight: 600; cursor: pointer; color: #444; }
+    .store-chip.active { border-color: #2f5597; background: #2f5597; color: white; }
+    /* Category accordion */
+    .cat-section { margin-bottom: 12px; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .cat-header { background: #2f5597; color: white; padding: 12px 18px; font-size: 14px; font-weight: 700; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; }
+    .cat-header:hover { background: #1e3a6e; }
+    .cat-body { background: white; }
     table { width: 100%; border-collapse: collapse; }
     th { text-align: left; font-size: 11px; font-weight: 700; color: #999; text-transform: uppercase; padding: 9px 14px; background: #f8f9fa; border-bottom: 2px solid #f0f0f0; }
-    td { padding: 8px 14px; border-bottom: 1px solid #f8f8f8; font-size: 13px; vertical-align: middle; }
+    td { padding: 9px 14px; border-bottom: 1px solid #f8f8f8; font-size: 13px; vertical-align: middle; }
     tr:last-child td { border-bottom: none; }
     tr:hover td { background: #fafbff; }
-    .group-row td { background: #f0f4ff; font-weight: 700; color: #2f5597; font-size: 13px; }
-    .price-input {
-      width: 90px; padding: 6px 9px; border: 2px solid #e0e0e0; border-radius: 6px;
-      font-size: 13px; text-align: center; outline: none; background: white;
-    }
+    .group-row td { background: #f0f4ff; font-weight: 700; color: #2f5597; font-size: 13px; padding: 7px 14px; }
+    .standalone-header td { background: #fafafa; font-weight: 600; color: #888; font-size: 12px; font-style: italic; padding: 6px 14px; border-top: 1px solid #eee; }
+    .price-input { width: 90px; padding: 6px 9px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 13px; text-align: center; outline: none; }
     .price-input:focus { border-color: #2f5597; }
     .price-input.changed { border-color: #c55a11; background: #fff8f0; }
     .price-input:read-only { background: #f8f9fa; color: #888; cursor: default; border-color: #eee; }
-    .savings-badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; }
-    .savings-positive { background: #d9ead3; color: #38761d; }
-    .savings-negative { background: #fce8e6; color: #c00; }
-    .savings-neutral { color: #aaa; font-size: 11px; }
+    .badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+    .badge-save { background: #d9ead3; color: #38761d; }
+    .badge-over { background: #fce8e6; color: #c00; }
     .changes-bar {
       position: fixed; bottom: 24px; right: 24px; background: #1a1a2e; color: white;
       padding: 16px 24px; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.3);
@@ -50,14 +46,12 @@
       transform: translateY(150px); transition: transform 0.3s;
     }
     .changes-bar.visible { transform: translateY(0); }
-    .action-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 20px; }
-    .stat-chip { background: white; border-radius: 8px; padding: 10px 16px; font-size: 13px; font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,0.06); color: #444; }
-    .stat-chip span { font-weight: 800; color: #1a1a2e; }
     .loading { text-align: center; padding: 60px; color: #999; }
-    .empty { text-align: center; padding: 40px; color: #999; }
-    /* Edit distributor inline */
-    .edit-field { border: none; background: transparent; font-size: inherit; font-weight: inherit; color: inherit; font-family: inherit; padding: 2px 4px; border-radius: 4px; }
-    .edit-field:focus { outline: 2px solid #2f5597; background: #f0f4ff; }
+    .store-prompt { text-align: center; padding: 60px; }
+    .store-prompt h3 { font-size: 18px; color: #444; margin-bottom: 16px; }
+    .store-grid { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+    .store-btn { padding: 12px 28px; background: #2f5597; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer; border-radius: 10px; }
+    .store-btn:hover { background: #1e3a6e; }
   </style>
 </head>
 <body>
@@ -70,13 +64,12 @@
 
 <div class="container">
   <div class="action-row">
-    <button class="btn btn-gray" onclick="window.location.href='/distributors'">← Back to Distributors</button>
-    <input type="text" class="search-bar" id="searchInput" placeholder="🔍 Search items..." oninput="renderPrices()" />
-    <div style="margin-left:auto;display:flex;gap:10px" id="headerActions"></div>
+    <button class="btn btn-gray" onclick="window.location.href='/distributors'">← Back</button>
+    <div id="storeFilterRow" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+    <div style="margin-left:auto" id="exportBtn"></div>
   </div>
 
   <div id="distInfo" class="loading">Loading...</div>
-  <div id="statsRow" style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap"></div>
   <div id="pricesContainer"></div>
 </div>
 
@@ -91,200 +84,255 @@
 
   let distributor = null;
   let allInventory = [];
-  let priceMap = {}; // item_id -> unit_cost
-  let pendingChanges = {}; // item_id -> new unit_cost
+  let priceMap = {};     // item_id -> unit_cost (from DB)
+  let pendingChanges = {}; // groupKey -> unit_cost  (key = 'g:cat:grp' or 'i:itemId')
   const isAdmin = user.role === 'admin';
 
-  async function loadAll() {
+  let allStores = [];
+  let selectedStore = params.get('store') || '';
+
+  async function init() {
+    // Load distributor info
+    const res = await fetch(`/api/distributors/${distId}/prices`, {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const data = await res.json();
+    if (!res.ok) { document.getElementById('distInfo').innerHTML = `<div style="padding:40px;color:#c00">Error: ${data.error}</div>`; return; }
+    distributor = data.distributor;
+
+    // Load stores
+    const sRes = await fetch('/api/inventory/stores', { headers: { 'Authorization': 'Bearer ' + token } });
+    const sData = await sRes.json();
+    allStores = sData.stores || [];
+    if (allStores.length === 1 && !selectedStore) selectedStore = allStores[0].id;
+
+    renderHeader();
+    renderStoreFilter();
+
+    if (selectedStore) {
+      await loadForStore(selectedStore);
+    } else {
+      document.getElementById('pricesContainer').innerHTML = renderStorePrompt();
+    }
+  }
+
+  function renderStorePrompt() {
+    return `<div class="store-prompt">
+      <h3>Select a store to view price sheet</h3>
+      <div class="store-grid">${allStores.map(s =>
+        `<button class="store-btn" onclick="selectStore('${s.id}')">${s.name}</button>`
+      ).join('')}</div>
+    </div>`;
+  }
+
+  function renderStoreFilter() {
+    if (allStores.length <= 1) return;
+    document.getElementById('storeFilterRow').innerHTML = allStores.map(s =>
+      `<button class="store-chip ${selectedStore === s.id ? 'active' : ''}" onclick="selectStore('${s.id}')">${s.name}</button>`
+    ).join('');
+  }
+
+  async function selectStore(storeId) {
+    selectedStore = storeId;
+    pendingChanges = {};
+    renderStoreFilter();
+    await loadForStore(storeId);
+  }
+
+  async function loadForStore(storeId) {
+    document.getElementById('pricesContainer').innerHTML = '<div class="loading">Loading...</div>';
     try {
-      // Load distributor + its prices
-      const res = await fetch(`/api/distributors/${distId}/prices`, {
-        headers: { 'Authorization': 'Bearer ' + token }
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-
-      distributor = data.distributor;
-      priceMap = {};
-      (data.prices || []).forEach(p => { priceMap[p.item_id] = p.unit_cost; });
-
-      // Load inventory for this store
-      const invRes = await fetch(`/api/inventory/items?store_id=${distributor.store_id}`, {
-        headers: { 'Authorization': 'Bearer ' + token }
-      });
+      const [priceRes, invRes] = await Promise.all([
+        fetch(`/api/distributors/${distId}/prices?store_id=${storeId}`, { headers: { 'Authorization': 'Bearer ' + token } }),
+        fetch(`/api/inventory/items?store_id=${storeId}`, { headers: { 'Authorization': 'Bearer ' + token } })
+      ]);
+      const priceData = await priceRes.json();
       const invData = await invRes.json();
-      allInventory = invData.items || [];
 
-      renderHeader();
-      renderStats();
+      priceMap = {};
+      (priceData.prices || []).forEach(p => { priceMap[p.item_id] = p.unit_cost; });
+      allInventory = (invData.items || []).filter(i => i.status !== 'Not Tracking');
+
       renderPrices();
     } catch (err) {
-      document.getElementById('distInfo').innerHTML = `<div class="empty">Error: ${err.message}</div>`;
+      document.getElementById('pricesContainer').innerHTML = `<div style="padding:40px;color:#c00">Error: ${err.message}</div>`;
     }
   }
 
   function renderHeader() {
-    const updated = distributor.updated_at
-      ? new Date(distributor.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-      : '—';
-
+    const d = distributor;
     document.getElementById('distInfo').innerHTML = `
-      <div class="card">
-        <div class="dist-header">
-          <div>
-            <div class="dist-title">🏭 ${distributor.name}</div>
-            ${distributor.website ? `<div class="dist-meta">🌐 <a href="${distributor.website}" target="_blank" style="color:#2f5597">${distributor.website}</a></div>` : ''}
-            ${distributor.notes ? `<div class="dist-meta">📝 ${distributor.notes}</div>` : ''}
-            <div class="dist-meta" style="margin-top:6px">Last updated: ${updated}</div>
-          </div>
-          ${isAdmin ? `
-          <div style="display:flex;gap:8px">
-            <button class="btn btn-blue" onclick="exportCSV()" title="Download as CSV">⬇ Export CSV</button>
-          </div>` : ''}
+      <div class="card" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
+        <div>
+          <div class="dist-title">🏭 ${d.name}</div>
+          ${d.rep_name ? `<div class="dist-meta">👤 ${d.rep_name}${d.rep_phone ? ` · <a href="tel:${d.rep_phone}" style="color:#2f5597">${d.rep_phone}</a>` : ''}${d.rep_email ? ` · <a href="mailto:${d.rep_email}" style="color:#2f5597">${d.rep_email}</a>` : ''}</div>` : ''}
+          ${d.website ? `<div class="dist-meta">🌐 <a href="${d.website}" target="_blank" style="color:#2f5597">${d.website}</a></div>` : ''}
         </div>
+        ${isAdmin ? `<button class="btn btn-blue" onclick="exportCSV()">⬇ Export CSV</button>` : ''}
       </div>`;
   }
 
-  function renderStats() {
-    const pricedItems = Object.keys(priceMap).filter(id => priceMap[id] > 0).length;
-    const totalItems = allInventory.filter(i => i.status !== 'Not Tracking').length;
-    const savings = allInventory.filter(i => priceMap[i.id] > 0 && priceMap[i.id] < (i.cost || 0)).length;
+  // Build a unique key for a variant group or standalone item
+  function groupKey(cat, grpName) { return `g:${cat}:${grpName}`; }
+  function itemKey(itemId) { return `i:${itemId}`; }
 
-    document.getElementById('statsRow').innerHTML = `
-      <div class="stat-chip"><span>${pricedItems}</span> / ${totalItems} items priced</div>
-      <div class="stat-chip" style="color:#38761d"><span style="color:#38761d">${savings}</span> items cheaper than inventory cost</div>
-      ${isAdmin ? '<div class="stat-chip" style="color:#666;font-size:12px">✏️ Click any price to edit</div>' : ''}
-    `;
+  // Get display price for a group (first item's price since all should match)
+  function getGroupPrice(items) {
+    for (const item of items) {
+      const p = pendingChanges.hasOwnProperty(groupKey(item.category || 'No Category', item.group_name))
+        ? pendingChanges[groupKey(item.category || 'No Category', item.group_name)]
+        : (priceMap[item.id] ?? null);
+      if (p !== null) return p;
+    }
+    return '';
+  }
+
+  function getStandalonePrice(item) {
+    const cat = item.category || 'No Category';
+    const k = itemKey(item.id);
+    return pendingChanges.hasOwnProperty(k) ? pendingChanges[k] : (priceMap[item.id] ?? '');
+  }
+
+  function savingsBadge(price, invCost) {
+    const p = parseFloat(price);
+    if (!p || !invCost) return '<span style="color:#aaa">—</span>';
+    const diff = invCost - p;
+    if (diff > 0.005) return `<span class="badge badge-save">Save $${diff.toFixed(2)}</span>`;
+    if (diff < -0.005) return `<span class="badge badge-over">+$${Math.abs(diff).toFixed(2)}</span>`;
+    return '<span style="color:#999;font-size:11px">Same</span>';
   }
 
   function renderPrices() {
     const el = document.getElementById('pricesContainer');
-    const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
 
-    const items = allInventory.filter(i => {
-      if (i.status === 'Not Tracking') return false;
-      if (!search) return true;
-      return `${i.group_name} ${i.variant_name} ${i.category}`.toLowerCase().includes(search);
-    });
-
-    if (items.length === 0) {
-      el.innerHTML = '<div class="empty">No items match your search.</div>';
-      return;
-    }
-
-    // Group by category → group
-    const categories = {};
-    items.forEach(item => {
+    // Build structure: category → { groups: { grpName: [items] }, standalone: [items] }
+    const cats = {};
+    allInventory.forEach(item => {
       const cat = item.category || 'No Category';
-      if (!categories[cat]) categories[cat] = {};
-      const grp = item.group_name || '___standalone';
-      if (!categories[cat][grp]) categories[cat][grp] = [];
-      categories[cat][grp].push(item);
+      if (!cats[cat]) cats[cat] = { groups: {}, standalone: [] };
+      if (item.group_name) {
+        if (!cats[cat].groups[item.group_name]) cats[cat].groups[item.group_name] = [];
+        cats[cat].groups[item.group_name].push(item);
+      } else {
+        cats[cat].standalone.push(item);
+      }
     });
 
     let html = '';
-    Object.keys(categories).sort().forEach(cat => {
-      const groups = categories[cat];
-      const catItems = Object.values(groups).flat();
-      const pricedCount = catItems.filter(i => (pendingChanges[i.id] ?? priceMap[i.id] ?? 0) > 0).length;
+    Object.keys(cats).sort().forEach(cat => {
+      const { groups, standalone } = cats[cat];
+      const groupNames = Object.keys(groups).sort();
+      const totalGroups = groupNames.length + standalone.length;
+      const pricedGroups = groupNames.filter(g => {
+        const k = groupKey(cat, g);
+        const p = pendingChanges.hasOwnProperty(k) ? pendingChanges[k] : (priceMap[groups[g][0]?.id] ?? 0);
+        return p > 0;
+      }).length + standalone.filter(i => (pendingChanges[itemKey(i.id)] ?? priceMap[i.id] ?? 0) > 0).length;
 
       let rows = '';
-      Object.keys(groups).sort().map(grp => {
+
+      groupNames.forEach(grp => {
         const grpItems = groups[grp];
-        if (grp !== '___standalone') {
-          rows += `<tr class="group-row"><td colspan="5">${grp}</td></tr>`;
-        }
-        grpItems.forEach(item => {
-          const currentPrice = pendingChanges.hasOwnProperty(item.id) ? pendingChanges[item.id] : (priceMap[item.id] ?? '');
-          const invCost = item.cost || 0;
-          const numPrice = parseFloat(currentPrice) || 0;
-          let savingsCell = '<span class="savings-neutral">—</span>';
-          if (numPrice > 0 && invCost > 0) {
-            const diff = invCost - numPrice;
-            const pct = Math.round((diff / invCost) * 100);
-            if (diff > 0) {
-              savingsCell = `<span class="savings-badge savings-positive">Save $${diff.toFixed(2)} (${pct}%)</span>`;
-            } else if (diff < 0) {
-              savingsCell = `<span class="savings-badge savings-negative">+$${Math.abs(diff).toFixed(2)} over cost</span>`;
-            } else {
-              savingsCell = `<span class="savings-neutral">Same</span>`;
-            }
-          }
+        const k = groupKey(cat, grp);
+        const price = pendingChanges.hasOwnProperty(k) ? pendingChanges[k] : getGroupPrice(grpItems);
+        const invCost = grpItems[0]?.cost || 0;
+        const changed = pendingChanges.hasOwnProperty(k);
+        const inputAttrs = isAdmin
+          ? `oninput="markGroupChanged('${k.replace(/'/g, "\\'")}', this.value)"`
+          : 'readonly';
 
-          const inputAttrs = isAdmin
-            ? `oninput="markChanged('${item.id}', this.value)"`
-            : 'readonly';
-          const changedClass = pendingChanges.hasOwnProperty(item.id) ? 'changed' : '';
-
-          rows += `<tr>
-            <td style="font-weight:500">${item.variant_name}</td>
-            <td style="color:#666">$${invCost.toFixed(2)}</td>
-            <td>
-              <div style="display:flex;align-items:center;gap:6px">
-                <span style="color:#888;font-size:13px">$</span>
-                <input type="number" step="0.01" min="0" class="price-input ${changedClass}"
-                  value="${currentPrice}" placeholder="—"
-                  id="price_${item.id}" ${inputAttrs} />
-              </div>
-            </td>
-            <td>${savingsCell}</td>
-            <td style="color:#aaa;font-size:11px">${priceMap[item.id] ? new Date().toLocaleDateString('en-US', {month:'short',day:'numeric'}) : ''}</td>
-          </tr>`;
-        });
+        rows += `<tr>
+          <td style="font-weight:600">${grp} <span style="color:#aaa;font-size:11px;font-weight:400">${grpItems.length} variant${grpItems.length !== 1 ? 's' : ''}</span></td>
+          <td style="color:#666">$${invCost.toFixed(2)}</td>
+          <td><span style="color:#888;margin-right:2px">$</span><input type="number" step="0.01" min="0" class="price-input ${changed ? 'changed' : ''}"
+            value="${price}" placeholder="—" id="pi_${k.replace(/[^a-zA-Z0-9]/g,'_')}" ${inputAttrs} /></td>
+          <td>${savingsBadge(price, invCost)}</td>
+        </tr>`;
       });
 
-      html += `
-        <div class="category-section">
-          <div class="category-header">
-            <span>${cat}</span>
-            <span style="font-size:12px;opacity:0.8">${pricedCount}/${catItems.length} priced</span>
-          </div>
-          <div class="category-body">
-            <table>
-              <thead><tr>
-                <th>Item / Variant</th>
-                <th>Inventory Cost</th>
-                <th>${distributor.name} Price</th>
-                <th>vs. Inventory</th>
-                <th>Updated</th>
-              </tr></thead>
-              <tbody>${rows}</tbody>
-            </table>
-          </div>
-        </div>`;
+      if (standalone.length > 0) {
+        if (groupNames.length > 0) {
+          rows += `<tr class="standalone-header"><td colspan="4">— No variant group —</td></tr>`;
+        }
+        standalone.forEach(item => {
+          const k = itemKey(item.id);
+          const price = getStandalonePrice(item);
+          const changed = pendingChanges.hasOwnProperty(k);
+          const inputAttrs = isAdmin
+            ? `oninput="markItemChanged('${item.id}', this.value)"`
+            : 'readonly';
+          rows += `<tr>
+            <td style="font-weight:500">${item.variant_name}</td>
+            <td style="color:#666">$${(item.cost || 0).toFixed(2)}</td>
+            <td><span style="color:#888;margin-right:2px">$</span><input type="number" step="0.01" min="0" class="price-input ${changed ? 'changed' : ''}"
+              value="${price}" placeholder="—" id="pi_i_${item.id}" ${inputAttrs} /></td>
+            <td>${savingsBadge(price, item.cost || 0)}</td>
+          </tr>`;
+        });
+      }
+
+      html += `<div class="cat-section">
+        <div class="cat-header" onclick="toggleCat('catbody_${cat.replace(/[^a-zA-Z0-9]/g,'_')}', this)">
+          <span>${cat}</span>
+          <span style="font-size:12px;opacity:0.8">${pricedGroups}/${totalGroups} priced ▼</span>
+        </div>
+        <div class="cat-body" id="catbody_${cat.replace(/[^a-zA-Z0-9]/g,'_')}">
+          <table>
+            <thead><tr>
+              <th>Variant Group / Item</th>
+              <th>Inventory Cost</th>
+              <th>${distributor.name} Price</th>
+              <th>vs. Inventory</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
     });
 
-    el.innerHTML = html;
+    el.innerHTML = html || '<div style="padding:40px;text-align:center;color:#999">No inventory items found for this store.</div>';
   }
 
-  function markChanged(itemId, val) {
-    const numVal = parseFloat(val);
-    const stored = priceMap[itemId] ?? null;
+  function toggleCat(bodyId, header) {
+    const body = document.getElementById(bodyId);
+    if (!body) return;
+    const isHidden = body.style.display === 'none';
+    body.style.display = isHidden ? '' : 'none';
+    const chevron = header.querySelector('span:last-child');
+    if (chevron) chevron.textContent = chevron.textContent.replace(isHidden ? '▶' : '▼', isHidden ? '▼' : '▶');
+  }
 
-    if (!isNaN(numVal) && numVal >= 0) {
-      // Only count as changed if different from stored
-      if (numVal !== stored) {
-        pendingChanges[itemId] = numVal;
-      } else {
-        delete pendingChanges[itemId];
-      }
+  function markGroupChanged(k, val) {
+    const num = parseFloat(val);
+    if (!isNaN(num) && num >= 0) {
+      pendingChanges[k] = num;
     } else {
-      delete pendingChanges[itemId];
+      delete pendingChanges[k];
     }
-
-    const input = document.getElementById('price_' + itemId);
-    if (input) input.classList.toggle('changed', pendingChanges.hasOwnProperty(itemId));
-
     updateChangesBar();
-    // Re-render savings for this row without full re-render
-    renderPrices();
+    // update savings badge in-place
+    const inputId = 'pi_' + k.replace(/[^a-zA-Z0-9]/g,'_');
+    const inp = document.getElementById(inputId);
+    if (inp) inp.classList.toggle('changed', pendingChanges.hasOwnProperty(k));
+  }
+
+  function markItemChanged(itemId, val) {
+    const k = itemKey(itemId);
+    const num = parseFloat(val);
+    if (!isNaN(num) && num >= 0) {
+      pendingChanges[k] = num;
+    } else {
+      delete pendingChanges[k];
+    }
+    updateChangesBar();
+    const inp = document.getElementById('pi_i_' + itemId);
+    if (inp) inp.classList.toggle('changed', pendingChanges.hasOwnProperty(k));
   }
 
   function updateChangesBar() {
     const count = Object.keys(pendingChanges).length;
-    const bar = document.getElementById('changesBar');
-    bar.classList.toggle('visible', count > 0);
-    document.getElementById('changesCount').textContent = `${count} price${count !== 1 ? 's' : ''} changed`;
+    document.getElementById('changesBar').classList.toggle('visible', count > 0);
+    document.getElementById('changesCount').textContent = `${count} change${count !== 1 ? 's' : ''}`;
   }
 
   function cancelChanges() {
@@ -294,64 +342,75 @@
   }
 
   async function saveChanges() {
+    if (!selectedStore) { alert('Please select a store first.'); return; }
     const entries = Object.entries(pendingChanges);
     if (entries.length === 0) return;
 
-    const btn = document.getElementById('saveBtn');
-    btn.disabled = true;
-    btn.textContent = 'Saving...';
+    // Expand group keys to individual item entries
+    const itemPrices = {};
 
-    const prices = entries.map(([item_id, unit_cost]) => ({ item_id, unit_cost }));
+    // Build lookup: cat+grp → items
+    const catGrpMap = {};
+    allInventory.forEach(item => {
+      const cat = item.category || 'No Category';
+      if (item.group_name) {
+        const k = groupKey(cat, item.group_name);
+        if (!catGrpMap[k]) catGrpMap[k] = [];
+        catGrpMap[k].push(item.id);
+      }
+    });
+
+    entries.forEach(([k, price]) => {
+      if (k.startsWith('i:')) {
+        const itemId = k.slice(2);
+        itemPrices[itemId] = price;
+      } else if (k.startsWith('g:')) {
+        const ids = catGrpMap[k] || [];
+        ids.forEach(id => { itemPrices[id] = price; });
+      }
+    });
+
+    const prices = Object.entries(itemPrices).map(([item_id, unit_cost]) => ({ item_id, unit_cost }));
+
+    const btn = document.getElementById('saveBtn');
+    btn.disabled = true; btn.textContent = 'Saving...';
 
     try {
       const res = await fetch(`/api/distributors/${distId}/prices`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ prices })
+        body: JSON.stringify({ prices, store_id: selectedStore })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      // Apply changes to priceMap
-      entries.forEach(([item_id, unit_cost]) => {
-        priceMap[item_id] = unit_cost;
-      });
+      // Apply to priceMap
+      Object.entries(itemPrices).forEach(([id, cost]) => { priceMap[id] = cost; });
       pendingChanges = {};
       updateChangesBar();
-      renderStats();
       renderPrices();
     } catch (err) {
       alert('Error saving: ' + err.message);
     } finally {
-      btn.disabled = false;
-      btn.textContent = '💾 Save Prices';
+      btn.disabled = false; btn.textContent = '💾 Save Prices';
     }
   }
 
   function exportCSV() {
-    const rows = [['Item', 'Category', 'Group', 'Inventory Cost', `${distributor.name} Price`, 'Savings']];
-    allInventory.filter(i => i.status !== 'Not Tracking').forEach(item => {
+    const rows = [['Variant Group', 'Item', 'Category', 'Inventory Cost', `${distributor.name} Price`, 'Savings']];
+    allInventory.forEach(item => {
       const price = priceMap[item.id] ?? '';
       const savings = price && item.cost ? (item.cost - price).toFixed(2) : '';
-      rows.push([
-        item.variant_name,
-        item.category || '',
-        item.group_name || '',
-        (item.cost || 0).toFixed(2),
-        price !== '' ? parseFloat(price).toFixed(2) : '',
-        savings
-      ]);
+      rows.push([item.group_name || '', item.variant_name, item.category || '', (item.cost || 0).toFixed(2), price !== '' ? parseFloat(price).toFixed(2) : '', savings]);
     });
-    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
+    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
     const a = document.createElement('a');
-    a.href = url;
-    a.download = `${distributor.name.replace(/[^a-z0-9]/gi, '_')}_prices.csv`;
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = `${distributor.name.replace(/[^a-z0-9]/gi,'_')}_prices.csv`;
     a.click();
   }
 
-  loadAll();
+  init();
 </script>
 <script>loadNavbar();</script>
 </body>

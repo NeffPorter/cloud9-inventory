@@ -94,9 +94,8 @@
       <div id="suggestedContent" class="loading">Loading suggested orders...</div>
     </div>
 
-    <!-- Manual search panel -->
+    <!-- Manual panel -->
     <div id="panelManual" style="display:none">
-      <input type="text" class="search-bar" id="searchInput" placeholder="Search items by name..." oninput="filterManual()" />
       <div id="manualContent" class="loading">Loading inventory...</div>
     </div>
   </div>
@@ -148,7 +147,7 @@
       const [invRes, priceRes, distRes] = await Promise.all([
         fetch(`/api/inventory/items?store_id=${storeId}`, { headers: { 'Authorization': 'Bearer ' + token } }),
         fetch(`/api/distributors/best-prices?store_id=${storeId}`, { headers: { 'Authorization': 'Bearer ' + token } }),
-        fetch(`/api/distributors?store_id=${storeId}`, { headers: { 'Authorization': 'Bearer ' + token } })
+        fetch(`/api/distributors`, { headers: { 'Authorization': 'Bearer ' + token } })
       ]);
       const data = await invRes.json();
       allInventory = data.items || [];
@@ -217,7 +216,7 @@
     if (val && val !== 'other') {
       selectedDistId = val;
       try {
-        const res = await fetch(`/api/distributors/${val}/prices`, {
+        const res = await fetch(`/api/distributors/${val}/prices?store_id=${storeId}`, {
           headers: { 'Authorization': 'Bearer ' + token }
         });
         const data = await res.json();
@@ -322,76 +321,112 @@
       return;
     }
 
-    const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
-    const filtered = allInventory.filter(i => {
-      const name = `${i.group_name} ${i.variant_name} ${i.category}`.toLowerCase();
-      return !search || name.includes(search);
-    });
-
-    if (filtered.length === 0) {
-      el.innerHTML = '<div class="empty-msg">No items match your search.</div>';
-      return;
-    }
-
-    const groups = {};
-    filtered.forEach(item => {
+    // Build structure: category → { groups: { grpName: [items] }, standalone: [items] }
+    const cats = {};
+    allInventory.forEach(item => {
       const cat = item.category || 'No Category';
-      if (!groups[cat]) groups[cat] = [];
-      groups[cat].push(item);
+      if (!cats[cat]) cats[cat] = { groups: {}, standalone: [] };
+      if (item.group_name) {
+        if (!cats[cat].groups[item.group_name]) cats[cat].groups[item.group_name] = [];
+        cats[cat].groups[item.group_name].push(item);
+      } else {
+        cats[cat].standalone.push(item);
+      }
     });
 
     let html = '';
-    Object.keys(groups).sort().forEach(cat => {
+    Object.keys(cats).sort().forEach(cat => {
       const catKey = 'mcat-' + cat.replace(/[^a-zA-Z0-9]/g, '-');
-      const catItems = groups[cat];
-      const addedCount = catItems.filter(i => selectedItems[i.id]).length;
-      // Open if searching or user manually expanded
-      const isExpanded = !!search || manualExpandedCats.has(cat);
+      const { groups, standalone } = cats[cat];
+      const groupNames = Object.keys(groups).sort();
+
+      // Count added groups/items
+      const addedGroups = groupNames.filter(g => groups[g].some(i => selectedItems[i.id])).length;
+      const addedStandalone = standalone.filter(i => selectedItems[i.id]).length;
+      const addedCount = addedGroups + addedStandalone;
+      const totalCount = groupNames.length + standalone.length;
+      const isExpanded = manualExpandedCats.has(cat);
+
+      let rows = '';
+
+      groupNames.forEach(grp => {
+        const grpItems = groups[grp];
+        const isAdded = grpItems.some(i => selectedItems[i.id]);
+        const firstAdded = grpItems.find(i => selectedItems[i.id]);
+        const currentQty = firstAdded ? selectedItems[firstAdded.id].qty : 1;
+        const repItem = grpItems[0];
+        const unitCost = getUnitCost(repItem);
+        const costLabel = selectedDistId && distPrices.hasOwnProperty(repItem.id)
+          ? `<span style="color:#2f5597;font-weight:700">$${unitCost.toFixed(2)}</span>`
+          : `$${unitCost.toFixed(2)}`;
+        const grpKey = grp.replace(/'/g, "\\'");
+
+        if (isAdded) {
+          rows += `<tr class="manual-item-added">
+            <td style="font-weight:600">${grp} <span style="color:#aaa;font-size:11px;font-weight:400">${grpItems.length} variant${grpItems.length!==1?'s':''}</span> ${bestPriceBadge(repItem.id, repItem.cost||0)}</td>
+            <td>${costLabel}</td>
+            <td><input type="number" class="qty-input" value="${currentQty}" min="1"
+              onchange="updateManualGroup('${grpKey}', '${cat.replace(/'/g,"\\'")}', this.value)" /></td>
+            <td><button class="btn-remove-item" onclick="removeManualGroup('${grpKey}', '${cat.replace(/'/g,"\\'")}')">✕ Remove</button></td>
+          </tr>`;
+        } else {
+          rows += `<tr>
+            <td style="font-weight:500">${grp} <span style="color:#aaa;font-size:11px">${grpItems.length} variant${grpItems.length!==1?'s':''}</span> ${bestPriceBadge(repItem.id, repItem.cost||0)}</td>
+            <td>${costLabel}</td>
+            <td><input type="number" class="qty-input" id="mgq_${catKey}_${grp.replace(/[^a-zA-Z0-9]/g,'_')}" value="1" min="1" /></td>
+            <td><button class="btn-add-item" onclick="addManualGroup('${grpKey}', '${cat.replace(/'/g,"\\'")}')">+ Add</button></td>
+          </tr>`;
+        }
+      });
+
+      if (standalone.length > 0) {
+        if (groupNames.length > 0) {
+          rows += `<tr><td colspan="4" style="background:#fafafa;color:#888;font-size:12px;font-style:italic;padding:6px 10px">— No variant group —</td></tr>`;
+        }
+        standalone.forEach(item => {
+          const isAdded = !!selectedItems[item.id];
+          const currentQty = isAdded ? selectedItems[item.id].qty : 1;
+          const unitCost = getUnitCost(item);
+          const costLabel = selectedDistId && distPrices.hasOwnProperty(item.id)
+            ? `<span style="color:#2f5597;font-weight:700">$${unitCost.toFixed(2)}</span>`
+            : `$${unitCost.toFixed(2)}`;
+
+          if (isAdded) {
+            rows += `<tr class="manual-item-added">
+              <td style="font-weight:600">${item.variant_name} ${bestPriceBadge(item.id, item.cost||0)}</td>
+              <td>${costLabel}</td>
+              <td><input type="number" class="qty-input" value="${currentQty}" min="1"
+                onchange="updateManualQty('${item.id}', this.value)" /></td>
+              <td><button class="btn-remove-item" onclick="removeManualItem('${item.id}')">✕ Remove</button></td>
+            </tr>`;
+          } else {
+            rows += `<tr>
+              <td style="font-weight:500">${item.variant_name} ${bestPriceBadge(item.id, item.cost||0)}</td>
+              <td>${costLabel}</td>
+              <td><input type="number" class="qty-input" id="mq_${item.id}" value="1" min="1" /></td>
+              <td><button class="btn-add-item" onclick="addManualItem('${item.id}')">+ Add</button></td>
+            </tr>`;
+          }
+        });
+      }
 
       html += `<div class="manual-cat">
-        <div class="manual-cat-header" onclick="toggleManualCat('${cat.replace(/'/g, "\\'")}', '${catKey}')">
-          <span>${cat} <span class="cat-count">${catItems.length} item${catItems.length !== 1 ? 's' : ''}${addedCount > 0 ? ` · <span style="color:#38761d;font-weight:700">${addedCount} added</span>` : ''}</span></span>
+        <div class="manual-cat-header" onclick="toggleManualCat('${cat.replace(/'/g,"\\'")}', '${catKey}')">
+          <span>${cat} <span class="cat-count">${totalCount} group${totalCount!==1?'s':''}${addedCount > 0 ? ` · <span style="color:#38761d;font-weight:700">${addedCount} added</span>` : ''}</span></span>
           <span class="cat-chevron" id="chev-${catKey}">${isExpanded ? '▲' : '▼'}</span>
         </div>
         <div id="${catKey}" style="${isExpanded ? '' : 'display:none'}">
           <table class="items-table">
             <thead><tr>
-              <th>Item</th>
+              <th>Variant Group / Item</th>
               <th>Cost</th>
-              <th>In Stock</th>
               <th style="width:80px">Qty</th>
-              <th style="width:90px"></th>
+              <th style="width:100px"></th>
             </tr></thead>
-            <tbody>`;
-
-      catItems.forEach(item => {
-        const isAdded = !!selectedItems[item.id];
-        const currentQty = isAdded ? selectedItems[item.id].qty : 1;
-        const itemLabel = (item.group_name ? item.group_name + ' — ' : '') + item.variant_name;
-        const priceBadge = bestPriceBadge(item.id, item.cost || 0);
-
-        const unitCostDisplay = getUnitCost(item);
-        if (isAdded) {
-          html += `<tr class="manual-item-added">
-            <td style="font-weight:600">${itemLabel} ${priceBadge}</td>
-            <td>${selectedDistId && distPrices.hasOwnProperty(item.id) ? `<span style="color:#2f5597;font-weight:700">$${unitCostDisplay.toFixed(2)}</span>` : `$${unitCostDisplay.toFixed(2)}`}</td>
-            <td style="color:#666">${item.clover_qty || 0}</td>
-            <td><input type="number" class="qty-input" value="${currentQty}" min="1"
-              onchange="updateManualQty('${item.id}', this.value)" /></td>
-            <td><button class="btn-remove-item" onclick="removeManualItem('${item.id}')">✕ Remove</button></td>
-          </tr>`;
-        } else {
-          html += `<tr>
-            <td style="font-weight:500">${itemLabel} ${priceBadge}</td>
-            <td>${selectedDistId && distPrices.hasOwnProperty(item.id) ? `<span style="color:#2f5597;font-weight:700">$${unitCostDisplay.toFixed(2)}</span>` : `$${unitCostDisplay.toFixed(2)}`}</td>
-            <td style="color:#666">${item.clover_qty || 0}</td>
-            <td><input type="number" class="qty-input" id="mq_${item.id}" value="1" min="1" /></td>
-            <td><button class="btn-add-item" onclick="addManualItem('${item.id}')">+ Add</button></td>
-          </tr>`;
-        }
-      });
-
-      html += `</tbody></table></div></div>`;
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
     });
 
     el.innerHTML = html;
@@ -408,11 +443,40 @@
     else manualExpandedCats.delete(cat);
   }
 
+  // Get all items in a named group + category
+  function getGroupItems(grpName, catName) {
+    return allInventory.filter(i => i.group_name === grpName && (i.category || 'No Category') === catName);
+  }
+
+  function addManualGroup(grpName, catName) {
+    const items = getGroupItems(grpName, catName);
+    const catKey = 'mcat-' + catName.replace(/[^a-zA-Z0-9]/g, '-');
+    const qtyInputId = `mgq_${catKey}_${grpName.replace(/[^a-zA-Z0-9]/g,'_')}`;
+    const qty = Math.max(1, parseInt(document.getElementById(qtyInputId)?.value) || 1);
+    items.forEach(item => { selectedItems[item.id] = { item, qty }; });
+    updateSummary();
+    renderManualTable();
+  }
+
+  function updateManualGroup(grpName, catName, val) {
+    const qty = Math.max(1, parseInt(val) || 1);
+    const items = getGroupItems(grpName, catName);
+    items.forEach(item => { if (selectedItems[item.id]) selectedItems[item.id].qty = qty; });
+    updateSummary();
+  }
+
+  function removeManualGroup(grpName, catName) {
+    const items = getGroupItems(grpName, catName);
+    items.forEach(item => { delete selectedItems[item.id]; });
+    updateSummary();
+    renderManualTable();
+  }
+
+  // Standalone item helpers
   function addManualItem(itemId) {
     const item = allInventory.find(i => i.id === itemId);
     if (!item) return;
-    const qtyInput = document.getElementById('mq_' + itemId);
-    const qty = Math.max(1, parseInt(qtyInput?.value) || 1);
+    const qty = Math.max(1, parseInt(document.getElementById('mq_' + itemId)?.value) || 1);
     selectedItems[itemId] = { item, qty };
     updateSummary();
     renderManualTable();
@@ -420,19 +484,12 @@
 
   function updateManualQty(itemId, val) {
     const qty = Math.max(1, parseInt(val) || 1);
-    if (selectedItems[itemId]) {
-      selectedItems[itemId].qty = qty;
-      updateSummary();
-    }
+    if (selectedItems[itemId]) { selectedItems[itemId].qty = qty; updateSummary(); }
   }
 
   function removeManualItem(itemId) {
     delete selectedItems[itemId];
     updateSummary();
-    renderManualTable();
-  }
-
-  function filterManual() {
     renderManualTable();
   }
 
