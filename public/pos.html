@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloud 9 - Purchase Orders</title>
+  <script src="/navbar.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; min-height: 100vh; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; flex-wrap: wrap; gap: 12px; }
+    .page-title { font-size: 24px; font-weight: 700; color: #1a1a2e; }
+    .page-subtitle { color: #666; font-size: 14px; margin-top: 4px; }
+    .btn { border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .btn-blue { background: #2f5597; color: white; }
+    .btn-blue:hover { background: #1e3a6e; }
+    .btn-gray { background: #666; color: white; }
+    .store-filter { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+    .filter-btn { padding: 6px 16px; border-radius: 20px; border: 2px solid #e0e0e0; background: white; font-size: 13px; font-weight: 600; cursor: pointer; color: #444; transition: all 0.2s; }
+    .filter-btn.active { border-color: #2f5597; background: #2f5597; color: white; }
+    .section-title { font-size: 16px; font-weight: 700; color: #1a1a2e; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .section-block { margin-bottom: 36px; }
+    .po-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+    .po-card {
+      background: white; border-radius: 12px; padding: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06); cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      border-left: 4px solid #2f5597;
+    }
+    .po-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+    .po-card.partial { border-left-color: #c55a11; }
+    .po-card.received { border-left-color: #38761d; opacity: 0.85; }
+    .po-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+    .po-number { font-size: 15px; font-weight: 800; color: #1a1a2e; }
+    .po-distributor { font-size: 13px; color: #666; margin-top: 2px; }
+    .po-date { font-size: 11px; color: #aaa; margin-top: 2px; }
+    .status-badge { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .status-ordered { background: #dce8f8; color: #2f5597; }
+    .status-partial { background: #fff3cd; color: #c55a11; }
+    .status-received { background: #d9ead3; color: #38761d; }
+    .po-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+    .po-stat { background: #f8f9fa; border-radius: 6px; padding: 8px; text-align: center; }
+    .po-stat-value { font-size: 16px; font-weight: 800; color: #1a1a2e; }
+    .po-stat-label { font-size: 10px; color: #999; font-weight: 600; margin-top: 2px; }
+    .po-footer { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #999; }
+    .loading { text-align: center; padding: 60px; color: #999; }
+    .empty { text-align: center; padding: 60px; color: #999; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .empty h3 { font-size: 18px; color: #666; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="page-header">
+    <div>
+      <div class="page-title">🛒 Purchase Orders</div>
+      <div class="page-subtitle">Track orders from distributors</div>
+    </div>
+    <div id="newPOBtn"></div>
+  </div>
+
+  <div class="store-filter" id="storeFilter"></div>
+  <div id="poContainer" class="loading">Loading purchase orders...</div>
+</div>
+
+<script>
+  const token = localStorage.getItem('token');
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  if (!token) window.location.href = '/';
+
+  let allPOs = [];
+  let allStores = [];
+  let selectedStore = '';
+
+  // Read store from URL if provided
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('store')) selectedStore = params.get('store');
+
+  async function loadStores() {
+    const res = await fetch('/api/inventory/stores', { headers: { 'Authorization': 'Bearer ' + token } });
+    const data = await res.json();
+    allStores = data.stores || [];
+
+    const btnArea = document.getElementById('newPOBtn');
+    if (allStores.length === 1) {
+      btnArea.innerHTML = `<button class="btn btn-blue" onclick="window.location.href='/pos/new?store=${allStores[0].id}'">➕ New PO</button>`;
+      if (!selectedStore) selectedStore = allStores[0].id;
+    } else if (user.role === 'admin') {
+      btnArea.innerHTML = `
+        <select id="newStoreSelect" style="padding:10px;border:2px solid #e0e0e0;border-radius:8px;font-size:14px;outline:none">
+          <option value="">Select store...</option>
+          ${allStores.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}
+        </select>
+        <button class="btn btn-blue" onclick="goNewPO()">➕ New PO</button>`;
+    }
+
+    if (user.role === 'admin' && allStores.length > 1) {
+      const filter = document.getElementById('storeFilter');
+      const activeAll = !selectedStore ? 'active' : '';
+      filter.innerHTML = `<button class="filter-btn ${activeAll}" onclick="filterStore('', this)">All Stores</button>` +
+        allStores.map(s => {
+          const active = selectedStore === s.id ? 'active' : '';
+          return `<button class="filter-btn ${active}" onclick="filterStore('${s.id}', this)">${s.name}</button>`;
+        }).join('');
+    }
+  }
+
+  function goNewPO() {
+    const storeId = document.getElementById('newStoreSelect').value;
+    if (!storeId) { alert('Please select a store first!'); return; }
+    window.location.href = `/pos/new?store=${storeId}`;
+  }
+
+  function filterStore(storeId, btn) {
+    selectedStore = storeId;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderPOs();
+  }
+
+  async function loadPOs() {
+    try {
+      const url = selectedStore ? `/api/pos?store_id=${selectedStore}` : '/api/pos';
+      const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
+      const data = await res.json();
+      allPOs = data.pos || [];
+      renderPOs();
+    } catch (err) {
+      document.getElementById('poContainer').innerHTML = '<div class="empty"><h3>Error loading purchase orders</h3></div>';
+    }
+  }
+
+  function renderPOs() {
+    const filtered = selectedStore ? allPOs.filter(p => p.store_id === selectedStore) : allPOs;
+    const container = document.getElementById('poContainer');
+
+    if (filtered.length === 0) {
+      container.className = '';
+      container.innerHTML = `<div class="empty"><h3>No purchase orders yet</h3><p>Create your first PO to start tracking distributor orders</p></div>`;
+      return;
+    }
+
+    const ordered  = filtered.filter(p => p.status === 'ordered');
+    const partial  = filtered.filter(p => p.status === 'partial');
+    const received = filtered.filter(p => p.status === 'received');
+
+    container.className = '';
+    let html = '';
+
+    if (ordered.length > 0) {
+      html += `<div class="section-block">
+        <div class="section-title">📦 Ordered <span style="background:#dce8f8;color:#2f5597;padding:2px 10px;border-radius:12px;font-size:12px">${ordered.length}</span></div>
+        <div class="po-grid">${ordered.map(poCard).join('')}</div>
+      </div>`;
+    }
+    if (partial.length > 0) {
+      html += `<div class="section-block">
+        <div class="section-title">⏳ Partially Received <span style="background:#fff3cd;color:#c55a11;padding:2px 10px;border-radius:12px;font-size:12px">${partial.length}</span></div>
+        <div class="po-grid">${partial.map(poCard).join('')}</div>
+      </div>`;
+    }
+    if (received.length > 0) {
+      html += `<div class="section-block">
+        <div class="section-title">✅ Received <span style="background:#d9ead3;color:#38761d;padding:2px 10px;border-radius:12px;font-size:12px">${received.length}</span></div>
+        <div class="po-grid">${received.map(poCard).join('')}</div>
+      </div>`;
+    }
+
+    container.innerHTML = html;
+  }
+
+  function poCard(po) {
+    const store = allStores.find(s => s.id === po.store_id);
+    const storeName = store?.name || '';
+    const date = new Date(po.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const pctReceived = po.total_cost > 0
+      ? Math.round(((po.total_cost - po.remaining_balance) / po.total_cost) * 100)
+      : (po.status === 'received' ? 100 : 0);
+
+    return `
+      <div class="po-card ${po.status}" onclick="window.location.href='/pos/view?id=${po.id}'">
+        <div class="po-header">
+          <div>
+            <div class="po-number">${po.po_number}</div>
+            <div class="po-distributor">📦 ${po.distributor}</div>
+            ${storeName ? `<div class="po-date">🏪 ${storeName}</div>` : ''}
+            <div class="po-date">${date}</div>
+          </div>
+          <span class="status-badge status-${po.status}">${po.status === 'ordered' ? 'Ordered' : po.status === 'partial' ? 'Partial' : 'Received'}</span>
+        </div>
+        <div class="po-stats">
+          <div class="po-stat">
+            <div class="po-stat-value">$${(po.total_cost || 0).toFixed(2)}</div>
+            <div class="po-stat-label">Total Cost</div>
+          </div>
+          <div class="po-stat">
+            <div class="po-stat-value" style="color:#c55a11">$${(po.remaining_balance || 0).toFixed(2)}</div>
+            <div class="po-stat-label">Remaining</div>
+          </div>
+          <div class="po-stat">
+            <div class="po-stat-value" style="color:#38761d">${pctReceived}%</div>
+            <div class="po-stat-label">Received</div>
+          </div>
+        </div>
+        <div class="po-footer">
+          <span>By: ${po.created_by_name || 'Unknown'}</span>
+          <span style="color:#2f5597;font-weight:600;font-size:12px">View Details →</span>
+        </div>
+      </div>`;
+  }
+
+  loadStores().then(loadPOs);
+</script>
+<script>loadNavbar();</script>
+</body>
+</html>

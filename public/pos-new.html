@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloud 9 - New Purchase Order</title>
+  <script src="/navbar.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; min-height: 100vh; }
+    .container { max-width: 1000px; margin: 0 auto; padding: 32px 24px; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .page-title { font-size: 24px; font-weight: 700; color: #1a1a2e; }
+    .btn { border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .btn-blue { background: #2f5597; color: white; }
+    .btn-blue:hover { background: #1e3a6e; }
+    .btn-gray { background: #666; color: white; }
+    .btn-gray:hover { background: #444; }
+    .btn-green { background: #38761d; color: white; }
+    .btn-green:hover { background: #2a5a14; }
+    .btn-red { background: #c00; color: white; }
+    .btn:disabled { background: #bbb; cursor: not-allowed; }
+    .card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 20px; }
+    .card-title { font-size: 16px; font-weight: 700; color: #1a1a2e; margin-bottom: 16px; }
+    label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 6px; }
+    input[type="text"], select {
+      width: 100%; padding: 10px 14px; border: 2px solid #e0e0e0;
+      border-radius: 8px; font-size: 14px; outline: none; font-family: inherit;
+    }
+    input[type="text"]:focus, select:focus { border-color: #2f5597; }
+    .source-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
+    .tab-btn { padding: 8px 20px; border-radius: 8px; border: 2px solid #e0e0e0; background: white; font-size: 13px; font-weight: 600; cursor: pointer; color: #666; }
+    .tab-btn.active { border-color: #2f5597; background: #2f5597; color: white; }
+    .items-table { width: 100%; border-collapse: collapse; }
+    .items-table th { text-align: left; font-size: 11px; font-weight: 700; color: #999; text-transform: uppercase; padding: 8px 10px; background: #f8f9fa; border-bottom: 1px solid #f0f0f0; }
+    .items-table td { padding: 8px 10px; border-bottom: 1px solid #f8f8f8; font-size: 13px; }
+    .items-table tr:last-child td { border-bottom: none; }
+    .qty-input { width: 70px; padding: 6px 8px; border: 2px solid #e0e0e0; border-radius: 6px; font-size: 13px; text-align: center; outline: none; }
+    .qty-input:focus { border-color: #2f5597; }
+    input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
+    .total-bar { background: #f8f9fa; border-radius: 8px; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; margin-top: 16px; }
+    .total-label { font-size: 14px; color: #666; font-weight: 600; }
+    .total-val { font-size: 22px; font-weight: 800; color: #1a1a2e; }
+    .search-bar { width: 100%; padding: 10px 14px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; outline: none; margin-bottom: 16px; }
+    .search-bar:focus { border-color: #2f5597; }
+    .loading { text-align: center; padding: 40px; color: #999; }
+    .empty-msg { text-align: center; padding: 40px; color: #999; }
+    .group-header td { background: #f0f4ff; font-weight: 700; color: #2f5597; font-size: 12px; padding: 6px 10px; }
+    .suggested-badge { background: #d9ead3; color: #38761d; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="page-header">
+    <div>
+      <div class="page-title">➕ New Purchase Order</div>
+    </div>
+    <button class="btn btn-gray" onclick="window.location.href='/pos'">← Back</button>
+  </div>
+
+  <!-- Step 1: Distributor -->
+  <div class="card">
+    <div class="card-title">📦 Distributor</div>
+    <label for="distroInput">Distributor / Vendor Name</label>
+    <input type="text" id="distroInput" placeholder="e.g. ABC Wholesale, Smith Distributors..." />
+  </div>
+
+  <!-- Step 2: Item Source -->
+  <div class="card">
+    <div class="card-title">📋 Items to Order</div>
+
+    <div class="source-tabs">
+      <button class="tab-btn active" id="tabSuggested" onclick="switchTab('suggested')">⭐ From Suggested Orders</button>
+      <button class="tab-btn" id="tabManual" onclick="switchTab('manual')">🔍 Add Manually</button>
+    </div>
+
+    <!-- Suggested Orders panel -->
+    <div id="panelSuggested">
+      <div id="suggestedContent" class="loading">Loading suggested orders...</div>
+    </div>
+
+    <!-- Manual search panel -->
+    <div id="panelManual" style="display:none">
+      <input type="text" class="search-bar" id="searchInput" placeholder="Search items by name..." oninput="filterManual()" />
+      <div id="manualContent" class="loading">Loading inventory...</div>
+    </div>
+  </div>
+
+  <!-- Order summary -->
+  <div class="card" id="summaryCard" style="display:none">
+    <div class="card-title">🧾 Order Summary</div>
+    <div id="summaryTable"></div>
+    <div class="total-bar">
+      <span class="total-label">Estimated Total Cost</span>
+      <span class="total-val" id="totalCostDisplay">$0.00</span>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end">
+      <button class="btn btn-green" id="createBtn" onclick="createPO()">✅ Create Purchase Order</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const token = localStorage.getItem('token');
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  if (!token) window.location.href = '/';
+
+  const params = new URLSearchParams(window.location.search);
+  const storeId = params.get('store');
+  if (!storeId) window.location.href = '/pos';
+
+  let allInventory = [];
+  let suggestedItems = [];
+  let selectedItems = {}; // itemId -> { item, qty }
+  let currentTab = 'suggested';
+  let fromSuggested = false;
+
+  function switchTab(tab) {
+    currentTab = tab;
+    document.getElementById('tabSuggested').classList.toggle('active', tab === 'suggested');
+    document.getElementById('tabManual').classList.toggle('active', tab === 'manual');
+    document.getElementById('panelSuggested').style.display = tab === 'suggested' ? '' : 'none';
+    document.getElementById('panelManual').style.display = tab === 'manual' ? '' : 'none';
+  }
+
+  async function loadSuggested() {
+    try {
+      const res = await fetch(`/api/inventory/items?store_id=${storeId}`, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const data = await res.json();
+      allInventory = data.items || [];
+      suggestedItems = allInventory.filter(i => (i.suggested_order || 0) > 0);
+
+      if (suggestedItems.length === 0) {
+        document.getElementById('suggestedContent').innerHTML = `
+          <div class="empty-msg">
+            <p>No suggested orders right now.</p>
+            <p style="margin-top:8px;font-size:12px">Switch to "Add Manually" to build your PO from scratch.</p>
+          </div>`;
+        return;
+      }
+
+      // Pre-select all suggested items
+      suggestedItems.forEach(item => {
+        selectedItems[item.id] = { item, qty: item.suggested_order, fromSuggested: true };
+      });
+      fromSuggested = true;
+      renderSuggestedTable();
+      renderManualTable();
+      updateSummary();
+    } catch (err) {
+      document.getElementById('suggestedContent').innerHTML = '<div class="empty-msg">Error loading items.</div>';
+    }
+  }
+
+  function renderSuggestedTable() {
+    const el = document.getElementById('suggestedContent');
+    if (suggestedItems.length === 0) return;
+
+    // Group by category
+    const groups = {};
+    suggestedItems.forEach(item => {
+      const cat = item.category || 'No Category';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(item);
+    });
+
+    let html = `<table class="items-table">
+      <thead><tr>
+        <th style="width:32px"></th>
+        <th>Item</th>
+        <th>Cost</th>
+        <th>Suggested Qty</th>
+        <th>Order Qty</th>
+        <th>Subtotal</th>
+      </tr></thead><tbody>`;
+
+    Object.keys(groups).sort().forEach(cat => {
+      html += `<tr class="group-header"><td colspan="6">📁 ${cat}</td></tr>`;
+      groups[cat].forEach(item => {
+        const sel = selectedItems[item.id];
+        const checked = sel ? 'checked' : '';
+        const qty = sel ? sel.qty : item.suggested_order;
+        const subtotal = sel ? (item.cost || 0) * sel.qty : 0;
+        html += `<tr>
+          <td><input type="checkbox" ${checked} onchange="toggleItem('${item.id}', this.checked)" /></td>
+          <td>
+            <div style="font-weight:600">${item.group_name ? item.group_name + ' — ' : ''}${item.variant_name}</div>
+            <div style="font-size:11px;color:#999">${item.category}</div>
+          </td>
+          <td>$${(item.cost || 0).toFixed(2)}</td>
+          <td><span class="suggested-badge">${item.suggested_order}</span></td>
+          <td><input type="number" class="qty-input" id="qty_${item.id}" value="${qty}" min="1"
+            onchange="updateQty('${item.id}', this.value)"
+            ${!sel ? 'disabled' : ''} /></td>
+          <td id="sub_${item.id}" style="font-weight:600">$${subtotal.toFixed(2)}</td>
+        </tr>`;
+      });
+    });
+
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  }
+
+  function renderManualTable() {
+    const el = document.getElementById('manualContent');
+    if (allInventory.length === 0) {
+      el.innerHTML = '<div class="empty-msg">No inventory loaded.</div>';
+      return;
+    }
+
+    const search = (document.getElementById('searchInput')?.value || '').toLowerCase();
+    const filtered = allInventory.filter(i => {
+      const name = `${i.group_name} ${i.variant_name} ${i.category}`.toLowerCase();
+      return !search || name.includes(search);
+    });
+
+    if (filtered.length === 0) {
+      el.innerHTML = '<div class="empty-msg">No items match your search.</div>';
+      return;
+    }
+
+    const groups = {};
+    filtered.forEach(item => {
+      const cat = item.category || 'No Category';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(item);
+    });
+
+    let html = `<table class="items-table">
+      <thead><tr>
+        <th style="width:32px"></th>
+        <th>Item</th>
+        <th>Cost</th>
+        <th>Current Stock</th>
+        <th>Order Qty</th>
+        <th>Subtotal</th>
+      </tr></thead><tbody>`;
+
+    Object.keys(groups).sort().forEach(cat => {
+      html += `<tr class="group-header"><td colspan="6">📁 ${cat}</td></tr>`;
+      groups[cat].forEach(item => {
+        const sel = selectedItems[item.id];
+        const checked = sel ? 'checked' : '';
+        const qty = sel ? sel.qty : 1;
+        const subtotal = sel ? (item.cost || 0) * sel.qty : 0;
+        html += `<tr>
+          <td><input type="checkbox" ${checked} onchange="toggleItem('${item.id}', this.checked)" /></td>
+          <td>
+            <div style="font-weight:600">${item.group_name ? item.group_name + ' — ' : ''}${item.variant_name}</div>
+            <div style="font-size:11px;color:#999">${item.category}</div>
+          </td>
+          <td>$${(item.cost || 0).toFixed(2)}</td>
+          <td style="color:#666">${item.clover_qty || 0}</td>
+          <td><input type="number" class="qty-input" id="qty_${item.id}" value="${qty}" min="1"
+            onchange="updateQty('${item.id}', this.value)"
+            ${!sel ? 'disabled' : ''} /></td>
+          <td id="sub_${item.id}" style="font-weight:600">$${subtotal.toFixed(2)}</td>
+        </tr>`;
+      });
+    });
+
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  }
+
+  function filterManual() {
+    renderManualTable();
+  }
+
+  function toggleItem(itemId, checked) {
+    const item = allInventory.find(i => i.id === itemId);
+    if (!item) return;
+
+    if (checked) {
+      const defaultQty = item.suggested_order || 1;
+      selectedItems[itemId] = { item, qty: defaultQty };
+      const qtyInput = document.getElementById('qty_' + itemId);
+      if (qtyInput) { qtyInput.value = defaultQty; qtyInput.disabled = false; }
+    } else {
+      delete selectedItems[itemId];
+      const qtyInput = document.getElementById('qty_' + itemId);
+      if (qtyInput) qtyInput.disabled = true;
+    }
+
+    updateSubtotal(itemId);
+    updateSummary();
+  }
+
+  function updateQty(itemId, val) {
+    const qty = Math.max(1, parseInt(val) || 1);
+    if (selectedItems[itemId]) {
+      selectedItems[itemId].qty = qty;
+      updateSubtotal(itemId);
+      updateSummary();
+    }
+  }
+
+  function updateSubtotal(itemId) {
+    const subEl = document.getElementById('sub_' + itemId);
+    if (!subEl) return;
+    const sel = selectedItems[itemId];
+    if (sel) {
+      const sub = (sel.item.cost || 0) * sel.qty;
+      subEl.textContent = '$' + sub.toFixed(2);
+    } else {
+      subEl.textContent = '$0.00';
+    }
+  }
+
+  function updateSummary() {
+    const items = Object.values(selectedItems);
+    const total = items.reduce((sum, s) => sum + (s.item.cost || 0) * s.qty, 0);
+    document.getElementById('totalCostDisplay').textContent = '$' + total.toFixed(2);
+
+    const card = document.getElementById('summaryCard');
+    if (items.length === 0) {
+      card.style.display = 'none';
+      return;
+    }
+
+    card.style.display = '';
+
+    // Group summary by category
+    const groups = {};
+    items.forEach(s => {
+      const cat = s.item.category || 'No Category';
+      if (!groups[cat]) groups[cat] = [];
+      groups[cat].push(s);
+    });
+
+    let html = `<table class="items-table">
+      <thead><tr><th>Item</th><th>Qty</th><th>Unit Cost</th><th>Subtotal</th></tr></thead><tbody>`;
+
+    Object.keys(groups).sort().forEach(cat => {
+      html += `<tr class="group-header"><td colspan="4">📁 ${cat}</td></tr>`;
+      groups[cat].forEach(s => {
+        html += `<tr>
+          <td><strong>${s.item.group_name ? s.item.group_name + ' — ' : ''}${s.item.variant_name}</strong></td>
+          <td>${s.qty}</td>
+          <td>$${(s.item.cost || 0).toFixed(2)}</td>
+          <td>$${((s.item.cost || 0) * s.qty).toFixed(2)}</td>
+        </tr>`;
+      });
+    });
+
+    html += '</tbody></table>';
+    document.getElementById('summaryTable').innerHTML = html;
+  }
+
+  async function createPO() {
+    const distributor = document.getElementById('distroInput').value.trim();
+    if (!distributor) { alert('Please enter a distributor name.'); return; }
+
+    const items = Object.values(selectedItems);
+    if (items.length === 0) { alert('Please select at least one item.'); return; }
+
+    const btn = document.getElementById('createBtn');
+    btn.disabled = true;
+    btn.textContent = 'Creating...';
+
+    const payload = {
+      store_id: storeId,
+      distributor,
+      from_suggested: fromSuggested,
+      items: items.map(s => ({
+        item_id: s.item.id,
+        category: s.item.category,
+        group_name: s.item.group_name,
+        variant_name: s.item.variant_name,
+        unit_cost: s.item.cost || 0,
+        unit_price: s.item.price || 0,
+        ordered_qty: s.qty
+      }))
+    };
+
+    try {
+      const res = await fetch('/api/pos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      window.location.href = `/pos/view?id=${data.po.id}`;
+    } catch (err) {
+      alert('Error creating PO: ' + err.message);
+      btn.disabled = false;
+      btn.textContent = '✅ Create Purchase Order';
+    }
+  }
+
+  // Load data
+  loadSuggested();
+</script>
+<script>loadNavbar();</script>
+</body>
+</html>
