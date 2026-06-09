@@ -492,4 +492,153 @@ router.delete('/stocktake/drafts/:id', auth, async (req, res) => {
     res.status(500).json({ error: 'Failed to delete draft' });
   }
 });
+
+// === CATEGORY SETTINGS ===
+
+// GET category settings for a store
+router.get('/category-settings', auth, async (req, res) => {
+  try {
+    const { store_id } = req.query;
+    if (!store_id) return res.status(400).json({ error: 'store_id required' });
+    if (req.user.role === 'manager' && req.user.store_id !== store_id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    const { data, error } = await supabase
+      .from('category_settings')
+      .select('*')
+      .eq('store_id', store_id);
+    if (error) throw error;
+    res.json({ settings: data || [] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET category-level aggregate stats
+router.get('/category-stats', auth, async (req, res) => {
+  try {
+    const { store_id } = req.query;
+    if (!store_id) return res.status(400).json({ error: 'store_id required' });
+    if (req.user.role === 'manager' && req.user.store_id !== store_id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+    const { data: items, error } = await supabase
+      .from('inventory_items')
+      .select('category, clover_qty, suggested_order, status')
+      .eq('store_id', store_id);
+    if (error) throw error;
+
+    const cats = {};
+    (items || []).forEach(item => {
+      const cat = item.category || 'No Category';
+      if (!cats[cat]) cats[cat] = { item_count: 0, total_stock: 0, total_suggested: 0, reorder_count: 0 };
+      cats[cat].item_count++;
+      cats[cat].total_stock += item.clover_qty || 0;
+      cats[cat].total_suggested += item.suggested_order || 0;
+      if ((item.suggested_order || 0) > 0) cats[cat].reorder_count++;
+    });
+
+    res.json({ categories: cats });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Upsert category settings (admin only)
+router.put('/category-settings', auth, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    const { store_id, category, lead_time_days, buffer_days } = req.body;
+    if (!store_id || !category) return res.status(400).json({ error: 'store_id and category required' });
+
+    const { data, error } = await supabase
+      .from('category_settings')
+      .upsert([{
+        store_id,
+        category,
+        lead_time_days: parseInt(lead_time_days) || 7,
+        buffer_days: parseInt(buffer_days) || 3,
+        updated_at: new Date().toISOString()
+      }], { onConflict: 'store_id,category' })
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json({ setting: data });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Recalculate suggested orders for a category using given lead time + buffer days
+router.post('/category-settings/recalculate', auth, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    const { store_id, category, lead_time_days, buffer_days, lookback_days } = req.body;
+    if (!store_id || !category) return res.status(400).json({ error: 'store_id and category required' });
+
+    const lead = parseInt(lead_time_days) || 7;
+    const buffer = parseInt(buffer_days) || 3;
+    const lookback = parseInt(lookback_days) || 14;
+
+    // Get all items in this category
+    const { data: items, error: itemsError } = await supabase
+      .from('inventory_items')
+      .select('id, clover_qty')
+      .eq('store_id', store_id)
+      .eq('category', category);
+
+    if (itemsError) throw itemsError;
+    if (!items || items.length === 0) return res.json({ updated: 0 });
+
+    const itemIdSet = new Set(items.map(i => i.id));
+
+    // Get sales data for lookback period
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - lookback);
+
+    const { data: salesRows } = await supabase
+      .from('sales_log')
+      .select('item_summary, type')
+      .eq('store_id', store_id)
+      .gte('created_at', cutoff.toISOString());
+
+    // Count units sold per item
+    const soldMap = {};
+    items.forEach(i => { soldMap[i.id] = 0; });
+
+    (salesRows || []).forEach(row => {
+      if (!row.item_summary || row.item_summary === 'N/A') return;
+      row.item_summary.split(',').forEach(part => {
+        const match = part.trim().match(/^([A-Z0-9]+)\s+x(\d+\.?\d*)/);
+        if (match && itemIdSet.has(match[1])) {
+          const qty = parseFloat(match[2]) || 1;
+          soldMap[match[1]] = (soldMap[match[1]] || 0) + (row.type === 'Refund' ? -qty : qty);
+        }
+      });
+    });
+
+    // Calculate and update suggested orders for each item
+    let updated = 0;
+    for (const item of items) {
+      const unitsSold = Math.max(0, soldMap[item.id] || 0);
+      const dailyRate = unitsSold / lookback;
+      const coverageDays = lead + buffer;
+      const suggestedQty = Math.max(0, Math.ceil((dailyRate * coverageDays) - (item.clover_qty || 0)));
+
+      await supabase
+        .from('inventory_items')
+        .update({ suggested_order: suggestedQty })
+        .eq('id', item.id)
+        .eq('store_id', store_id);
+      updated++;
+    }
+
+    res.json({ success: true, updated, category });
+  } catch (err) {
+    console.error('Recalculate error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

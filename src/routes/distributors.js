@@ -119,7 +119,7 @@ router.post('/', auth, adminOnly, async (req, res) => {
 // Update distributor info (admin only)
 router.put('/:id', auth, adminOnly, async (req, res) => {
   try {
-    const { name, rep_name, rep_email, rep_phone, website, notes } = req.body;
+    const { name, rep_name, rep_email, rep_phone, website, notes, lead_time_days } = req.body;
     const updates = { updated_at: new Date().toISOString() };
     if (name !== undefined) updates.name = name;
     if (rep_name !== undefined) updates.rep_name = rep_name;
@@ -127,6 +127,7 @@ router.put('/:id', auth, adminOnly, async (req, res) => {
     if (rep_phone !== undefined) updates.rep_phone = rep_phone;
     if (website !== undefined) updates.website = website;
     if (notes !== undefined) updates.notes = notes;
+    if (lead_time_days !== undefined) updates.lead_time_days = parseInt(lead_time_days) || null;
 
     const { data, error } = await supabase
       .from('distributors')

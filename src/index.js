@@ -70,5 +70,8 @@ app.get('/distributors', (req, res) => {
 app.get('/distributor-prices', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/distributor-prices.html'));
 });
+app.get('/suggested', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/suggested.html'));
+});
 
 module.exports = app;
