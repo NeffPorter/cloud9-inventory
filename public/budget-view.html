@@ -219,23 +219,33 @@ let selectedFile = null;
 async function init() {
   if (!token || !budgetId) { window.location.href = '/budgets'; return; }
 
-  const [budgetRes, distRes] = await Promise.all([
-    fetch(`/api/budgets/${budgetId}`, { headers: { Authorization: 'Bearer ' + token } }),
-    fetch('/api/distributors', { headers: { Authorization: 'Bearer ' + token } })
-  ]);
+  try {
+    const [budgetRes, distRes] = await Promise.all([
+      fetch(`/api/budgets/${budgetId}`, { headers: { Authorization: 'Bearer ' + token } }),
+      fetch('/api/distributors', { headers: { Authorization: 'Bearer ' + token } })
+    ]);
 
-  const budgetData = await budgetRes.json();
-  const distData = await distRes.json();
+    const budgetData = await budgetRes.json();
+    const distData = await distRes.json();
 
-  budget = budgetData.budget;
-  invoices = budgetData.invoices || [];
-  storeName = budgetData.store_name || '';
-  distributors = distData.distributors || [];
+    if (!budgetRes.ok) {
+      throw new Error(budgetData.error || `Failed to load budget (${budgetRes.status})`);
+    }
 
-  if (!budget) { document.getElementById('pageContent').innerHTML = '<div style="padding:40px;text-align:center;color:#aaa">Budget not found.</div>'; return; }
+    budget = budgetData.budget;
+    invoices = budgetData.invoices || [];
+    storeName = budgetData.store_name || '';
+    distributors = distData.distributors || [];
 
-  populateDistSelect();
-  renderPage();
+    if (!budget) { document.getElementById('pageContent').innerHTML = '<div style="padding:40px;text-align:center;color:#aaa">Budget not found.</div>'; return; }
+
+    populateDistSelect();
+    renderPage();
+  } catch (err) {
+    document.getElementById('pageContent').innerHTML =
+      `<div style="padding:40px;text-align:center;color:#e53e3e">⚠️ Couldn't load budget: ${err.message}</div>`;
+    console.error('init error:', err);
+  }
 }
 
 function populateDistSelect() {

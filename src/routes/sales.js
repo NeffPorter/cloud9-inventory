@@ -10,6 +10,8 @@ const supabase = createClient(
   process.env.SUPABASE_ANON_KEY
 );
 
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 // Webhook verification
 router.get('/webhook', (req, res) => {
   const challenge = req.query.challenge;
@@ -136,16 +138,36 @@ async function processOrderEvent(store, orderId) {
       if (invItem) totalCost += (invItem.cost || 0) * itemMap[id].qty * (isRefund ? -1 : 1);
     }
 
-    await supabase.from('sales_log').insert([{
-      store_id: store.id, order_id: cleanId, type,
-      gross: finalGross, net: finalNet, tax: finalTax,
-      discounts: finalDiscounts, tips: finalTips,
-      total_cost: totalCost, gross_profit: finalNet - totalCost,
-      item_summary: itemSummary,
-      status: isRefund ? (restockThisRefund ? 'Restocked' : 'Not Restocked') : 'OK'
-    }]);
+    // Use upsert + ignoreDuplicates against a unique (store_id, order_id, type)
+    // constraint so two near-simultaneous webhook events for the same order
+    // can't both pass the existingSales check above and double-insert/double-process.
+    const { data: insertedRows, error: insertErr } = await supabase
+      .from('sales_log')
+      .upsert([{
+        store_id: store.id, order_id: cleanId, type,
+        gross: finalGross, net: finalNet, tax: finalTax,
+        discounts: finalDiscounts, tips: finalTips,
+        total_cost: totalCost, gross_profit: finalNet - totalCost,
+        item_summary: itemSummary,
+        status: isRefund ? (restockThisRefund ? 'Restocked' : 'Not Restocked') : 'OK'
+      }], { onConflict: 'store_id,order_id,type', ignoreDuplicates: true })
+      .select();
+
+    if (insertErr) {
+      console.error('sales_log insert error:', insertErr.message);
+      return;
+    }
+
+    if (!insertedRows || insertedRows.length === 0) {
+      console.log(`⏭️ Duplicate ${type} event ignored for order:`, cleanId);
+      return;
+    }
 
     console.log(`✅ Logged ${type} for store ${store.name}: $${finalNet.toFixed(2)}`);
+
+    // Clover's itemStock can take a moment to reflect a sale's stock decrement,
+    // so give it a brief head start before we re-fetch the item.
+    if (!isRefund) await sleep(2000);
 
     for (const id of itemIds) {
       if (isRefund && restockThisRefund) {

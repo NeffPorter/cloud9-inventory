@@ -139,7 +139,12 @@ async function init() {
     currentStoreId = user.store_id || urlStore;
   }
 
-  if (currentStoreId) loadBudgets(currentStoreId);
+  if (currentStoreId) {
+    loadBudgets(currentStoreId);
+  } else {
+    document.getElementById('mainContent').innerHTML =
+      '<div class="empty-state"><div class="icon">⚠️</div>No store found for your account. Contact an admin to make sure your user has a store assigned.</div>';
+  }
 }
 
 function onStoreChange() {
@@ -150,22 +155,35 @@ function onStoreChange() {
 async function loadBudgets(storeId) {
   document.getElementById('mainContent').innerHTML = '<div class="loading">Loading budgets…</div>';
 
-  // Auto-create / fetch current week
-  const [currentRes, listRes] = await Promise.all([
-    fetch(`/api/budgets/current/${storeId}`, { headers: { Authorization: 'Bearer ' + token } }),
-    fetch(`/api/budgets?store_id=${storeId}`, { headers: { Authorization: 'Bearer ' + token } })
-  ]);
+  try {
+    // Auto-create / fetch current week
+    const [currentRes, listRes] = await Promise.all([
+      fetch(`/api/budgets/current/${storeId}`, { headers: { Authorization: 'Bearer ' + token } }),
+      fetch(`/api/budgets?store_id=${storeId}`, { headers: { Authorization: 'Bearer ' + token } })
+    ]);
 
-  const currentData = await currentRes.json();
-  const listData = await listRes.json();
+    const currentData = await currentRes.json();
+    const listData = await listRes.json();
 
-  const currentBudget = currentData.budget;
-  const allBudgets = (listData.budgets || []);
+    if (!currentRes.ok) {
+      throw new Error(currentData.error || `Failed to load current budget (${currentRes.status})`);
+    }
+    if (!listRes.ok) {
+      throw new Error(listData.error || `Failed to load budget history (${listRes.status})`);
+    }
 
-  // Remove current week from history list to avoid duplication
-  const history = allBudgets.filter(b => b.id !== currentBudget?.id);
+    const currentBudget = currentData.budget;
+    const allBudgets = (listData.budgets || []);
 
-  renderPage(currentBudget, history, storeId);
+    // Remove current week from history list to avoid duplication
+    const history = allBudgets.filter(b => b.id !== currentBudget?.id);
+
+    renderPage(currentBudget, history, storeId);
+  } catch (err) {
+    document.getElementById('mainContent').innerHTML =
+      `<div class="empty-state"><div class="icon">⚠️</div>Couldn't load budgets: ${err.message}</div>`;
+    console.error('loadBudgets error:', err);
+  }
 }
 
 function formatDate(d) {
