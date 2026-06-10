@@ -341,6 +341,28 @@
         categories[cat][grp].push(item);
       });
 
+      // Fallback grouping: Clover sometimes leaves a variant out of its item
+      // group (e.g. when it's priced differently). If an "ungrouped" item's
+      // name starts with an existing group's name in this category, fold it
+      // into that group instead of showing it as a standalone item.
+      Object.keys(categories).forEach(cat => {
+        const groups = categories[cat];
+        const namedGroups = Object.keys(groups).filter(g => g !== '___standalone');
+        if (namedGroups.length === 0 || !groups['___standalone']) return;
+
+        groups['___standalone'] = groups['___standalone'].filter(item => {
+          const name = (item.variant_name || '').toLowerCase().trim();
+          const match = namedGroups.find(g => name.startsWith(g.toLowerCase().trim() + ' '));
+          if (match) {
+            groups[match].push(item);
+            return false;
+          }
+          return true;
+        });
+
+        if (groups['___standalone'].length === 0) delete groups['___standalone'];
+      });
+
       const container = document.getElementById('inventoryContainer');
 
       if (Object.keys(categories).length === 0) {
@@ -636,6 +658,12 @@
 
     loadStoreName();
     loadInventory();
+
+    // Auto-refresh inventory every 30s so stock changes from sales show up
+    // without the user needing to click Refresh — but pause while editing.
+    setInterval(() => {
+      if (!editMode) loadInventory();
+    }, 30000);
   </script>
   <script>loadNavbar();</script>
 </body>
