@@ -103,6 +103,9 @@
       gap: 8px;
       margin-bottom: 12px;
     }
+    @media (max-width: 700px) {
+      .report-stats, .report-stats[style*="grid-template-columns"] { grid-template-columns: repeat(2, 1fr) !important; }
+    }
     .report-stat {
       background: #f8f9fa;
       border-radius: 6px;

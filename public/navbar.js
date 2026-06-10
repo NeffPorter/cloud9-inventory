@@ -19,7 +19,8 @@ function loadNavbar() {
     ">
       <div style="display:flex;align-items:center;gap:8px;">
         <h1 style="color:white;font-size:20px;font-weight:800;margin-right:16px;cursor:pointer" onclick="window.location.href='/dashboard'">☁️ Cloud 9</h1>
-        <div style="display:flex;align-items:center;gap:4px;">
+        <button class="nav-hamburger" id="navHamburger" onclick="toggleMobileMenu()" aria-label="Menu">☰</button>
+        <div style="display:flex;align-items:center;gap:4px;" class="nav-items" id="navItems">
 
           <div class="nav-item" style="position:relative">
             <button class="nav-btn" onclick="toggleDropdown('inventoryDropdown', this)">📦 Inventory <span style="font-size:10px">▼</span></button>
@@ -152,6 +153,59 @@ function loadNavbar() {
       text-align: left;
     }
     .dropdown-item:hover { background: #f0f4ff; color: #2f5597; }
+
+    .nav-hamburger {
+      display: none;
+      background: transparent;
+      color: #ccc;
+      border: 1px solid #444;
+      border-radius: 8px;
+      font-size: 18px;
+      padding: 6px 10px;
+      cursor: pointer;
+      margin-right: 4px;
+    }
+    .nav-hamburger:hover { background: rgba(255,255,255,0.1); color: white; }
+
+    @media (max-width: 1024px) {
+      .nav-hamburger { display: inline-block; }
+      .nav-items {
+        display: none !important;
+        position: fixed;
+        top: 60px;
+        left: 0;
+        right: 0;
+        background: #1a1a2e;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        padding: 8px 16px 16px;
+        gap: 4px !important;
+        max-height: calc(100vh - 60px);
+        overflow-y: auto;
+        box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+        z-index: 150;
+      }
+      .nav-items.open { display: flex !important; }
+      .nav-items .nav-item { width: 100%; }
+      .nav-items .nav-btn { width: 100%; text-align: left; }
+      .nav-items .dropdown {
+        position: static;
+        box-shadow: none;
+        width: 100%;
+        margin-top: 4px;
+        border: 1px solid #f0f0f0;
+      }
+    }
+
+    /* Global responsive helpers */
+    @media (max-width: 1024px) {
+      .card table { display: block; overflow-x: auto; white-space: nowrap; -webkit-overflow-scrolling: touch; }
+      .perf-grid { grid-template-columns: 1fr !important; }
+    }
+    @media (max-width: 700px) {
+      .card { padding: 12px !important; }
+      h1 { font-size: 18px !important; }
+    }
   `;
   document.head.appendChild(style);
 
@@ -248,6 +302,11 @@ async function markAllNotificationsRead(event) {
   } catch (err) {
     console.error('Mark all read error:', err);
   }
+}
+
+function toggleMobileMenu() {
+  const items = document.getElementById('navItems');
+  if (items) items.classList.toggle('open');
 }
 
 function toggleDropdown(id, btn) {

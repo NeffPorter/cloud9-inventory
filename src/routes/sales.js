@@ -4,11 +4,14 @@ const auth = require('../middleware/auth');
 const { createClient } = require('@supabase/supabase-js');
 const { fetchFullOrder, fetchOrderRefunds, fetchItem, pushStockToClover, extractLineItems, extractRefundedItems } = require('../services/clover');
 const { calculateSuggestedOrder } = require('../services/suggested');
+const { notify } = require('../services/notify');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_ANON_KEY
 );
+
+const LOW_STOCK_THRESHOLD = 5;
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -249,7 +252,7 @@ async function updateInventoryItem(store, itemId) {
     // Check if item already exists - if so preserve existing metadata
 const { data: existingItem } = await supabase
   .from('inventory_items')
-  .select('category, group_name, variant_name, status')
+  .select('category, group_name, variant_name, status, clover_qty')
   .eq('id', itemId)
   .single();
 
@@ -265,6 +268,27 @@ await supabase.from('inventory_items').upsert([{
   suggested_order: suggested > 0 ? suggested : 0,
   last_synced: new Date().toISOString()
 }], { onConflict: 'id' });
+
+    // Low stock alert — only notify when an Active item crosses into low/out of
+    // stock (not on every sync), and skip items marked Dropping/On Hold/Not Tracking.
+    const itemStatus = existingItem?.status || 'Active';
+    if (itemStatus === 'Active') {
+      const prevQty = existingItem?.clover_qty;
+      const wasAboveThreshold = prevQty === undefined || prevQty === null || prevQty > LOW_STOCK_THRESHOLD;
+      if (cloverQty <= LOW_STOCK_THRESHOLD && wasAboveThreshold) {
+        const displayName = existingItem?.group_name || groupName || item.name;
+        const displayCategory = existingItem?.category || category;
+        await notify({
+          type: 'low_stock',
+          title: cloverQty <= 0 ? 'Item out of stock' : 'Low stock alert',
+          message: cloverQty <= 0
+            ? `${displayName} (${displayCategory}) at ${store.name} is out of stock.`
+            : `${displayName} (${displayCategory}) at ${store.name} is low on stock — ${cloverQty} left.`,
+          link: `/inventory?store=${store.id}`,
+          store_id: store.id
+        });
+      }
+    }
 
     console.log(`📦 Updated item ${itemId} for ${store.name}: qty=${cloverQty}`);
   } catch (err) {
@@ -397,6 +421,141 @@ router.get('/by-store', auth, async (req, res) => {
   } catch (err) {
     console.error('Sales by store error:', err);
     res.status(500).json({ error: 'Failed to load store sales' });
+  }
+});
+
+// ─── Sales trends: week-over-week / month-over-month ─────────────────────────
+
+router.get('/trends', auth, async (req, res) => {
+  try {
+    const { granularity = 'week', periods, store_id } = req.query;
+    let storeId = store_id;
+    if (req.user.role === 'manager') storeId = req.user.store_id;
+
+    const numPeriods = Math.min(Math.max(parseInt(periods) || 8, 2), 26);
+    const now = new Date();
+    const ranges = [];
+
+    if (granularity === 'month') {
+      for (let i = numPeriods - 1; i >= 0; i--) {
+        const start = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const end = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59, 999);
+        ranges.push({ label: start.toLocaleDateString('en-US', { month: 'short', year: '2-digit' }), start, end });
+      }
+    } else {
+      const day = now.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      const thisMonday = new Date(now); thisMonday.setDate(now.getDate() + diff); thisMonday.setHours(0, 0, 0, 0);
+      for (let i = numPeriods - 1; i >= 0; i--) {
+        const start = new Date(thisMonday); start.setDate(start.getDate() - i * 7);
+        const end = new Date(start); end.setDate(end.getDate() + 6); end.setHours(23, 59, 59, 999);
+        ranges.push({ label: start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }), start, end });
+      }
+    }
+
+    let query = supabase.from('sales_log').select('created_at, net, total_cost, type')
+      .gte('created_at', ranges[0].start.toISOString())
+      .lte('created_at', ranges[ranges.length - 1].end.toISOString());
+    if (storeId) query = query.eq('store_id', storeId);
+
+    const { data: rows } = await query;
+
+    const result = ranges.map(r => {
+      let net = 0, cost = 0, orders = 0, refunds = 0;
+      (rows || []).forEach(row => {
+        const d = new Date(row.created_at);
+        if (d >= r.start && d <= r.end) {
+          if (row.type === 'Refund') {
+            net += row.net || 0;
+            refunds += Math.abs(row.net || 0);
+          } else {
+            net += row.net || 0;
+            cost += row.total_cost || 0;
+            orders++;
+          }
+        }
+      });
+      return {
+        label: r.label,
+        net: Math.round(net * 100) / 100,
+        grossProfit: Math.round((net - cost) * 100) / 100,
+        orders,
+        refunds: Math.round(refunds * 100) / 100
+      };
+    });
+
+    res.json({ granularity, periods: result });
+  } catch (err) {
+    console.error('Sales trends error:', err);
+    res.status(500).json({ error: 'Failed to load sales trends' });
+  }
+});
+
+// ─── Item performance: top/lowest selling item groups per category ──────────
+
+router.get('/item-performance', auth, async (req, res) => {
+  try {
+    const { start, end, store_id } = req.query;
+    let storeId = store_id;
+    if (req.user.role === 'manager') storeId = req.user.store_id;
+    if (!storeId) return res.status(400).json({ error: 'store_id required' });
+
+    const startDate = new Date(start || new Date().setHours(0,0,0,0));
+    const endDate = new Date(end || new Date().setHours(23,59,59,999));
+
+    const { data: sales } = await supabase.from('sales_log')
+      .select('item_summary, type')
+      .eq('store_id', storeId)
+      .gte('created_at', startDate.toISOString())
+      .lte('created_at', endDate.toISOString());
+
+    const unitsSold = {}; // itemId -> qty (refunds subtract)
+    (sales || []).forEach(row => {
+      if (!row.item_summary || row.item_summary === 'N/A') return;
+      row.item_summary.split(',').forEach(part => {
+        const m = part.trim().match(/^([A-Z0-9]+)\s+x(\d+\.?\d*)/);
+        if (m) {
+          const qty = parseFloat(m[2]) || 0;
+          unitsSold[m[1]] = (unitsSold[m[1]] || 0) + (row.type === 'Refund' ? -qty : qty);
+        }
+      });
+    });
+
+    const { data: items } = await supabase.from('inventory_items')
+      .select('id, category, group_name, variant_name, price, status')
+      .eq('store_id', storeId);
+
+    // Aggregate by category -> item group (group_name, falling back to variant/item name)
+    const groups = {};
+    (items || []).forEach(item => {
+      const category = item.category || 'No Category';
+      const name = item.group_name || item.variant_name || item.id;
+      const key = category + '|||' + name;
+      const units = Math.max(0, unitsSold[item.id] || 0);
+      const revenue = units * (item.price || 0);
+      if (!groups[key]) groups[key] = { category, name, units: 0, revenue: 0 };
+      groups[key].units += units;
+      groups[key].revenue += revenue;
+    });
+
+    const byCategory = {};
+    Object.values(groups).forEach(g => {
+      if (!byCategory[g.category]) byCategory[g.category] = [];
+      byCategory[g.category].push(g);
+    });
+
+    const result = Object.keys(byCategory).sort().map(category => {
+      const list = byCategory[category];
+      const sorted = [...list].sort((a, b) => b.units - a.units);
+      const top = sorted.slice(0, 5);
+      const bottom = sorted.slice(-5).reverse().filter(g => !top.includes(g));
+      return { category, top, bottom };
+    }).filter(c => c.top.length > 0);
+
+    res.json({ categories: result });
+  } catch (err) {
+    console.error('Item performance error:', err);
+    res.status(500).json({ error: 'Failed to load item performance' });
   }
 });
 

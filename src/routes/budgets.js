@@ -100,6 +100,71 @@ router.get('/', auth, async (req, res) => {
   }
 });
 
+// Get (or auto-create) the current week's budget row for a store.
+// Shared by the /current/:store_id route and the PO budget-approval check in pos.js.
+async function getOrCreateCurrentBudget(store_id) {
+  const now = new Date();
+  const weekStart = getMondayOf(now);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 6);
+
+  const weekStartStr = toDateStr(weekStart);
+  const weekEndStr = toDateStr(weekEnd);
+
+  // Check if budget already exists for this week
+  const { data: existing } = await supabase
+    .from('weekly_budgets')
+    .select('*')
+    .eq('store_id', store_id)
+    .eq('week_start', weekStartStr)
+    .single();
+
+  if (existing) return existing;
+
+  // Calculate prior week net sales
+  const prevStart = new Date(weekStart);
+  prevStart.setDate(prevStart.getDate() - 7);
+  const prevEnd = new Date(weekStart);
+  prevEnd.setDate(prevEnd.getDate() - 1);
+  prevEnd.setHours(23, 59, 59, 999);
+
+  const { data: salesRows } = await supabase
+    .from('sales_log')
+    .select('net, type')
+    .eq('store_id', store_id)
+    .gte('created_at', prevStart.toISOString())
+    .lte('created_at', prevEnd.toISOString());
+
+  let prevNet = 0;
+  (salesRows || []).forEach(row => {
+    prevNet += row.type === 'Refund' ? -Math.abs(row.net || 0) : (row.net || 0);
+  });
+  prevNet = Math.max(0, Math.round(prevNet * 100) / 100);
+
+  const budget30 = Math.round(prevNet * 0.30 * 100) / 100;
+  const budget45 = Math.round(prevNet * 0.45 * 100) / 100;
+
+  const { data: created, error } = await supabase
+    .from('weekly_budgets')
+    .insert([{
+      store_id,
+      week_start: weekStartStr,
+      week_end: weekEndStr,
+      prev_week_start: toDateStr(prevStart),
+      prev_week_end: toDateStr(prevEnd),
+      prev_week_net_sales: prevNet,
+      budget_30: budget30,
+      budget_45: budget45,
+      total_invoiced: 0,
+      status: 'active'
+    }])
+    .select()
+    .single();
+
+  if (error) throw error;
+  return created;
+}
+
 // ─── Get or auto-create current week's budget ─────────────────────────────────
 
 // IMPORTANT: must be before /:id
@@ -110,66 +175,16 @@ router.get('/current/:store_id', auth, async (req, res) => {
       return res.status(403).json({ error: 'Access denied' });
     }
 
-    const now = new Date();
-    const weekStart = getMondayOf(now);
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekEnd.getDate() + 6);
-
-    const weekStartStr = toDateStr(weekStart);
-    const weekEndStr = toDateStr(weekEnd);
-
-    // Check if budget already exists for this week
-    const { data: existing } = await supabase
+    const weekStartStr = toDateStr(getMondayOf(new Date()));
+    const { data: existingBefore } = await supabase
       .from('weekly_budgets')
-      .select('*')
+      .select('id')
       .eq('store_id', store_id)
       .eq('week_start', weekStartStr)
       .single();
 
-    if (existing) return res.json({ budget: existing, created: false });
-
-    // Calculate prior week net sales
-    const prevStart = new Date(weekStart);
-    prevStart.setDate(prevStart.getDate() - 7);
-    const prevEnd = new Date(weekStart);
-    prevEnd.setDate(prevEnd.getDate() - 1);
-    prevEnd.setHours(23, 59, 59, 999);
-
-    const { data: salesRows } = await supabase
-      .from('sales_log')
-      .select('net, type')
-      .eq('store_id', store_id)
-      .gte('created_at', prevStart.toISOString())
-      .lte('created_at', prevEnd.toISOString());
-
-    let prevNet = 0;
-    (salesRows || []).forEach(row => {
-      prevNet += row.type === 'Refund' ? -Math.abs(row.net || 0) : (row.net || 0);
-    });
-    prevNet = Math.max(0, Math.round(prevNet * 100) / 100);
-
-    const budget30 = Math.round(prevNet * 0.30 * 100) / 100;
-    const budget45 = Math.round(prevNet * 0.45 * 100) / 100;
-
-    const { data: created, error } = await supabase
-      .from('weekly_budgets')
-      .insert([{
-        store_id,
-        week_start: weekStartStr,
-        week_end: weekEndStr,
-        prev_week_start: toDateStr(prevStart),
-        prev_week_end: toDateStr(prevEnd),
-        prev_week_net_sales: prevNet,
-        budget_30: budget30,
-        budget_45: budget45,
-        total_invoiced: 0,
-        status: 'active'
-      }])
-      .select()
-      .single();
-
-    if (error) throw error;
-    res.json({ budget: created, created: true });
+    const budget = await getOrCreateCurrentBudget(store_id);
+    res.json({ budget, created: !existingBefore });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -433,3 +448,4 @@ router.post('/:id/upload-pdf', auth, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.getOrCreateCurrentBudget = getOrCreateCurrentBudget;

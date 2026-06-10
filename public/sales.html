@@ -138,6 +138,47 @@
       background: #2f5597;
       color: white;
     }
+    .perf-category { margin-bottom: 24px; }
+    .perf-category:last-child { margin-bottom: 0; }
+    .perf-category-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #2f5597;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 10px;
+      padding-bottom: 6px;
+      border-bottom: 2px solid #f0f0f0;
+    }
+    .perf-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 700px) {
+      .perf-grid { grid-template-columns: 1fr; }
+    }
+    .perf-col-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    .perf-col-label.top { color: #38761d; }
+    .perf-col-label.bottom { color: #c00; }
+    .perf-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: #f8f9fa;
+      margin-bottom: 6px;
+      font-size: 13px;
+    }
+    .perf-row-name { font-weight: 600; color: #333; }
+    .perf-row-stats { color: #888; font-size: 12px; text-align: right; white-space: nowrap; margin-left: 8px; }
   </style>
 </head>
 <body>
@@ -202,9 +243,27 @@
       </div>
     </div>
 
+    <div class="card">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+        <span>📈 Sales Trends</span>
+        <div class="date-controls">
+          <button class="preset-btn trend-toggle-btn active" id="trendWeekBtn" onclick="loadTrends('week', this)">Week-over-Week</button>
+          <button class="preset-btn trend-toggle-btn" id="trendMonthBtn" onclick="loadTrends('month', this)">Month-over-Month</button>
+        </div>
+      </div>
+      <div class="chart-container">
+        <canvas id="trendsChart"></canvas>
+      </div>
+    </div>
+
     <div class="card" id="storeBreakdownCard">
       <div class="card-title">🏪 By Store</div>
       <div id="storeBreakdown" class="loading">Loading...</div>
+    </div>
+
+    <div class="card" id="itemPerformanceCard">
+      <div class="card-title">📦 Item Performance by Category</div>
+      <div id="itemPerformance" class="loading">Select a store to view item performance.</div>
     </div>
   </div>
 
@@ -218,9 +277,11 @@
     }
 
     let chart = null;
+    let trendsChart = null;
     let currentStart = null;
     let currentEnd = null;
     let selectedStore = '';
+    let trendGranularity = 'week';
 
     function fmt(n) { return '$' + (n || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
     function pct(n) { return (n * 100).toFixed(1) + '%'; }
@@ -237,7 +298,7 @@
     }
 
     function setPreset(preset, btnEl) {
-      document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.preset-btn').forEach(b => { if (!b.classList.contains('trend-toggle-btn')) b.classList.remove('active'); });
       if (btnEl) btnEl.classList.add('active');
 
       const now = new Date();
@@ -291,6 +352,68 @@
       btn.classList.add('active');
       document.getElementById('storeBreakdownCard').style.display = storeId ? 'none' : 'block';
       loadSales();
+      loadTrends(trendGranularity);
+    }
+
+    async function loadTrends(granularity, btnEl) {
+      trendGranularity = granularity;
+      document.getElementById('trendWeekBtn').classList.toggle('active', granularity === 'week');
+      document.getElementById('trendMonthBtn').classList.toggle('active', granularity === 'month');
+
+      const params = new URLSearchParams({ granularity, periods: 8 });
+      if (selectedStore) params.append('store_id', selectedStore);
+
+      try {
+        const res = await fetch(`/api/sales/trends?${params}`, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await res.json();
+        const periods = data.periods || [];
+
+        const labels = periods.map(p => p.label);
+        const netVals = periods.map(p => p.net);
+        const profitVals = periods.map(p => p.grossProfit);
+
+        if (trendsChart) trendsChart.destroy();
+        const ctx = document.getElementById('trendsChart').getContext('2d');
+        trendsChart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [
+              {
+                label: 'Net Sales',
+                data: netVals,
+                backgroundColor: 'rgba(47,85,151,0.7)',
+                borderRadius: 4
+              },
+              {
+                label: 'Gross Profit',
+                data: profitVals,
+                backgroundColor: 'rgba(56,118,29,0.6)',
+                borderRadius: 4
+              }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'top' },
+              tooltip: {
+                callbacks: {
+                  label: ctx => ` ${ctx.dataset.label}: ${fmt(ctx.parsed.y)}`
+                }
+              }
+            },
+            scales: {
+              y: { ticks: { callback: val => '$' + val.toLocaleString() } }
+            }
+          }
+        });
+      } catch (err) {
+        console.error('Trends load error:', err);
+      }
     }
 
     async function loadSales() {
@@ -380,8 +503,72 @@
 
         if (user.role === 'admin' && !selectedStore) loadStoreBreakdown();
 
+        if (user.role !== 'admin' || selectedStore) {
+          loadItemPerformance();
+        } else {
+          document.getElementById('itemPerformance').innerHTML = 'Select a store to view item performance.';
+        }
+
       } catch (err) {
         console.error('Sales load error:', err);
+      }
+    }
+
+    async function loadItemPerformance() {
+      const el = document.getElementById('itemPerformance');
+      el.className = 'loading';
+      el.innerHTML = 'Loading...';
+
+      const params = new URLSearchParams({
+        start: currentStart.toISOString(),
+        end: currentEnd.toISOString()
+      });
+      if (selectedStore) params.append('store_id', selectedStore);
+
+      try {
+        const res = await fetch(`/api/sales/item-performance?${params}`, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!res.ok) {
+          el.className = '';
+          el.innerHTML = '<div style="color:#999;font-size:13px">No item performance data for this store.</div>';
+          return;
+        }
+        const data = await res.json();
+        const categories = data.categories || [];
+
+        if (!categories.length) {
+          el.className = '';
+          el.innerHTML = '<div style="color:#999;font-size:13px">No sales data for this period.</div>';
+          return;
+        }
+
+        const renderRow = (g) => `
+          <div class="perf-row">
+            <div class="perf-row-name">${g.name}</div>
+            <div class="perf-row-stats">${g.units % 1 === 0 ? g.units : g.units.toFixed(1)} sold &nbsp;•&nbsp; ${fmt(g.revenue)}</div>
+          </div>`;
+
+        el.className = '';
+        el.innerHTML = categories.map(c => `
+          <div class="perf-category">
+            <div class="perf-category-title">${c.category}</div>
+            <div class="perf-grid">
+              <div>
+                <div class="perf-col-label top">🔥 Top Sellers</div>
+                ${c.top.length ? c.top.map(renderRow).join('') : '<div style="color:#bbb;font-size:12px">No data</div>'}
+              </div>
+              <div>
+                <div class="perf-col-label bottom">📉 Lowest Sellers</div>
+                ${c.bottom.length ? c.bottom.map(renderRow).join('') : '<div style="color:#bbb;font-size:12px">No data</div>'}
+              </div>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) {
+        console.error('Item performance error:', err);
+        el.className = '';
+        el.innerHTML = '<div style="color:#c00;font-size:13px">Error loading item performance.</div>';
       }
     }
 
@@ -451,6 +638,7 @@
 
     loadStoreFilter();
     setPreset('month', document.querySelector('.preset-btn.active'));
+    loadTrends('week');
   </script>
 </body>
 </html>

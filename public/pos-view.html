@@ -27,6 +27,7 @@
     .status-ordered { background: #dce8f8; color: #2f5597; }
     .status-partial { background: #fff3cd; color: #c55a11; }
     .status-received { background: #d9ead3; color: #38761d; }
+    .status-pending_approval { background: #ffe0e0; color: #c00; }
     .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 20px 0; }
     .stat-box { background: #f8f9fa; border-radius: 8px; padding: 14px; text-align: center; }
     .stat-val { font-size: 22px; font-weight: 800; color: #1a1a2e; }
@@ -78,6 +79,7 @@
   <div class="action-bar no-print">
     <button class="btn btn-gray" onclick="window.location.href='/pos'">← Back to POs</button>
     <button class="btn btn-blue" onclick="window.print()">🖨️ Print</button>
+    <div id="approveBtn"></div>
     <div id="receiveBtn"></div>
     <div id="editItemsBtn"></div>
     <div id="addItemsBtn"></div>
@@ -130,7 +132,16 @@
       : (po.status === 'received' ? 100 : 0);
 
     // Render action buttons
-    if (po.status !== 'received') {
+    document.getElementById('approveBtn').innerHTML = '';
+    if (po.status === 'pending_approval') {
+      document.getElementById('receiveBtn').innerHTML = '';
+      document.getElementById('editItemsBtn').innerHTML = '';
+      document.getElementById('addItemsBtn').innerHTML = '';
+      if (user.role === 'admin') {
+        document.getElementById('approveBtn').innerHTML =
+          `<button class="btn btn-green" onclick="approvePO()">✅ Approve PO</button>`;
+      }
+    } else if (po.status !== 'received') {
       document.getElementById('receiveBtn').innerHTML =
         `<button class="btn btn-green" onclick="toggleReceiveMode()">📦 Receive Items</button>`;
       document.getElementById('editItemsBtn').innerHTML =
@@ -138,6 +149,7 @@
       document.getElementById('addItemsBtn').innerHTML =
         `<button class="btn btn-blue" onclick="openAddItems()">➕ Add Items</button>`;
     } else {
+      document.getElementById('receiveBtn').innerHTML = '';
       document.getElementById('editItemsBtn').innerHTML = '';
       document.getElementById('addItemsBtn').innerHTML = '';
     }
@@ -221,7 +233,7 @@
         <div class="po-meta">📦 Distributor: <strong>${po.distributor}</strong></div>
         <div class="po-meta">📅 Created: ${date}</div>
         <div class="po-meta">👤 By: ${po.created_by_name || user.name || user.email || 'Unknown'}</div>
-        <span class="status-badge status-${po.status}">${po.status === 'ordered' ? '📦 Ordered' : po.status === 'partial' ? '⏳ Partially Received' : '✅ Received'}</span>
+        <span class="status-badge status-${po.status}">${po.status === 'pending_approval' ? '🚫 Needs Approval' : po.status === 'ordered' ? '📦 Ordered' : po.status === 'partial' ? '⏳ Partially Received' : '✅ Received'}</span>
 
         <div class="stats-grid">
           <div class="stat-box">
@@ -246,6 +258,16 @@
           <div class="progress-fill" style="width:${pctReceived}%"></div>
         </div>
       </div>
+
+      ${po.status === 'pending_approval' ? `
+        <div class="card no-print" style="border:2px solid #c00;background:#fff5f5">
+          <div style="font-size:16px;font-weight:700;color:#c00">🚫 This PO needs approval</div>
+          <div style="font-size:13px;color:#666;margin-top:4px">
+            Placing this order would push this store's spending for the current week over the 30% budget line (into the 31%–45% range).
+            ${user.role === 'admin' ? 'Approve it below to mark it as ordered, or cancel it.' : 'An admin needs to approve it before it can be ordered.'}
+          </div>
+        </div>
+      ` : ''}
 
       ${receiveMode ? `
         <div class="card" style="border:2px solid #38761d;background:#f0fff4" id="receiveBanner">
@@ -282,6 +304,21 @@
         <button class="btn btn-blue" style="margin-top:8px" onclick="saveNotes()">Save Notes</button>
       </div>
     `;
+  }
+
+  async function approvePO() {
+    if (!confirm('Approve this PO? It will be marked as ordered.')) return;
+    try {
+      const res = await fetch(`/api/pos/${poId}/approve`, {
+        method: 'PUT',
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      await loadPO();
+    } catch (err) {
+      alert('Error approving PO: ' + err.message);
+    }
   }
 
   function toggleEditItemsMode() {

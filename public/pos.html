@@ -31,6 +31,7 @@
     .po-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
     .po-card.partial { border-left-color: #c55a11; }
     .po-card.received { border-left-color: #38761d; opacity: 0.85; }
+    .po-card.pending_approval { border-left-color: #c00; }
     .po-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
     .po-number { font-size: 15px; font-weight: 800; color: #1a1a2e; }
     .po-distributor { font-size: 13px; color: #666; margin-top: 2px; }
@@ -39,7 +40,11 @@
     .status-ordered { background: #dce8f8; color: #2f5597; }
     .status-partial { background: #fff3cd; color: #c55a11; }
     .status-received { background: #d9ead3; color: #38761d; }
+    .status-pending_approval { background: #ffe0e0; color: #c00; }
     .po-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+    @media (max-width: 480px) {
+      .po-stats { grid-template-columns: 1fr; }
+    }
     .po-stat { background: #f8f9fa; border-radius: 6px; padding: 8px; text-align: center; }
     .po-stat-value { font-size: 16px; font-weight: 800; color: #1a1a2e; }
     .po-stat-label { font-size: 10px; color: #999; font-weight: 600; margin-top: 2px; }
@@ -141,6 +146,7 @@
       return;
     }
 
+    const pendingApproval = filtered.filter(p => p.status === 'pending_approval');
     const ordered  = filtered.filter(p => p.status === 'ordered');
     const partial  = filtered.filter(p => p.status === 'partial');
     const received = filtered.filter(p => p.status === 'received');
@@ -148,6 +154,12 @@
     container.className = '';
     let html = '';
 
+    if (pendingApproval.length > 0) {
+      html += `<div class="section-block">
+        <div class="section-title">🚫 Needs Approval <span style="background:#ffe0e0;color:#c00;padding:2px 10px;border-radius:12px;font-size:12px">${pendingApproval.length}</span></div>
+        <div class="po-grid">${pendingApproval.map(poCard).join('')}</div>
+      </div>`;
+    }
     if (ordered.length > 0) {
       html += `<div class="section-block">
         <div class="section-title">📦 Ordered <span style="background:#dce8f8;color:#2f5597;padding:2px 10px;border-radius:12px;font-size:12px">${ordered.length}</span></div>
@@ -187,7 +199,7 @@
             ${storeName ? `<div class="po-date">🏪 ${storeName}</div>` : ''}
             <div class="po-date">${date}</div>
           </div>
-          <span class="status-badge status-${po.status}">${po.status === 'ordered' ? 'Ordered' : po.status === 'partial' ? 'Partial' : 'Received'}</span>
+          <span class="status-badge status-${po.status}">${po.status === 'pending_approval' ? 'Needs Approval' : po.status === 'ordered' ? 'Ordered' : po.status === 'partial' ? 'Partial' : 'Received'}</span>
         </div>
         <div class="po-stats">
           <div class="po-stat">

@@ -13,6 +13,10 @@
       min-height: 100vh;
     }
     .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+    @media (max-width: 700px) {
+      .container { padding: 16px 12px; }
+      .store-quick-stats { grid-template-columns: 1fr; }
+    }
     .page-title { font-size: 24px; font-weight: 700; color: #1a1a2e; margin-bottom: 8px; }
     .page-subtitle { color: #666; font-size: 14px; margin-bottom: 32px; }
     .stats-grid {

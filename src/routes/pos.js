@@ -3,12 +3,46 @@ const router = express.Router();
 const auth = require('../middleware/auth');
 const { createClient } = require('@supabase/supabase-js');
 const { setStockInClover } = require('../services/clover');
-const { logActivity } = require('../services/notify');
+const { notify, logActivity } = require('../services/notify');
+const { getOrCreateCurrentBudget } = require('./budgets');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_ANON_KEY
 );
+
+function adminOnly(req, res, next) {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  next();
+}
+
+// Determine whether placing/keeping a PO at `poTotalCost` would push the
+// store's committed spend for the current week over its 30% budget line
+// (the 31%-45% "needs approval" band). Sums this PO's cost alongside all
+// other open POs (ordered/partial/pending_approval) created this week, plus
+// anything already invoiced against the budget.
+async function checkBudgetApproval(store_id, poTotalCost, excludePoId = null) {
+  const budget = await getOrCreateCurrentBudget(store_id);
+
+  let query = supabase
+    .from('purchase_orders')
+    .select('id, total_cost, status, created_at')
+    .eq('store_id', store_id)
+    .in('status', ['ordered', 'partial', 'pending_approval'])
+    .gte('created_at', `${budget.week_start}T00:00:00.000Z`)
+    .lte('created_at', `${budget.week_end}T23:59:59.999Z`);
+
+  const { data: openPOs } = await query;
+
+  const otherPOsCost = (openPOs || [])
+    .filter(p => p.id !== excludePoId)
+    .reduce((sum, p) => sum + (p.total_cost || 0), 0);
+
+  const projectedTotal = (budget.total_invoiced || 0) + otherPOsCost + (poTotalCost || 0);
+  const needsApproval = budget.budget_30 > 0 && projectedTotal > budget.budget_30;
+
+  return { needsApproval, budget, projectedTotal };
+}
 
 // Get next PO number for a distributor + store
 async function getNextPONumber(storeId, distributor) {
@@ -101,7 +135,9 @@ router.post('/', auth, async (req, res) => {
     }
 
     const poNumber = await getNextPONumber(store_id, distributor);
-    const totalCost = items.reduce((sum, item) => sum + (item.unit_cost * item.ordered_qty), 0);
+    const totalCost = Math.round(items.reduce((sum, item) => sum + (item.unit_cost * item.ordered_qty), 0) * 100) / 100;
+
+    const { needsApproval, budget } = await checkBudgetApproval(store_id, totalCost);
 
     const { data: po, error: poError } = await supabase
       .from('purchase_orders')
@@ -109,9 +145,9 @@ router.post('/', auth, async (req, res) => {
         store_id,
         po_number: poNumber,
         distributor,
-        status: 'ordered',
-        total_cost: Math.round(totalCost * 100) / 100,
-        remaining_balance: Math.round(totalCost * 100) / 100
+        status: needsApproval ? 'pending_approval' : 'ordered',
+        total_cost: totalCost,
+        remaining_balance: totalCost
       }])
       .select()
       .single();
@@ -156,7 +192,25 @@ router.post('/', auth, async (req, res) => {
       metadata: { po_id: po.id, total_cost: po.total_cost }
     });
 
-    res.json({ po });
+    if (needsApproval) {
+      const { data: store } = await supabase.from('stores').select('name').eq('id', store_id).single();
+      await notify({
+        type: 'po_pending_approval',
+        title: 'PO needs approval',
+        message: `PO ${po.po_number} (${distributor}) for ${store?.name || 'a store'} — $${po.total_cost.toFixed(2)} would put this week's spending over the ${budget.budget_30 > 0 ? '30%' : 'budget'} line and needs approval.`,
+        link: `/pos/view?id=${po.id}`,
+        store_id
+      });
+      await logActivity({
+        actor: req.user,
+        action: 'po.pending_approval',
+        description: `PO ${po.po_number} (${distributor}) flagged for approval — would put weekly spend over budget ($${po.total_cost.toFixed(2)})`,
+        store_id,
+        metadata: { po_id: po.id, total_cost: po.total_cost, budget_30: budget.budget_30 }
+      });
+    }
+
+    res.json({ po, needs_approval: needsApproval });
   } catch (err) {
     console.error('Create PO error:', err);
     res.status(500).json({ error: err.message || 'Failed to create purchase order' });
@@ -170,13 +224,16 @@ router.put('/:id', auth, async (req, res) => {
 
     const { data: existing } = await supabase
       .from('purchase_orders')
-      .select('store_id')
+      .select('store_id, status')
       .eq('id', req.params.id)
       .single();
 
     if (!existing) return res.status(404).json({ error: 'PO not found' });
     if (req.user.role === 'manager' && existing.store_id !== req.user.store_id) {
       return res.status(403).json({ error: 'Access denied' });
+    }
+    if (existing.status === 'pending_approval' && status !== undefined && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'This PO needs admin approval before it can be updated' });
     }
 
     const updateData = { updated_at: new Date().toISOString() };
@@ -196,6 +253,44 @@ router.put('/:id', auth, async (req, res) => {
   } catch (err) {
     console.error('Update PO error:', err);
     res.status(500).json({ error: 'Failed to update purchase order' });
+  }
+});
+
+// Admin: approve a PO that's pending budget approval
+router.put('/:id/approve', auth, adminOnly, async (req, res) => {
+  try {
+    const { data: po } = await supabase
+      .from('purchase_orders')
+      .select('*')
+      .eq('id', req.params.id)
+      .single();
+
+    if (!po) return res.status(404).json({ error: 'PO not found' });
+    if (po.status !== 'pending_approval') {
+      return res.status(400).json({ error: 'This PO is not pending approval' });
+    }
+
+    const { data, error } = await supabase
+      .from('purchase_orders')
+      .update({ status: 'ordered', updated_at: new Date().toISOString() })
+      .eq('id', req.params.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    await logActivity({
+      actor: req.user,
+      action: 'po.approve',
+      description: `Approved PO ${po.po_number} (${po.distributor}) — $${(po.total_cost || 0).toFixed(2)}`,
+      store_id: po.store_id,
+      metadata: { po_id: po.id, total_cost: po.total_cost }
+    });
+
+    res.json({ po: data });
+  } catch (err) {
+    console.error('Approve PO error:', err);
+    res.status(500).json({ error: err.message || 'Failed to approve purchase order' });
   }
 });
 
@@ -420,16 +515,44 @@ router.post('/:id/items', auth, async (req, res) => {
     if (itemsError) throw itemsError;
 
     const addedCost = items.reduce((sum, i) => sum + ((i.unit_cost || 0) * (i.ordered_qty || 0)), 0);
+    const newTotalCost = Math.round(((po.total_cost || 0) + addedCost) * 100) / 100;
+
+    const updates = {
+      total_cost: newTotalCost,
+      remaining_balance: Math.round(((po.remaining_balance || 0) + addedCost) * 100) / 100,
+      updated_at: new Date().toISOString()
+    };
+
+    let needsApproval = false;
+    if (po.status === 'ordered' || po.status === 'pending_approval') {
+      const check = await checkBudgetApproval(po.store_id, newTotalCost, po.id);
+      needsApproval = check.needsApproval;
+      if (needsApproval && po.status !== 'pending_approval') {
+        updates.status = 'pending_approval';
+        const { data: store } = await supabase.from('stores').select('name').eq('id', po.store_id).single();
+        await notify({
+          type: 'po_pending_approval',
+          title: 'PO needs approval',
+          message: `PO ${po.po_number} (${po.distributor}) for ${store?.name || 'a store'} — now $${newTotalCost.toFixed(2)} after items were added, putting this week's spending over budget.`,
+          link: `/pos/view?id=${po.id}`,
+          store_id: po.store_id
+        });
+        await logActivity({
+          actor: req.user,
+          action: 'po.pending_approval',
+          description: `PO ${po.po_number} (${po.distributor}) flagged for approval after items added (now $${newTotalCost.toFixed(2)})`,
+          store_id: po.store_id,
+          metadata: { po_id: po.id, total_cost: newTotalCost, budget_30: check.budget.budget_30 }
+        });
+      }
+    }
+
     await supabase
       .from('purchase_orders')
-      .update({
-        total_cost: Math.round(((po.total_cost || 0) + addedCost) * 100) / 100,
-        remaining_balance: Math.round(((po.remaining_balance || 0) + addedCost) * 100) / 100,
-        updated_at: new Date().toISOString()
-      })
+      .update(updates)
       .eq('id', req.params.id);
 
-    res.json({ success: true });
+    res.json({ success: true, needs_approval: needsApproval });
   } catch (err) {
     console.error('Add items to PO error:', err);
     res.status(500).json({ error: err.message || 'Failed to add items' });

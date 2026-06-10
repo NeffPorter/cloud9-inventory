@@ -671,6 +671,9 @@
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
+      if (data.needs_approval) {
+        alert('This PO would put this week\'s spending over the 30% budget line, so it needs admin approval before it can be ordered. It\'s been saved and flagged for approval.');
+      }
       window.location.href = `/pos/view?id=${data.po.id}`;
     } catch (err) {
       alert('Error creating PO: ' + err.message);
