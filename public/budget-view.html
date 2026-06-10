@@ -150,19 +150,66 @@
     .spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,0.3); border-top-color:white; border-radius:50%; animation:spin 0.7s linear infinite; vertical-align:middle; margin-right:6px; }
     @keyframes spin { to { transform:rotate(360deg); } }
 
+    .upload-later-label {
+      display: inline-block; padding: 4px 10px; border-radius: 6px;
+      border: 1px dashed #aaa; color: #888; font-size: 11px; cursor: pointer;
+      background: #fafafa; white-space: nowrap;
+    }
+    .upload-later-label:hover { background: #f0f4ff; border-color: #2f5597; color: #2f5597; }
+    .upload-later-label input { display: none; }
+    .upload-later-label.uploading { opacity: 0.6; pointer-events: none; }
+
+    /* ── Print-only letterhead ── */
+    .print-header { display: none; }
+
     /* Print styles */
     @media print {
-      .navbar-hide, .back-link, .btn-add-invoice, .btn-save-row, .btn-del-row,
-      .upload-label, .bottom-actions, .approval-banner .btn-approve { display:none !important; }
-      .page-wrap { padding: 0; }
-      body { background: white; }
+      body * { visibility: hidden; }
+      .print-area, .print-area * { visibility: visible; }
+      .print-area { position: absolute; top: 0; left: 0; width: 100%; }
+
+      #navbar, nav, .navbar, .navbar-hide, .back-link, .btn-add-invoice, .btn-save-row, .btn-del-row,
+      .upload-label, .upload-later-label, .bottom-actions, .approval-banner .btn-approve,
+      .approval-banner button, .modal-overlay { display: none !important; }
+
+      .print-header {
+        display: block !important;
+        text-align: center;
+        border-bottom: 3px double #1a1a2e;
+        padding-bottom: 14px;
+        margin-bottom: 22px;
+      }
+      .print-header .company-name { font-size: 24px; font-weight: 800; letter-spacing: 1px; }
+      .print-header .doc-title { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: #555; margin-top: 4px; }
+      .print-header .doc-meta { font-size: 12px; color: #777; margin-top: 8px; }
+
+      .page-wrap { padding: 0; max-width: 100%; }
+      body { background: white; color: #000; font-family: Georgia, 'Times New Roman', serif; }
+
+      .summary-card, .progress-section, .invoice-table-wrap, .approval-banner,
+      .approved-banner, .complete-banner {
+        box-shadow: none !important; border: 1px solid #ccc !important;
+        break-inside: avoid;
+      }
+      .summary-card.highlight { background: #1a1a2e !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+      .invoice-table th { background: #f0f0f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; color: #333 !important; }
+      .invoice-table input { border: none !important; background: transparent !important; padding: 0 !important; -webkit-appearance: none; }
+
+      .progress-fill, .budget-bar-fill { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+      .print-footer {
+        display: block !important; margin-top: 24px; padding-top: 10px;
+        border-top: 1px solid #ccc; font-size: 11px; color: #999; text-align: center;
+      }
     }
+    .print-footer { display: none; }
   </style>
 </head>
 <body>
 <script>loadNavbar();</script>
 
-<div class="page-wrap" id="pageContent">
+<div class="page-wrap print-area" id="pageContent">
   <div style="text-align:center;padding:60px;color:#aaa">Loading budget…</div>
 </div>
 
@@ -282,7 +329,15 @@ function renderPage() {
   const isComplete = budget.status === 'complete';
   const isAdmin = user.role === 'admin';
 
+  const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+
   let html = `
+    <div class="print-header">
+      <div class="company-name">☁️ Cloud 9</div>
+      <div class="doc-title">Weekly Budget Report</div>
+      <div class="doc-meta">${storeName} &nbsp;•&nbsp; Week of ${formatDate(budget.week_start)} – ${formatDate(budget.week_end)} &nbsp;•&nbsp; Generated ${today}</div>
+    </div>
+
     <div onclick="window.location.href='/budgets${budget.store_id ? '?store=' + budget.store_id : ''}'" class="back-link">← Back to Budget Reports</div>
 
     <div class="page-header">
@@ -378,7 +433,12 @@ function renderPage() {
         <td>
           ${inv.invoice_pdf_url
             ? `<a class="pdf-link" href="${inv.invoice_pdf_url}" target="_blank" title="${inv.invoice_pdf_name || 'Invoice'}">📎 ${inv.invoice_pdf_name || 'View PDF'}</a>`
-            : `<span style="color:#bbb;font-size:12px">No file</span>`}
+            : (!isComplete
+                ? `<label class="upload-later-label" id="upload-label-${inv.id}">
+                     📎 Add file
+                     <input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="uploadInvoicePdf('${inv.id}', this)">
+                   </label>`
+                : `<span style="color:#bbb;font-size:12px">No file</span>`)}
         </td>
         <td>
           ${!isComplete
@@ -409,6 +469,8 @@ function renderPage() {
   } else {
     html += `<div class="bottom-actions"><button class="btn-print" onclick="window.print()">🖨️ Print / Download PDF</button></div>`;
   }
+
+  html += `<div class="print-footer">Cloud 9 — Weekly Budget Report — ${storeName} — Week of ${formatDate(budget.week_start)} – ${formatDate(budget.week_end)}</div>`;
 
   document.getElementById('pageContent').innerHTML = html;
 }
@@ -514,6 +576,43 @@ async function updateInvoiceAmount(invoiceId, value) {
       renderPage();
     }
   } catch (err) { console.error(err); }
+}
+
+async function uploadInvoicePdf(invoiceId, input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  const label = document.getElementById(`upload-label-${invoiceId}`);
+  const originalHtml = label.innerHTML;
+  label.classList.add('uploading');
+  label.innerHTML = '⏳ Uploading…';
+
+  try {
+    const base64 = await fileToBase64(file);
+    const uploadRes = await fetch(`/api/budgets/${budgetId}/upload-pdf`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ file_base64: base64, file_name: file.name, file_type: file.type })
+    });
+    const uploadData = await uploadRes.json();
+    if (!uploadRes.ok) throw new Error(uploadData.error || 'Upload failed');
+
+    const res = await fetch(`/api/budgets/${budgetId}/invoices/${invoiceId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ invoice_pdf_url: uploadData.url, invoice_pdf_name: uploadData.name })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to attach file');
+
+    const inv = invoices.find(i => i.id === invoiceId);
+    if (inv) { inv.invoice_pdf_url = uploadData.url; inv.invoice_pdf_name = uploadData.name; }
+    renderPage();
+  } catch (err) {
+    alert('Error: ' + err.message);
+    label.classList.remove('uploading');
+    label.innerHTML = originalHtml;
+  }
 }
 
 async function deleteInvoice(invoiceId) {

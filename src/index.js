@@ -16,6 +16,7 @@ app.use('/api/pos', require('./routes/pos'));
 app.use('/api/distributors', require('./routes/distributors'));
 app.use('/api/sales', require('./routes/sales'));
 app.use('/api/budgets', require('./routes/budgets'));
+app.use('/api/notifications', require('./routes/notifications'));
 
 // Static files
 app.use(express.static(path.join(__dirname, '../public')));
@@ -79,6 +80,9 @@ app.get('/budgets', (req, res) => {
 });
 app.get('/budget-view', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/budget-view.html'));
+});
+app.get('/activity-log', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/activity-log.html'));
 });
 
 module.exports = app;

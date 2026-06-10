@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const { createClient } = require('@supabase/supabase-js');
+const { notify, logActivity } = require('../services/notify');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -39,7 +40,7 @@ async function recalcTotal(budgetId) {
 
   const { data: budget } = await supabase
     .from('weekly_budgets')
-    .select('status, budget_30')
+    .select('status, budget_30, store_id, week_start, week_end')
     .eq('id', budgetId)
     .single();
 
@@ -58,6 +59,18 @@ async function recalcTotal(budgetId) {
     .from('weekly_budgets')
     .update({ total_invoiced: total, status: newStatus, updated_at: new Date().toISOString() })
     .eq('id', budgetId);
+
+  // Notify admins when a budget crosses into pending approval
+  if (newStatus === 'pending_approval' && budget.status !== 'pending_approval') {
+    const { data: store } = await supabase.from('stores').select('name').eq('id', budget.store_id).single();
+    await notify({
+      type: 'budget_pending_approval',
+      title: 'Budget needs approval',
+      message: `${store?.name || 'A store'}'s budget for week ${budget.week_start} – ${budget.week_end} has exceeded its 30% limit and needs approval to extend to 45%.`,
+      link: `/budget-view?id=${budgetId}`,
+      store_id: budget.store_id
+    });
+  }
 
   return total;
 }
@@ -222,6 +235,25 @@ router.put('/:id', auth, async (req, res) => {
       .from('weekly_budgets').update(updates).eq('id', req.params.id).select().single();
 
     if (error) throw error;
+
+    // Notify + log when a budget is marked complete
+    if (status === 'complete' && budget.status !== 'complete') {
+      const { data: store } = await supabase.from('stores').select('name').eq('id', data.store_id).single();
+      await notify({
+        type: 'budget_complete',
+        title: 'Budget marked complete',
+        message: `${store?.name || 'A store'}'s budget for week ${data.week_start} – ${data.week_end} was marked complete by ${req.user.name || req.user.email}.`,
+        link: `/budget-view?id=${req.params.id}`,
+        store_id: data.store_id
+      });
+      await logActivity({
+        actor: req.user,
+        action: 'budget.complete',
+        description: `Marked budget complete for ${store?.name || data.store_id}, week ${data.week_start} – ${data.week_end}`,
+        store_id: data.store_id
+      });
+    }
+
     res.json({ budget: data });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -245,6 +277,15 @@ router.put('/:id/approve', auth, adminOnly, async (req, res) => {
       .single();
 
     if (error) throw error;
+
+    const { data: store } = await supabase.from('stores').select('name').eq('id', data.store_id).single();
+    await logActivity({
+      actor: req.user,
+      action: 'budget.approve_extended',
+      description: `Approved extended budget (45%) for ${store?.name || data.store_id}, week ${data.week_start} – ${data.week_end}`,
+      store_id: data.store_id
+    });
+
     res.json({ budget: data });
   } catch (err) {
     res.status(500).json({ error: err.message });

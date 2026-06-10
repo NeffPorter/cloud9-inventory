@@ -67,6 +67,7 @@ function loadNavbar() {
               <button class="dropdown-item" onclick="window.location.href='/stores'">🏪 Manage Stores</button>
               <button class="dropdown-item" onclick="window.location.href='/users'">👥 Manage Users</button>
               <button class="dropdown-item" onclick="window.location.href='/distributors'">🏭 Distributors & Prices</button>
+              <button class="dropdown-item" onclick="window.location.href='/activity-log'">📜 Activity Log</button>
             </div>
           </div>
           ` : ''}
@@ -74,6 +75,21 @@ function loadNavbar() {
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:12px;">
+        ${user.role === 'admin' ? `
+        <div class="nav-item" style="position:relative">
+          <button class="nav-btn" id="notifBellBtn" onclick="toggleDropdown('notifDropdown', this)" style="position:relative;font-size:18px;padding:8px 12px;">
+            🔔
+            <span id="notifBadge" style="display:none;position:absolute;top:2px;right:2px;background:#e74c3c;color:white;font-size:10px;font-weight:700;border-radius:10px;min-width:16px;height:16px;line-height:16px;text-align:center;padding:0 3px;"></span>
+          </button>
+          <div class="dropdown" id="notifDropdown" style="right:0;left:auto;min-width:340px;max-width:380px;">
+            <div class="dropdown-header" style="display:flex;justify-content:space-between;align-items:center;">
+              <span>Notifications</span>
+              <button onclick="markAllNotificationsRead(event)" style="background:none;border:none;color:#2f5597;font-size:11px;font-weight:700;cursor:pointer;text-transform:none;letter-spacing:normal;">Mark all read</button>
+            </div>
+            <div id="notifList" style="max-height:360px;overflow-y:auto;"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
+          </div>
+        </div>
+        ` : ''}
         <span style="background:#2f5597;color:white;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;">${user.name || user.email}</span>
         <button onclick="logout()" style="background:transparent;color:#aaa;border:1px solid #444;padding:6px 14px;border-radius:20px;font-size:13px;cursor:pointer;">Logout</button>
       </div>
@@ -141,9 +157,97 @@ function loadNavbar() {
 
   loadNavbarStores();
 
+  if (user.role === 'admin') {
+    loadNotifications();
+    if (window.__notifPollInterval) clearInterval(window.__notifPollInterval);
+    window.__notifPollInterval = setInterval(loadNotifications, 30000);
+  }
+
   document.addEventListener('click', (e) => {
     if (!e.target.closest('.nav-item')) closeAllDropdowns();
   });
+}
+
+function timeAgo(dateStr) {
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  return Math.floor(diff / 86400) + 'd ago';
+}
+
+async function loadNotifications() {
+  const token = localStorage.getItem('token');
+  try {
+    const res = await fetch('/api/notifications', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const notifs = data.notifications || [];
+    const badge = document.getElementById('notifBadge');
+    const list = document.getElementById('notifList');
+    if (!badge || !list) return;
+
+    if (data.unread_count > 0) {
+      badge.style.display = 'block';
+      badge.textContent = data.unread_count > 99 ? '99+' : data.unread_count;
+    } else {
+      badge.style.display = 'none';
+    }
+
+    if (!notifs.length) {
+      list.innerHTML = '<div style="padding:16px;color:#999;font-size:13px;text-align:center;">No notifications yet</div>';
+      return;
+    }
+
+    list.innerHTML = notifs.map(n => `
+      <div onclick="handleNotificationClick('${n.id}', ${n.link ? `'${n.link}'` : 'null'})" style="
+        padding:12px 16px;
+        border-bottom:1px solid #f0f0f0;
+        cursor:pointer;
+        background:${n.read ? 'white' : '#f0f4ff'};
+        transition:background 0.15s;
+      " onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background='${n.read ? 'white' : '#f0f4ff'}'">
+        <div style="font-size:13px;font-weight:700;color:#333;margin-bottom:2px;">${n.title}</div>
+        <div style="font-size:12px;color:#666;line-height:1.4;">${n.message}</div>
+        <div style="font-size:11px;color:#aaa;margin-top:4px;">${timeAgo(n.created_at)}</div>
+      </div>
+    `).join('');
+  } catch (err) {
+    console.error('Notifications error:', err);
+  }
+}
+
+async function handleNotificationClick(id, link) {
+  const token = localStorage.getItem('token');
+  try {
+    await fetch(`/api/notifications/${id}/read`, {
+      method: 'PUT',
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+  } catch (err) {
+    console.error('Mark read error:', err);
+  }
+  if (link) {
+    window.location.href = link;
+  } else {
+    loadNotifications();
+  }
+}
+
+async function markAllNotificationsRead(event) {
+  if (event) event.stopPropagation();
+  const token = localStorage.getItem('token');
+  try {
+    await fetch('/api/notifications/read-all', {
+      method: 'PUT',
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    loadNotifications();
+  } catch (err) {
+    console.error('Mark all read error:', err);
+  }
 }
 
 function toggleDropdown(id, btn) {

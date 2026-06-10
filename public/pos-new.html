@@ -132,6 +132,7 @@
   let currentTab = 'suggested';
   let fromSuggested = false;
   const manualExpandedCats = new Set(); // tracks which category accordions are open
+  const manualExpandedGroups = new Set(); // tracks which item-group accordions are open
   let bestPrices = {}; // item_id -> { unit_cost, distributor_id, distributor_name }
   let distPrices = {}; // item_id -> unit_cost for the currently selected known distributor
   let selectedDistId = null; // id of the selected known distributor (null = "other")
@@ -421,31 +422,46 @@
 
       groupNames.forEach(grp => {
         const grpItems = groups[grp];
-        const isAdded = grpItems.some(i => selectedItems[i.id]);
-        const firstAdded = grpItems.find(i => selectedItems[i.id]);
-        const currentQty = firstAdded ? selectedItems[firstAdded.id].qty : 1;
+        const addedCountInGrp = grpItems.filter(i => selectedItems[i.id]).length;
         const repItem = grpItems[0];
-        const unitCost = getUnitCost(repItem);
-        const costLabel = selectedDistId && distPrices.hasOwnProperty(repItem.id)
-          ? `<span style="color:#2f5597;font-weight:700">$${unitCost.toFixed(2)}</span>`
-          : `$${unitCost.toFixed(2)}`;
-        const grpKey = grp.replace(/'/g, "\\'");
+        const grpKeySafe = catKey + '__' + grp.replace(/[^a-zA-Z0-9]/g, '_');
+        const isGrpExpanded = manualExpandedGroups.has(grpKeySafe);
 
-        if (isAdded) {
-          rows += `<tr class="manual-item-added">
-            <td style="font-weight:600">${grp} <span style="color:#aaa;font-size:11px;font-weight:400">${grpItems.length} variant${grpItems.length!==1?'s':''}</span> ${bestPriceBadge(repItem.id, repItem.cost||0)}</td>
-            <td>${costLabel}</td>
-            <td><input type="number" class="qty-input" value="${currentQty}" min="1"
-              onchange="updateManualGroup('${grpKey}', '${cat.replace(/'/g,"\\'")}', this.value)" /></td>
-            <td><button class="btn-remove-item" onclick="removeManualGroup('${grpKey}', '${cat.replace(/'/g,"\\'")}')">✕ Remove</button></td>
-          </tr>`;
-        } else {
-          rows += `<tr>
-            <td style="font-weight:500">${grp} <span style="color:#aaa;font-size:11px">${grpItems.length} variant${grpItems.length!==1?'s':''}</span> ${bestPriceBadge(repItem.id, repItem.cost||0)}</td>
-            <td>${costLabel}</td>
-            <td><input type="number" class="qty-input" id="mgq_${catKey}_${grp.replace(/[^a-zA-Z0-9]/g,'_')}" value="1" min="1" /></td>
-            <td><button class="btn-add-item" onclick="addManualGroup('${grpKey}', '${cat.replace(/'/g,"\\'")}')">+ Add</button></td>
-          </tr>`;
+        // Group header row — expandable, no qty/add at this level
+        rows += `<tr style="cursor:pointer" onclick="toggleManualGroup('${grpKeySafe}')">
+          <td style="font-weight:600">
+            <span style="display:inline-block;width:14px;color:#999">${isGrpExpanded ? '▾' : '▸'}</span>
+            ${grp} <span style="color:#aaa;font-size:11px;font-weight:400">${grpItems.length} variant${grpItems.length!==1?'s':''}${addedCountInGrp > 0 ? ` · <span style="color:#38761d;font-weight:700">${addedCountInGrp} added</span>` : ''}</span> ${bestPriceBadge(repItem.id, repItem.cost||0)}
+          </td>
+          <td colspan="3"></td>
+        </tr>`;
+
+        if (isGrpExpanded) {
+          grpItems.forEach(item => {
+            const isAdded = !!selectedItems[item.id];
+            const currentQty = isAdded ? selectedItems[item.id].qty : 1;
+            const unitCost = getUnitCost(item);
+            const costLabel = selectedDistId && distPrices.hasOwnProperty(item.id)
+              ? `<span style="color:#2f5597;font-weight:700">$${unitCost.toFixed(2)}</span>`
+              : `$${unitCost.toFixed(2)}`;
+
+            if (isAdded) {
+              rows += `<tr class="manual-item-added">
+                <td style="padding-left:30px">${item.variant_name} ${bestPriceBadge(item.id, item.cost||0)}</td>
+                <td>${costLabel}</td>
+                <td><input type="number" class="qty-input" value="${currentQty}" min="1"
+                  onchange="updateManualQty('${item.id}', this.value)" /></td>
+                <td><button class="btn-remove-item" onclick="removeManualItem('${item.id}')">✕ Remove</button></td>
+              </tr>`;
+            } else {
+              rows += `<tr>
+                <td style="padding-left:30px">${item.variant_name} ${bestPriceBadge(item.id, item.cost||0)}</td>
+                <td>${costLabel}</td>
+                <td><input type="number" class="qty-input" id="mq_${item.id}" value="1" min="1" /></td>
+                <td><button class="btn-add-item" onclick="addManualItem('${item.id}')">+ Add</button></td>
+              </tr>`;
+            }
+          });
         }
       });
 
@@ -513,32 +529,9 @@
     else manualExpandedCats.delete(cat);
   }
 
-  // Get all items in a named group + category
-  function getGroupItems(grpName, catName) {
-    return allInventory.filter(i => i.group_name === grpName && (i.category || 'No Category') === catName);
-  }
-
-  function addManualGroup(grpName, catName) {
-    const items = getGroupItems(grpName, catName);
-    const catKey = 'mcat-' + catName.replace(/[^a-zA-Z0-9]/g, '-');
-    const qtyInputId = `mgq_${catKey}_${grpName.replace(/[^a-zA-Z0-9]/g,'_')}`;
-    const qty = Math.max(1, parseInt(document.getElementById(qtyInputId)?.value) || 1);
-    items.forEach(item => { selectedItems[item.id] = { item, qty }; });
-    updateSummary();
-    renderManualTable();
-  }
-
-  function updateManualGroup(grpName, catName, val) {
-    const qty = Math.max(1, parseInt(val) || 1);
-    const items = getGroupItems(grpName, catName);
-    items.forEach(item => { if (selectedItems[item.id]) selectedItems[item.id].qty = qty; });
-    updateSummary();
-  }
-
-  function removeManualGroup(grpName, catName) {
-    const items = getGroupItems(grpName, catName);
-    items.forEach(item => { delete selectedItems[item.id]; });
-    updateSummary();
+  function toggleManualGroup(grpKeySafe) {
+    if (manualExpandedGroups.has(grpKeySafe)) manualExpandedGroups.delete(grpKeySafe);
+    else manualExpandedGroups.add(grpKeySafe);
     renderManualTable();
   }
 

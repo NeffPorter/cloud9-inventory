@@ -3,6 +3,7 @@ const router = express.Router();
 const auth = require('../middleware/auth');
 const { createClient } = require('@supabase/supabase-js');
 const { setStockInClover } = require('../services/clover');
+const { logActivity } = require('../services/notify');
 
 const supabase = createClient(
   process.env.SUPABASE_URL,
@@ -146,6 +147,14 @@ router.post('/', auth, async (req, res) => {
         .in('id', itemIds)
         .eq('store_id', store_id);
     }
+
+    await logActivity({
+      actor: req.user,
+      action: 'po.create',
+      description: `Created PO ${po.po_number} (${distributor}) — ${items.length} item${items.length !== 1 ? 's' : ''}, est. $${po.total_cost.toFixed(2)}`,
+      store_id,
+      metadata: { po_id: po.id, total_cost: po.total_cost }
+    });
 
     res.json({ po });
   } catch (err) {
@@ -475,6 +484,14 @@ router.delete('/:id', auth, async (req, res) => {
       .eq('id', req.params.id);
 
     if (error) throw error;
+
+    await logActivity({
+      actor: req.user,
+      action: 'po.delete',
+      description: `Deleted PO ${po.po_number} (${po.distributor})${push_back === '1' ? ' — remaining qty pushed back to suggested orders' : ''}`,
+      store_id: po.store_id
+    });
+
     res.json({ success: true });
   } catch (err) {
     console.error('Delete PO error:', err);

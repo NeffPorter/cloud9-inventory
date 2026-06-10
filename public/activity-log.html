@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Activity Log — Cloud 9</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  body { background:#f4f6fb; color:#222; }
+  .page-wrap { max-width:900px; margin:0 auto; padding:24px; }
+  h1 { font-size:24px; font-weight:800; margin-bottom:4px; }
+  .subtitle { color:#888; font-size:13px; margin-bottom:20px; }
+  .filters { display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; }
+  select, input {
+    padding:8px 12px; border:1px solid #ddd; border-radius:8px; font-size:13px; background:white;
+  }
+  .log-card {
+    background:white; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.04); overflow:hidden;
+  }
+  .log-row {
+    display:flex; gap:12px; padding:14px 18px; border-bottom:1px solid #f0f0f0; align-items:flex-start;
+  }
+  .log-row:last-child { border-bottom:none; }
+  .log-icon {
+    width:36px; height:36px; border-radius:50%; background:#f0f4ff; color:#2f5597;
+    display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0;
+  }
+  .log-desc { font-size:13.5px; color:#333; line-height:1.4; }
+  .log-meta { font-size:11.5px; color:#999; margin-top:3px; }
+  .empty { padding:40px; text-align:center; color:#999; font-size:14px; }
+</style>
+</head>
+<body>
+<div id="navbar-container"></div>
+<div class="page-wrap">
+  <h1>📜 Activity Log</h1>
+  <div class="subtitle">Recent admin-relevant actions across all stores</div>
+
+  <div class="filters">
+    <select id="storeFilter" onchange="loadLog()">
+      <option value="">All Stores</option>
+    </select>
+    <select id="limitFilter" onchange="loadLog()">
+      <option value="50">Last 50</option>
+      <option value="100" selected>Last 100</option>
+      <option value="250">Last 250</option>
+    </select>
+  </div>
+
+  <div class="log-card" id="logCard">
+    <div class="empty">Loading...</div>
+  </div>
+</div>
+
+<script src="/navbar.js"></script>
+<script>
+const token = localStorage.getItem('token');
+const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+if (!token) window.location.href = '/';
+if (user.role !== 'admin') window.location.href = '/dashboard';
+
+loadNavbar();
+
+const ICONS = {
+  'budget.complete': '✅',
+  'budget.approve_extended': '💰',
+  'po.create': '🛒',
+  'po.delete': '🗑️',
+};
+
+function timeAgo(dateStr) {
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+  return Math.floor(diff / 86400) + 'd ago';
+}
+
+async function loadStores() {
+  try {
+    const res = await fetch('/api/inventory/stores', { headers: { 'Authorization': 'Bearer ' + token } });
+    const data = await res.json();
+    const sel = document.getElementById('storeFilter');
+    (data.stores || []).forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = s.name;
+      sel.appendChild(opt);
+    });
+  } catch (err) {
+    console.error('Stores error:', err);
+  }
+}
+
+async function loadLog() {
+  const card = document.getElementById('logCard');
+  card.innerHTML = '<div class="empty">Loading...</div>';
+
+  const storeId = document.getElementById('storeFilter').value;
+  const limit = document.getElementById('limitFilter').value;
+
+  let url = `/api/notifications/activity-log?limit=${limit}`;
+  if (storeId) url += `&store_id=${storeId}`;
+
+  try {
+    const res = await fetch(url, { headers: { 'Authorization': 'Bearer ' + token } });
+    const data = await res.json();
+    const activity = data.activity || [];
+
+    if (!activity.length) {
+      card.innerHTML = '<div class="empty">No activity recorded yet</div>';
+      return;
+    }
+
+    card.innerHTML = activity.map(a => `
+      <div class="log-row">
+        <div class="log-icon">${ICONS[a.action] || '📌'}</div>
+        <div>
+          <div class="log-desc">${a.description}</div>
+          <div class="log-meta">${a.actor_name || 'System'} &nbsp;•&nbsp; ${timeAgo(a.created_at)}</div>
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    card.innerHTML = '<div class="empty">Error loading activity log</div>';
+    console.error('Activity log error:', err);
+  }
+}
+
+loadStores();
+loadLog();
+</script>
+</body>
+</html>
