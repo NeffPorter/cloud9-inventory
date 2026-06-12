@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cloud 9 Inventory</title>
+  <link rel="icon" type="image/png" href="/logo-icon.png">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -11,8 +12,15 @@
       background: #1a1a2e;
       min-height: 100vh;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
+      gap: 28px;
+    }
+    .top-logo {
+      max-width: 320px;
+      width: 80%;
+      height: auto;
     }
     .login-box {
       background: white;
@@ -26,10 +34,10 @@
       text-align: center;
       margin-bottom: 32px;
     }
-    .logo h1 {
-      font-size: 28px;
-      font-weight: 800;
-      color: #1a1a2e;
+    .logo img {
+      max-width: 80px;
+      width: 100%;
+      height: auto;
     }
     .logo p {
       color: #666;
@@ -92,9 +100,10 @@
   </style>
 </head>
 <body>
+  <img class="top-logo" src="/logo-wordmark.png" alt="Cloud 9 Vapor">
   <div class="login-box">
     <div class="logo">
-      <h1>☁️ Cloud 9</h1>
+      <img src="/logo-icon.png" alt="Cloud 9">
       <p>Inventory Management</p>
     </div>
     <div class="form-group">

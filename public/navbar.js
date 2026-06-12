@@ -1,7 +1,15 @@
 function loadNavbar() {
   const token = localStorage.getItem('token');
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  
+
+  if (!document.querySelector('link[rel="icon"]')) {
+    const favicon = document.createElement('link');
+    favicon.rel = 'icon';
+    favicon.type = 'image/png';
+    favicon.href = '/logo-icon.png';
+    document.head.appendChild(favicon);
+  }
+
   if (!token) return;
 
   const navbarHTML = `
@@ -18,7 +26,7 @@ function loadNavbar() {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     ">
       <div style="display:flex;align-items:center;gap:8px;">
-        <h1 style="color:white;font-size:20px;font-weight:800;margin-right:16px;cursor:pointer" onclick="window.location.href='/dashboard'">☁️ Cloud 9</h1>
+        <img src="/logo-wordmark.png" alt="Cloud 9 Vapor" style="height:34px;margin-right:16px;cursor:pointer" onclick="window.location.href='/dashboard'">
         <button class="nav-hamburger" id="navHamburger" onclick="toggleMobileMenu()" aria-label="Menu">☰</button>
         <div style="display:flex;align-items:center;gap:4px;" class="nav-items" id="navItems">
 
