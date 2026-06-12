@@ -357,6 +357,7 @@
     const stats = catStats[cat] || { item_count: 0, total_stock: 0, total_suggested: 0, reorder_count: 0 };
     const settings = catSettings[cat] || {};
     const buffer = settings.buffer_days != null ? settings.buffer_days : 3;
+    const lowStockThreshold = settings.low_stock_threshold != null ? settings.low_stock_threshold : 5;
 
     const hasReorder = stats.total_suggested > 0;
     const statusClass = hasReorder ? 'status-reorder' : 'status-ok';
@@ -395,6 +396,11 @@
             <input type="number" class="day-input" id="buf-cat-${encCat}" value="${buffer}" min="0" max="365" ${inputAttr}>
             <span class="day-label">safety stock days</span>
           </div>
+          <div class="setting-row">
+            <label>Low Stock Threshold</label>
+            <input type="number" class="day-input" id="low-cat-${encCat}" value="${lowStockThreshold}" min="0" max="999" ${inputAttr}>
+            <span class="day-label">qty or below = low stock</span>
+          </div>
         </div>
         ${actionsHtml}
       </div>`;
@@ -404,6 +410,7 @@
     if (!currentStoreId) return;
     const encCat = encodeURIComponent(cat);
     const buf = parseInt(document.getElementById(`buf-cat-${encCat}`).value) || 3;
+    const lowStock = parseInt(document.getElementById(`low-cat-${encCat}`).value);
 
     btn.disabled = true;
     btn.textContent = 'Saving...';
@@ -411,7 +418,7 @@
       const saveRes = await fetch('/api/inventory/category-settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ store_id: currentStoreId, category: cat, buffer_days: buf })
+        body: JSON.stringify({ store_id: currentStoreId, category: cat, buffer_days: buf, low_stock_threshold: isNaN(lowStock) ? 5 : lowStock })
       });
       if (!saveRes.ok) { const e = await saveRes.json(); throw new Error(e.error); }
 
@@ -425,7 +432,7 @@
       const calcData = await calcRes.json();
       if (!calcRes.ok) throw new Error(calcData.error);
 
-      catSettings[cat] = { category: cat, store_id: currentStoreId, lead_time_days: lead, buffer_days: buf };
+      catSettings[cat] = { ...(catSettings[cat] || {}), category: cat, store_id: currentStoreId, buffer_days: buf, low_stock_threshold: isNaN(lowStock) ? 5 : lowStock };
       await loadCatStats(currentStoreId);
       renderCategories();
       renderSummary();

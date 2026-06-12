@@ -544,11 +544,11 @@ router.get('/category-stats', auth, async (req, res) => {
   }
 });
 
-// Upsert category settings (admin only) — buffer_days only, lead time comes from cheapest distributor
+// Upsert category settings (admin only) — buffer_days + low_stock_threshold; lead time comes from cheapest distributor
 router.put('/category-settings', auth, async (req, res) => {
   try {
     if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-    const { store_id, category, buffer_days } = req.body;
+    const { store_id, category, buffer_days, low_stock_threshold } = req.body;
     if (!store_id || !category) return res.status(400).json({ error: 'store_id and category required' });
 
     const { data, error } = await supabase
@@ -557,6 +557,7 @@ router.put('/category-settings', auth, async (req, res) => {
         store_id,
         category,
         buffer_days: parseInt(buffer_days) || 3,
+        low_stock_threshold: parseInt(low_stock_threshold) || 5,
         updated_at: new Date().toISOString()
       }], { onConflict: 'store_id,category' })
       .select()

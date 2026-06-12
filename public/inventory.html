@@ -273,6 +273,26 @@
     let allCollapsedState = true;
     let pendingChanges = {};
     let editMode = false;
+    let categorySettings = {};
+
+    function getLowStockThreshold(category) {
+      const cat = category || 'No Category';
+      const setting = categorySettings[cat];
+      return setting && setting.low_stock_threshold != null ? setting.low_stock_threshold : 5;
+    }
+
+    async function loadCategorySettings() {
+      try {
+        const res = await fetch(`/api/inventory/category-settings?store_id=${storeId}`, {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const data = await res.json();
+        categorySettings = {};
+        (data.settings || []).forEach(s => { categorySettings[s.category] = s; });
+      } catch (err) {
+        categorySettings = {};
+      }
+    }
 
     async function loadStoreName() {
       const res = await fetch('/api/inventory/stores', {
@@ -319,7 +339,7 @@
 
     function updateStats(items) {
       const total = items.length;
-      const lowStock = items.filter(i => i.clover_qty > 0 && i.clover_qty <= 5 && i.status === 'Active').length;
+      const lowStock = items.filter(i => i.clover_qty > 0 && i.clover_qty <= getLowStockThreshold(i.category) && i.status === 'Active').length;
       const outOfStock = items.filter(i => i.clover_qty <= 0 && i.status === 'Active').length;
       const suggested = items.filter(i => i.suggested_order > 0 && i.status === 'Active').length;
 
@@ -346,7 +366,7 @@
     function openStatModal(type) {
       let items, title;
       if (type === 'low') {
-        items = allItems.filter(i => i.clover_qty > 0 && i.clover_qty <= 5 && i.status === 'Active');
+        items = allItems.filter(i => i.clover_qty > 0 && i.clover_qty <= getLowStockThreshold(i.category) && i.status === 'Active');
         title = '⚠️ Low Stock Items';
       } else {
         items = allItems.filter(i => i.clover_qty <= 0 && i.status === 'Active');
@@ -378,7 +398,7 @@
 
         const rows = catItems.map(item => {
           const qty = item.clover_qty || 0;
-          const qtyClass = qty < 0 ? 'stock-negative' : qty === 0 ? 'stock-out' : qty <= 5 ? 'stock-low' : 'stock-good';
+          const qtyClass = qty < 0 ? 'stock-negative' : qty === 0 ? 'stock-out' : qty <= getLowStockThreshold(item.category) ? 'stock-low' : 'stock-good';
           return `
             <tr>
               <td class="item-name">${item.variant_name}</td>
@@ -495,7 +515,7 @@
 
           html += items.map(item => {
             const qty = item.clover_qty || 0;
-            const qtyClass = qty < 0 ? 'stock-negative' : qty === 0 ? 'stock-out' : qty <= 5 ? 'stock-low' : 'stock-good';
+            const qtyClass = qty < 0 ? 'stock-negative' : qty === 0 ? 'stock-out' : qty <= getLowStockThreshold(item.category) ? 'stock-low' : 'stock-good';
             const rowClass = item.status === 'Dropping' ? 'dropping-row' :
                             item.status === 'On Hold' ? 'hold-row' :
                             item.status === 'Not Tracking' ? 'not-tracking-row' : '';
@@ -751,7 +771,7 @@
     }
 
     loadStoreName();
-    loadInventory();
+    loadCategorySettings().then(loadInventory);
 
     // Auto-refresh inventory every 30s so stock changes from sales show up
     // without the user needing to click Refresh — but pause while editing.
