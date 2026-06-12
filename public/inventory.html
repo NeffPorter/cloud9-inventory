@@ -226,7 +226,7 @@
       <div class="header-actions">
         <input type="text" class="search-input" id="searchInput" placeholder="🔍 Search items..." oninput="filterItems()">
         <span class="sync-status" id="syncStatus"></span>
-        <button class="btn btn-gray" onclick="toggleAllCategories()" id="collapseBtn">📂 Collapse All</button>
+        <button class="btn btn-gray" onclick="toggleAllCategories()" id="collapseBtn">📂 Expand All</button>
         <button class="btn btn-orange" onclick="toggleEditMode()" id="editBtn">✏️ Edit</button>
         <button class="btn btn-blue" onclick="loadInventory()" id="refreshBtn">🔄 Refresh</button>
       </div>
@@ -251,7 +251,7 @@
 
     let allItems = [];
     let storeName = '';
-    let allCollapsedState = false;
+    let allCollapsedState = true;
     let pendingChanges = {};
     let editMode = false;
 
@@ -264,6 +264,7 @@
       if (store) {
         storeName = store.name;
         document.getElementById('pageTitle').textContent = `📦 ${store.name} — Inventory`;
+        document.getElementById('pageSubtitle').textContent = 'Live Clover inventory levels';
       }
     }
 
@@ -465,7 +466,7 @@
               ${catName}
               <span class="category-count">${itemCount} items</span>
             </div>
-            <div class="category-body" id="${catId}">
+            <div class="category-body" id="${catId}" style="${allCollapsedState ? 'display:none' : ''}">
               <table>
                 <thead>
                   <tr>

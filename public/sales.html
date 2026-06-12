@@ -191,9 +191,9 @@
         <div class="page-subtitle" id="periodLabel">Loading...</div>
       </div>
       <div class="date-controls">
-        <button class="preset-btn" onclick="setPreset('today', this)">Today</button>
+        <button class="preset-btn active" onclick="setPreset('today', this)">Today</button>
         <button class="preset-btn" onclick="setPreset('week', this)">This Week</button>
-        <button class="preset-btn active" onclick="setPreset('month', this)">This Month</button>
+        <button class="preset-btn" onclick="setPreset('month', this)">This Month</button>
         <button class="preset-btn" onclick="setPreset('quarter', this)">This Quarter</button>
         <input type="date" id="startDate" class="date-input" onchange="setCustom()">
         <span style="color:#999">to</span>
@@ -637,7 +637,7 @@
     }
 
     loadStoreFilter();
-    setPreset('month', document.querySelector('.preset-btn.active'));
+    setPreset('today', document.querySelector('.preset-btn.active'));
     loadTrends('week');
   </script>
 </body>
