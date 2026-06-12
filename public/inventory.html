@@ -77,8 +77,17 @@
       padding: 14px 20px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     }
+    .mini-stat.clickable { cursor: pointer; transition: box-shadow 0.15s, transform 0.15s; }
+    .mini-stat.clickable:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.12); transform: translateY(-1px); }
     .mini-stat-value { font-size: 22px; font-weight: 800; color: #1a1a2e; }
     .mini-stat-label { font-size: 12px; color: #999; font-weight: 600; }
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal-box { background: white; border-radius: 14px; padding: 24px; width: 100%; max-width: 700px; max-height: 85vh; overflow-y: auto; box-shadow: 0 16px 48px rgba(0,0,0,0.2); }
+    .modal-box-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .modal-box-title { font-size: 18px; font-weight: 800; color: #1a1a2e; }
+    .modal-close-btn { background: none; border: none; font-size: 22px; cursor: pointer; color: #999; line-height: 1; }
+    .modal-close-btn:hover { color: #333; }
     .category-section { margin-bottom: 24px; }
     .category-header {
       background: #2f5597;
@@ -240,6 +249,16 @@
     <div id="inventoryContainer" class="loading">Loading inventory...</div>
   </div>
 
+  <div class="modal-overlay" id="statModal">
+    <div class="modal-box">
+      <div class="modal-box-header">
+        <div class="modal-box-title" id="statModalTitle">Items</div>
+        <button class="modal-close-btn" onclick="closeStatModal()">✕</button>
+      </div>
+      <div id="statModalBody"></div>
+    </div>
+  </div>
+
   <script>
     const token = localStorage.getItem('token');
     const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -309,19 +328,89 @@
           <div class="mini-stat-value">${total}</div>
           <div class="mini-stat-label">Total Items</div>
         </div>
-        <div class="mini-stat">
+        <div class="mini-stat clickable" onclick="openStatModal('low')">
           <div class="mini-stat-value" style="color:#c55a11">${lowStock}</div>
           <div class="mini-stat-label">Low Stock</div>
         </div>
-        <div class="mini-stat">
+        <div class="mini-stat clickable" onclick="openStatModal('out')">
           <div class="mini-stat-value" style="color:#c00">${outOfStock}</div>
           <div class="mini-stat-label">Out of Stock</div>
         </div>
-        <div class="mini-stat">
+        <div class="mini-stat clickable" onclick="window.location.href='/suggested?store=${storeId}'">
           <div class="mini-stat-value" style="color:#c55a11">${suggested}</div>
           <div class="mini-stat-label">Need Ordering</div>
         </div>
       `;
+    }
+
+    function openStatModal(type) {
+      let items, title;
+      if (type === 'low') {
+        items = allItems.filter(i => i.clover_qty > 0 && i.clover_qty <= 5 && i.status === 'Active');
+        title = '⚠️ Low Stock Items';
+      } else {
+        items = allItems.filter(i => i.clover_qty <= 0 && i.status === 'Active');
+        title = '🚫 Out of Stock Items';
+      }
+
+      document.getElementById('statModalTitle').textContent = `${title} (${items.length})`;
+      document.getElementById('statModalBody').innerHTML = renderStatItemsList(items);
+      document.getElementById('statModal').classList.add('open');
+    }
+
+    function closeStatModal() {
+      document.getElementById('statModal').classList.remove('open');
+    }
+
+    function renderStatItemsList(items) {
+      if (items.length === 0) return '<div class="empty">No items</div>';
+
+      const categories = {};
+      items.forEach(item => {
+        const cat = item.category || 'No Category';
+        if (!categories[cat]) categories[cat] = [];
+        categories[cat].push(item);
+      });
+
+      return Object.keys(categories).sort().map(catName => {
+        const catItems = categories[catName];
+        const catId = 'modalcat-' + catName.replace(/[^a-zA-Z0-9]/g, '-');
+
+        const rows = catItems.map(item => {
+          const qty = item.clover_qty || 0;
+          const qtyClass = qty < 0 ? 'stock-negative' : qty === 0 ? 'stock-out' : qty <= 5 ? 'stock-low' : 'stock-good';
+          return `
+            <tr>
+              <td class="item-name">${item.variant_name}</td>
+              <td>$${(item.cost || 0).toFixed(2)}</td>
+              <td>$${(item.price || 0).toFixed(2)}</td>
+              <td class="${qtyClass}">${qty}</td>
+              <td>${item.suggested_order > 0 ? `<span class="suggested-badge">Order ${item.suggested_order}</span>` : '—'}</td>
+            </tr>`;
+        }).join('');
+
+        return `
+          <div class="category-section">
+            <div class="category-header" onclick="toggleCategory('${catId}')">
+              ${catName}
+              <span class="category-count">${catItems.length} items</span>
+            </div>
+            <div class="category-body" id="${catId}">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Item / Variant</th>
+                    <th>Cost</th>
+                    <th>Price</th>
+                    <th>Clover Qty</th>
+                    <th>Suggested Order</th>
+                  </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>
+          </div>`;
+      }).join('');
     }
 
     function renderInventory(items) {
@@ -577,6 +666,10 @@
       pendingChanges = {};
       setTimeout(() => cancelEditMode(), 1500);
     }
+
+    document.getElementById('statModal').addEventListener('click', function(e) {
+      if (e.target === this) closeStatModal();
+    });
 
     function toggleCategory(id) {
       const el = document.getElementById(id);
