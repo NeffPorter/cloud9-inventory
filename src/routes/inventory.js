@@ -1,12 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const { createClient } = require('@supabase/supabase-js');
 const { cloverFetch, updateItemPriceAndCost, setStockInClover } = require('../services/clover');
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
+const supabase = require('../lib/supabase');
 
 function cleanVariantName(groupName, fullName) {
   if (!groupName) return (fullName || '').toString().trim();

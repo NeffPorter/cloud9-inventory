@@ -1,15 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const { createClient } = require('@supabase/supabase-js');
 const { fetchFullOrder, fetchOrderRefunds, fetchItem, pushStockToClover, extractLineItems, extractRefundedItems } = require('../services/clover');
 const { calculateSuggestedOrder } = require('../services/suggested');
 const { notify } = require('../services/notify');
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
+const supabase = require('../lib/supabase');
 
 const LOW_STOCK_THRESHOLD = 5;
 

@@ -1,9 +1,4 @@
-const { createClient } = require('@supabase/supabase-js');
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
+const supabase = require('../lib/supabase');
 
 // Create a notification for admins (or a specific store's managers, if store_id given
 // and target_role is 'manager'). type/title/message/link are free-form.
