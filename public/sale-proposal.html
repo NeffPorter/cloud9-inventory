@@ -80,7 +80,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 </div>
 
 <script>
-const token = localStorage.getItem('authToken');
+const token = localStorage.getItem('token');
 const params = new URLSearchParams(location.search);
 const proposalId = params.get('id');
 
@@ -94,9 +94,9 @@ async function api(path, opts = {}) {
 async function init() {
   if (!token || !proposalId) { window.location.href = '/store-tasks'; return; }
 
-  // Get user role
-  const { data: me } = await api('/api/auth/me');
-  userRole = me?.role;
+  // Get user role from localStorage
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  userRole = user?.role;
 
   const { data } = await api(`/api/sale-events/proposals/${proposalId}`);
   proposal = data;

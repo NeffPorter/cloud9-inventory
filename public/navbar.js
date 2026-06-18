@@ -63,19 +63,13 @@ function loadNavbar() {
           </div>
 
           <div class="nav-item" style="position:relative">
-            <button class="nav-btn" onclick="toggleDropdown('schedulesDropdown', this)">🏷️ Discounts <span style="font-size:10px">▼</span></button>
-            <div class="dropdown" id="schedulesDropdown">
-              <div class="dropdown-header">Sale Events</div>
-              <button class="dropdown-item" onclick="window.location.href='/sale-events'">🎯 Sale Schedule</button>
-              <div class="dropdown-header" style="margin-top:4px">Ad-hoc (by store)</div>
+            <button class="nav-btn" onclick="toggleDropdown('salesTasksDropdown', this)">🎯 Sales & Tasks <span style="font-size:10px">▼</span></button>
+            <div class="dropdown" id="salesTasksDropdown">
+              <div class="dropdown-header">Sale Schedule</div>
+              <button class="dropdown-item" onclick="window.location.href='/sale-events'">📅 Manage Sale Events</button>
+              <div class="dropdown-header" style="margin-top:4px">Ad-hoc Discounts</div>
               <div id="schedulesStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
-            </div>
-          </div>
-
-          <div class="nav-item" style="position:relative">
-            <button class="nav-btn" onclick="toggleDropdown('tasksDropdown', this)">✅ Tasks <span style="font-size:10px">▼</span></button>
-            <div class="dropdown" id="tasksDropdown">
-              <div class="dropdown-header">By Store</div>
+              <div class="dropdown-header" style="margin-top:4px">Store To-Do</div>
               <div id="tasksStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
             </div>
           </div>
