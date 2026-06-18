@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Discount Schedules</title>
+<script src="/navbar.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; }
+  #navbar-container { position: sticky; top: 0; z-index: 100; }
+  .page { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+  .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+  .page-title { font-size: 22px; font-weight: 600; }
+  .store-select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: white; }
+  .btn { padding: 9px 18px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: opacity .15s; }
+  .btn:hover { opacity: .85; }
+  .btn-primary { background: #2563eb; color: white; }
+  .btn-danger { background: #dc2626; color: white; }
+  .btn-ghost { background: transparent; border: 1px solid #ddd; color: #444; }
+  .btn-sm { padding: 5px 12px; font-size: 13px; }
+
+  .empty { text-align: center; padding: 60px 20px; color: #888; }
+  .empty-icon { font-size: 48px; margin-bottom: 12px; }
+
+  .schedule-grid { display: grid; gap: 12px; }
+  .schedule-card { background: white; border-radius: 12px; padding: 18px 20px; border: 1px solid #e5e7eb; display: flex; align-items: flex-start; gap: 16px; }
+  .schedule-card:hover { border-color: #2563eb44; }
+  .schedule-info { flex: 1; min-width: 0; }
+  .schedule-name { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+  .schedule-meta { font-size: 13px; color: #666; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .schedule-meta span { display: flex; align-items: center; gap: 4px; }
+  .schedule-actions { display: flex; gap: 8px; flex-shrink: 0; }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .badge-scheduled { background: #dbeafe; color: #1d4ed8; }
+  .badge-active   { background: #dcfce7; color: #16a34a; }
+  .badge-expired  { background: #f3f4f6; color: #6b7280; }
+  .badge-cancelled{ background: #fef2f2; color: #dc2626; }
+
+  /* Modal */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 200; align-items: center; justify-content: center; padding: 16px; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: white; border-radius: 16px; width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; }
+  .modal-header { padding: 20px 24px 0; display: flex; align-items: center; justify-content: space-between; }
+  .modal-header h2 { font-size: 18px; font-weight: 600; }
+  .modal-close { background: none; border: none; font-size: 22px; cursor: pointer; color: #888; padding: 4px 8px; }
+  .modal-body { padding: 20px 24px; display: grid; gap: 16px; }
+  .modal-footer { padding: 0 24px 20px; display: flex; gap: 10px; justify-content: flex-end; }
+
+  .field { display: grid; gap: 6px; }
+  .field label { font-size: 13px; font-weight: 500; color: #555; }
+  .field input, .field select, .field textarea { padding: 9px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; width: 100%; }
+  .field input:focus, .field select:focus { outline: none; border-color: #2563eb; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .type-btns { display: flex; gap: 8px; }
+  .type-btn { flex: 1; padding: 10px; border: 2px solid #e5e7eb; border-radius: 10px; background: white; cursor: pointer; font-size: 13px; font-weight: 500; text-align: center; transition: all .15s; }
+  .type-btn.active { border-color: #2563eb; background: #eff6ff; color: #2563eb; }
+
+  .target-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 20px; font-size: 13px; color: #1d4ed8; }
+  .chip-remove { background: none; border: none; cursor: pointer; color: #6b7280; font-size: 16px; padding: 0; line-height: 1; }
+  .chip-remove:hover { color: #dc2626; }
+  .add-target-row { display: flex; gap: 8px; margin-top: 8px; }
+  .add-target-row select, .add-target-row input { flex: 1; }
+
+  .conflict-banner { background: #fef9c3; border: 1px solid #fde047; border-radius: 8px; padding: 12px 14px; font-size: 13px; color: #854d0e; }
+  .conflict-banner strong { display: block; margin-bottom: 4px; }
+
+  @media (max-width: 600px) {
+    .field-row { grid-template-columns: 1fr; }
+    .schedule-card { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<div id="navbar-container"></div>
+<div class="page">
+  <div class="page-header">
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+      <h1 class="page-title">🏷️ Discount Schedules</h1>
+      <select class="store-select" id="storeSelect" onchange="loadSchedules()">
+        <option value="">Select store...</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" onclick="openCreateModal()">+ New Schedule</button>
+  </div>
+
+  <div id="scheduleGrid" class="schedule-grid">
+    <div class="empty"><div class="empty-icon">🏷️</div><div>Select a store to view discount schedules</div></div>
+  </div>
+</div>
+
+<!-- Create / Edit Modal -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle">New Discount Schedule</h2>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Schedule name</label>
+        <input type="text" id="fName" placeholder="e.g. Summer Sale, Weekly Clearance">
+      </div>
+
+      <div class="field">
+        <label>Discount type</label>
+        <div class="type-btns">
+          <button class="type-btn active" id="btnPercent" onclick="setDiscountType('percent')">% Percentage off</button>
+          <button class="type-btn" id="btnFixed" onclick="setDiscountType('fixed')">$ Fixed amount off</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label id="valueLabel">Percentage off (e.g. 10 for 10%)</label>
+        <input type="number" id="fValue" min="0.01" step="0.01" placeholder="10">
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label>Start date</label>
+          <input type="date" id="fStart">
+        </div>
+        <div class="field">
+          <label>End date</label>
+          <input type="date" id="fEnd">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Apply to</label>
+        <div class="type-btns">
+          <button class="type-btn active" id="btnCategory" onclick="setTargetType('category')">Category</button>
+          <button class="type-btn" id="btnItemGroup" onclick="setTargetType('item_group')">Item Group</button>
+          <button class="type-btn" id="btnItem" onclick="setTargetType('item')">Specific Items</button>
+        </div>
+      </div>
+
+      <div class="field" id="targetPickerField">
+        <label id="targetPickerLabel">Select categories</label>
+        <div class="add-target-row">
+          <select id="targetSelect">
+            <option value="">Loading...</option>
+          </select>
+          <button class="btn btn-ghost btn-sm" onclick="addTarget()">Add</button>
+        </div>
+        <div class="target-chips" id="targetChips"></div>
+      </div>
+
+      <div id="conflictBanner" style="display:none" class="conflict-banner">
+        <strong>⚠️ Schedule conflict detected</strong>
+        <span id="conflictDetails"></span>
+        <div style="margin-top:8px">
+          <button class="btn btn-ghost btn-sm" onclick="saveSchedule(true)">Save anyway</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSchedule(false)" id="saveBtn">Create Schedule</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem('authToken');
+let stores = [], currentStoreId = null;
+let discountType = 'percent', targetType = 'category';
+let selectedTargets = []; // [{id, label}]
+let allItems = [], allCategories = [], allGroups = [];
+let editingId = null;
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, { headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, ...opts });
+  return res.json();
+}
+
+async function init() {
+  if (!token) { window.location.href = '/'; return; }
+  const data = await api('/api/inventory/stores');
+  stores = data.stores || [];
+
+  const sel = document.getElementById('storeSelect');
+  sel.innerHTML = '<option value="">Select store...</option>' + stores.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+
+  const params = new URLSearchParams(location.search);
+  if (params.get('store')) { sel.value = params.get('store'); loadSchedules(); }
+}
+
+async function loadSchedules() {
+  const sel = document.getElementById('storeSelect');
+  currentStoreId = sel.value;
+  const grid = document.getElementById('scheduleGrid');
+  if (!currentStoreId) { grid.innerHTML = '<div class="empty"><div class="empty-icon">🏷️</div><div>Select a store to view discount schedules</div></div>'; return; }
+
+  grid.innerHTML = '<div style="padding:40px;text-align:center;color:#888">Loading...</div>';
+  const schedules = await api(`/api/schedules?store_id=${currentStoreId}`);
+
+  if (!Array.isArray(schedules) || schedules.length === 0) {
+    grid.innerHTML = '<div class="empty"><div class="empty-icon">🏷️</div><div>No discount schedules yet.<br><small>Create one to automatically apply discounts to Clover items on a date range.</small></div></div>';
+    return;
+  }
+
+  grid.innerHTML = schedules.map(s => {
+    const statusClass = `badge-${s.status}`;
+    const typeLabel = s.discount_type === 'percent' ? `${s.discount_value}% off` : `$${Number(s.discount_value).toFixed(2)} off`;
+    const targetLabel = s.target_type === 'category' ? 'Categories' : s.target_type === 'item_group' ? 'Item Groups' : 'Items';
+    const targets = (s.target_ids || []).join(', ');
+    const canCancel = s.status === 'scheduled' || s.status === 'active';
+    return `
+    <div class="schedule-card">
+      <div class="schedule-info">
+        <div class="schedule-name">${s.name}</div>
+        <div class="schedule-meta">
+          <span><span class="badge ${statusClass}">${s.status}</span></span>
+          <span>🏷️ ${typeLabel}</span>
+          <span>📅 ${s.start_date} → ${s.end_date}</span>
+          <span>🎯 ${targetLabel}: ${targets || '—'}</span>
+          ${s.status === 'active' && s.applied_item_ids?.length ? `<span>✅ ${s.applied_item_ids.length} items on Clover</span>` : ''}
+        </div>
+      </div>
+      <div class="schedule-actions">
+        ${canCancel ? `<button class="btn btn-danger btn-sm" onclick="cancelSchedule('${s.id}', '${s.name.replace(/'/g,"\\'")}')">Cancel</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  // Preload inventory data for the modal
+  await preloadInventoryData();
+}
+
+async function preloadInventoryData() {
+  if (!currentStoreId) return;
+  const items = await api(`/api/inventory/items?store_id=${currentStoreId}`);
+  allItems = items.items || items || [];
+  const catSet = new Set(), groupSet = new Set();
+  allItems.forEach(i => { if (i.category) catSet.add(i.category); if (i.item_group) groupSet.add(i.item_group); });
+  allCategories = [...catSet].sort();
+  allGroups = [...groupSet].sort();
+}
+
+function openCreateModal() {
+  if (!currentStoreId) { alert('Select a store first'); return; }
+  editingId = null;
+  document.getElementById('modalTitle').textContent = 'New Discount Schedule';
+  document.getElementById('saveBtn').textContent = 'Create Schedule';
+  document.getElementById('fName').value = '';
+  document.getElementById('fValue').value = '';
+  document.getElementById('fStart').value = '';
+  document.getElementById('fEnd').value = '';
+  document.getElementById('conflictBanner').style.display = 'none';
+  selectedTargets = [];
+  setDiscountType('percent');
+  setTargetType('category');
+  renderChips();
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('open');
+}
+
+function setDiscountType(type) {
+  discountType = type;
+  document.getElementById('btnPercent').classList.toggle('active', type === 'percent');
+  document.getElementById('btnFixed').classList.toggle('active', type === 'fixed');
+  document.getElementById('valueLabel').textContent = type === 'percent' ? 'Percentage off (e.g. 10 for 10%)' : 'Fixed amount off in dollars (e.g. 2.00)';
+  document.getElementById('fValue').placeholder = type === 'percent' ? '10' : '2.00';
+}
+
+function setTargetType(type) {
+  targetType = type;
+  selectedTargets = [];
+  document.getElementById('btnCategory').classList.toggle('active', type === 'category');
+  document.getElementById('btnItemGroup').classList.toggle('active', type === 'item_group');
+  document.getElementById('btnItem').classList.toggle('active', type === 'item');
+
+  const sel = document.getElementById('targetSelect');
+  document.getElementById('targetPickerLabel').textContent = type === 'category' ? 'Select categories' : type === 'item_group' ? 'Select item groups' : 'Select items';
+
+  if (type === 'category') {
+    sel.innerHTML = '<option value="">— pick a category —</option>' + allCategories.map(c => `<option value="${c}">${c}</option>`).join('');
+  } else if (type === 'item_group') {
+    sel.innerHTML = '<option value="">— pick a group —</option>' + allGroups.map(g => `<option value="${g}">${g}</option>`).join('');
+  } else {
+    sel.innerHTML = '<option value="">— pick an item —</option>' + allItems.map(i => `<option value="${i.id}">${i.name}${i.sku ? ' (' + i.sku + ')' : ''}</option>`).join('');
+  }
+  renderChips();
+}
+
+function addTarget() {
+  const sel = document.getElementById('targetSelect');
+  const val = sel.value, label = sel.options[sel.selectedIndex]?.text;
+  if (!val) return;
+  if (selectedTargets.find(t => t.id === val)) return;
+  selectedTargets.push({ id: val, label: targetType === 'item' ? label : val });
+  sel.value = '';
+  renderChips();
+}
+
+function removeTarget(id) {
+  selectedTargets = selectedTargets.filter(t => t.id !== id);
+  renderChips();
+}
+
+function renderChips() {
+  document.getElementById('targetChips').innerHTML = selectedTargets.map(t =>
+    `<div class="chip">${t.label}<button class="chip-remove" onclick="removeTarget('${t.id}')">×</button></div>`
+  ).join('');
+}
+
+async function saveSchedule(force = false) {
+  const name = document.getElementById('fName').value.trim();
+  const value = parseFloat(document.getElementById('fValue').value);
+  const start = document.getElementById('fStart').value;
+  const end = document.getElementById('fEnd').value;
+
+  if (!name || !value || !start || !end || selectedTargets.length === 0) {
+    alert('Please fill in all fields and add at least one target.');
+    return;
+  }
+  if (end < start) { alert('End date must be after start date.'); return; }
+
+  document.getElementById('saveBtn').disabled = true;
+  document.getElementById('saveBtn').textContent = 'Saving...';
+
+  const payload = {
+    store_id: currentStoreId,
+    name,
+    discount_type: discountType,
+    discount_value: value,
+    start_date: start,
+    end_date: end,
+    target_type: targetType,
+    target_ids: selectedTargets.map(t => t.id),
+    force
+  };
+
+  const url = editingId ? `/api/schedules/${editingId}` : '/api/schedules';
+  const method = editingId ? 'PUT' : 'POST';
+  const res = await fetch(url, {
+    method,
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+
+  document.getElementById('saveBtn').disabled = false;
+  document.getElementById('saveBtn').textContent = editingId ? 'Save Changes' : 'Create Schedule';
+
+  if (res.status === 409 && data.conflicts) {
+    const details = data.conflicts.map(c => `"${c.schedule}" (${c.overlappingCount} item${c.overlappingCount !== 1 ? 's' : ''} overlap)`).join(', ');
+    document.getElementById('conflictDetails').textContent = details;
+    document.getElementById('conflictBanner').style.display = 'block';
+    return;
+  }
+
+  if (!res.ok) { alert('Error: ' + (data.error || 'Unknown error')); return; }
+
+  closeModal();
+  loadSchedules();
+}
+
+async function cancelSchedule(id, name) {
+  if (!confirm(`Cancel the discount schedule "${name}"? If it's active on Clover, the discount will be removed from all items.`)) return;
+  const res = await fetch(`/api/schedules/${id}`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
+  if (res.ok) { loadSchedules(); } else { alert('Failed to cancel schedule'); }
+}
+
+document.getElementById('modalOverlay').addEventListener('click', e => { if (e.target === document.getElementById('modalOverlay')) closeModal(); });
+
+init();
+</script>
+</body>
+</html>

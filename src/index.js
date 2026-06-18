@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
+const cron = require('node-cron');
 
 dotenv.config();
 
@@ -17,6 +18,12 @@ app.use('/api/distributors', require('./routes/distributors'));
 app.use('/api/sales', require('./routes/sales'));
 app.use('/api/budgets', require('./routes/budgets'));
 app.use('/api/notifications', require('./routes/notifications'));
+const schedulesRouter = require('./routes/schedules');
+app.use('/api/schedules', schedulesRouter);
+const saleEventsRouter = require('./routes/sale-events');
+app.use('/api/sale-events', saleEventsRouter);
+const storeTasksRouter = require('./routes/store-tasks');
+app.use('/api/store-tasks', storeTasksRouter);
 
 // Static files
 app.use(express.static(path.join(__dirname, '../public')));
@@ -51,6 +58,23 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
+// Discount schedule cron (ad-hoc) — daily at midnight
+cron.schedule('0 0 * * *', () => {
+  schedulesRouter.runCron().catch(err => console.error('Discount cron error:', err.message));
+});
+schedulesRouter.runCron().catch(err => console.error('Discount cron startup error:', err.message));
+
+// Sale events cron — daily at 1am (apply/remove Clover discounts on start/end date)
+cron.schedule('0 1 * * *', () => {
+  saleEventsRouter.runSaleEventCron().catch(err => console.error('Sale events cron error:', err.message));
+});
+saleEventsRouter.runSaleEventCron().catch(err => console.error('Sale events cron startup error:', err.message));
+
+// Stocktake task cron — 1st of every month at 6am
+cron.schedule('0 6 1 * *', () => {
+  storeTasksRouter.runStocktakeCron().catch(err => console.error('Stocktake cron error:', err.message));
+});
 app.get('/stocktake/new', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/stocktake-new.html'));
 });
@@ -83,6 +107,18 @@ app.get('/budget-view', (req, res) => {
 });
 app.get('/activity-log', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/activity-log.html'));
+});
+app.get('/schedules', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/schedules.html'));
+});
+app.get('/sale-events', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/sale-events.html'));
+});
+app.get('/sale-proposal', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/sale-proposal.html'));
+});
+app.get('/store-tasks', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/store-tasks.html'));
 });
 
 module.exports = app;

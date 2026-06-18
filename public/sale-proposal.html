@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sale Proposal</title>
+<script src="/navbar.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; }
+#navbar-container { position: sticky; top: 0; z-index: 100; }
+.page { max-width: 860px; margin: 0 auto; padding: 24px 16px; }
+.back-link { font-size: 13px; color: #2563eb; cursor: pointer; margin-bottom: 16px; display: inline-block; }
+.back-link:hover { text-decoration: underline; }
+.page-title { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+.page-sub { font-size: 14px; color: #666; margin-bottom: 20px; }
+
+.info-card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; padding: 18px 20px; margin-bottom: 16px; }
+.info-card h3 { font-size: 14px; font-weight: 600; color: #555; margin-bottom: 10px; }
+.info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.info-item { font-size: 13px; }
+.info-label { color: #888; font-size: 12px; margin-bottom: 2px; }
+.info-value { font-weight: 500; }
+
+.badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+.badge-pending { background: #fef9c3; color: #854d0e; }
+.badge-submitted { background: #dbeafe; color: #1d4ed8; }
+.badge-approved { background: #dcfce7; color: #16a34a; }
+.badge-rejected { background: #fef2f2; color: #dc2626; }
+.badge-under_review { background: #ede9fe; color: #6d28d9; }
+
+.him-feedback { background: #fef9c3; border: 1px solid #fde047; border-radius: 10px; padding: 14px 16px; margin-bottom: 16px; font-size: 13px; }
+.him-feedback strong { display: block; margin-bottom: 4px; color: #854d0e; }
+
+.items-card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; padding: 18px 20px; margin-bottom: 16px; }
+.items-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
+.item-row { display: grid; grid-template-columns: 1fr auto auto auto; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f0f0f0; }
+.item-row:last-child { border-bottom: none; }
+.item-name { font-size: 14px; font-weight: 500; }
+.item-sku { font-size: 12px; color: #888; }
+.discount-type-toggle { display: flex; gap: 4px; }
+.dt-btn { padding: 4px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; cursor: pointer; background: white; }
+.dt-btn.active { background: #2563eb; color: white; border-color: #2563eb; }
+.discount-input { width: 90px; padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; }
+.remove-btn { background: none; border: none; cursor: pointer; color: #dc2626; font-size: 18px; padding: 2px 6px; }
+.remove-btn:hover { background: #fef2f2; border-radius: 4px; }
+
+.add-item-bar { display: flex; gap: 10px; margin-top: 14px; }
+.add-item-bar select { flex: 1; padding: 9px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+.btn { padding: 9px 18px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: opacity .15s; }
+.btn:hover { opacity: .85; }
+.btn-primary { background: #2563eb; color: white; }
+.btn-success { background: #16a34a; color: white; }
+.btn-ghost { background: transparent; border: 1px solid #ddd; color: #444; }
+.btn-sm { padding: 5px 12px; font-size: 13px; }
+
+.notes-card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; padding: 18px 20px; margin-bottom: 16px; }
+.notes-card label { font-size: 13px; font-weight: 500; color: #555; display: block; margin-bottom: 6px; }
+.notes-card textarea { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; resize: vertical; min-height: 80px; }
+.notes-card textarea:focus { outline: none; border-color: #2563eb; }
+
+.action-bar { display: flex; gap: 12px; justify-content: flex-end; flex-wrap: wrap; }
+
+.empty-items { text-align: center; padding: 30px; color: #888; font-size: 14px; }
+
+@media (max-width: 600px) {
+  .item-row { grid-template-columns: 1fr; gap: 6px; }
+  .add-item-bar { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+<div id="navbar-container"></div>
+<div class="page">
+  <div class="back-link" onclick="history.back()">← Back to To-Do</div>
+
+  <div id="pageContent">
+    <div style="text-align:center;padding:60px 20px;color:#888">Loading proposal...</div>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem('authToken');
+const params = new URLSearchParams(location.search);
+const proposalId = params.get('id');
+
+let proposal = null, allItems = [], proposalItems = [], userRole = null;
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, { headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, ...opts });
+  return { ok: res.ok, data: await res.json() };
+}
+
+async function init() {
+  if (!token || !proposalId) { window.location.href = '/store-tasks'; return; }
+
+  // Get user role
+  const { data: me } = await api('/api/auth/me');
+  userRole = me?.role;
+
+  const { data } = await api(`/api/sale-events/proposals/${proposalId}`);
+  proposal = data;
+  proposalItems = (data.items || []).map(i => ({ ...i, _tempId: Math.random() }));
+
+  // Load inventory items for this store
+  const { data: inv } = await api(`/api/inventory/items?store_id=${data.store_id}`);
+  allItems = inv?.items || inv || [];
+
+  render();
+}
+
+function render() {
+  if (!proposal) return;
+  const ev = proposal.sale_events || {};
+  const isEditable = (proposal.status === 'pending' || proposal.status === 'rejected') && userRole !== 'admin' || userRole === 'admin';
+  const isAdmin = userRole === 'admin';
+
+  const today = new Date().toISOString().split('T')[0];
+  const dueDate = ev.proposal_due_date;
+  const isOverdue = dueDate && dueDate < today && proposal.status === 'pending';
+
+  document.getElementById('pageContent').innerHTML = `
+    <h1 class="page-title">${ev.name || 'Sale Proposal'}</h1>
+    <div class="page-sub">${proposal.stores?.name || ''} · <span class="badge badge-${proposal.status}">${proposal.status}</span></div>
+
+    ${proposal.him_notes && (proposal.status === 'rejected') ? `
+    <div class="him-feedback">
+      <strong>📋 Feedback from Head Inventory Manager</strong>
+      ${proposal.him_notes}
+    </div>` : ''}
+
+    <div class="info-card">
+      <h3>Sale Details</h3>
+      <div class="info-grid">
+        <div class="info-item"><div class="info-label">Sale dates</div><div class="info-value">${ev.start_date} → ${ev.end_date}</div></div>
+        <div class="info-item"><div class="info-label">Proposal due</div><div class="info-value ${isOverdue ? 'overdue' : ''}">${dueDate || '—'}${isOverdue ? ' ⚠️' : ''}</div></div>
+        <div class="info-item"><div class="info-label">Purpose</div><div class="info-value">${ev.purpose || ev.description || '—'}</div></div>
+      </div>
+    </div>
+
+    <div class="items-card">
+      <h3>Items to Put on Sale</h3>
+      <div id="itemRows">
+        ${proposalItems.length === 0
+          ? '<div class="empty-items">No items added yet. Use the selector below to add items.</div>'
+          : proposalItems.map(renderItemRow).join('')}
+      </div>
+      ${isEditable ? `
+      <div class="add-item-bar">
+        <select id="itemSelect">
+          <option value="">— search and add an item —</option>
+          ${allItems.map(i => `<option value="${i.id}" data-clover="${i.clover_item_id || ''}" data-sku="${i.sku || ''}">${i.name}${i.sku ? ' ('+i.sku+')' : ''}</option>`).join('')}
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="addItem()">+ Add</button>
+      </div>` : ''}
+    </div>
+
+    <div class="notes-card">
+      <label>Notes for Head Inventory Manager</label>
+      <textarea id="storeNotes" placeholder="Any context, special requests, or notes about your proposal..." ${!isEditable ? 'readonly style="background:#f9fafb"' : ''}>${proposal.store_notes || ''}</textarea>
+    </div>
+
+    <div class="action-bar">
+      ${isEditable && proposal.status !== 'approved' ? `
+        <button class="btn btn-ghost" onclick="saveDraft()">Save Draft</button>
+        <button class="btn btn-primary" onclick="submitProposal()">Submit for Approval</button>
+      ` : ''}
+      ${isAdmin && proposal.status === 'submitted' ? `
+        <button class="btn btn-ghost" onclick="window.location.href='/sale-events'">Back to Sale Events</button>
+      ` : ''}
+      ${proposal.status === 'approved' ? `
+        <div style="color:#16a34a;font-weight:600;font-size:14px">✅ This proposal has been approved. Discounts will apply on ${ev.start_date}.</div>
+      ` : ''}
+    </div>`;
+}
+
+function renderItemRow(item) {
+  const tid = item._tempId;
+  const isPercent = item.discount_type === 'percent';
+  const canEdit = (proposal.status === 'pending' || proposal.status === 'rejected');
+  return `
+  <div class="item-row" id="irow-${tid}">
+    <div>
+      <div class="item-name">${item.item_name}</div>
+      ${item.sku ? `<div class="item-sku">${item.sku}</div>` : ''}
+    </div>
+    <div class="discount-type-toggle">
+      <button class="dt-btn ${isPercent ? 'active' : ''}" onclick="toggleType('${tid}', 'percent')" ${canEdit ? '' : 'disabled'}>%</button>
+      <button class="dt-btn ${!isPercent ? 'active' : ''}" onclick="toggleType('${tid}', 'fixed')" ${canEdit ? '' : 'disabled'}>$</button>
+    </div>
+    <input class="discount-input" type="number" min="0.01" step="0.01" value="${item.discount_value || ''}"
+      placeholder="${isPercent ? '10' : '2.00'}" id="dval-${tid}"
+      onchange="updateValue('${tid}', this.value)" ${canEdit ? '' : 'readonly style="background:#f9fafb"'}>
+    ${canEdit ? `<button class="remove-btn" onclick="removeItem('${tid}')">×</button>` : '<div></div>'}
+  </div>`;
+}
+
+function addItem() {
+  const sel = document.getElementById('itemSelect');
+  const itemId = sel.value;
+  if (!itemId) return;
+  const opt = sel.options[sel.selectedIndex];
+  const name = opt.text.split(' (')[0];
+  const sku = opt.dataset.sku;
+  const cloverId = opt.dataset.clover;
+  const _tempId = Math.random();
+  proposalItems.push({ _tempId, inventory_item_id: itemId, clover_item_id: cloverId, item_name: name, sku, discount_type: 'percent', discount_value: '' });
+  sel.value = '';
+  refreshItemRows();
+}
+
+function removeItem(tid) {
+  proposalItems = proposalItems.filter(i => i._tempId != tid);
+  refreshItemRows();
+}
+
+function toggleType(tid, type) {
+  const item = proposalItems.find(i => i._tempId == tid);
+  if (item) { item.discount_type = type; refreshItemRows(); }
+}
+
+function updateValue(tid, val) {
+  const item = proposalItems.find(i => i._tempId == tid);
+  if (item) item.discount_value = parseFloat(val) || '';
+}
+
+function refreshItemRows() {
+  document.getElementById('itemRows').innerHTML = proposalItems.length === 0
+    ? '<div class="empty-items">No items added yet. Use the selector below to add items.</div>'
+    : proposalItems.map(renderItemRow).join('');
+}
+
+function collectItems() {
+  // Sync discount_value from DOM
+  proposalItems.forEach(item => {
+    const el = document.getElementById(`dval-${item._tempId}`);
+    if (el) item.discount_value = parseFloat(el.value) || 0;
+  });
+  return proposalItems;
+}
+
+async function saveDraft() {
+  const items = collectItems();
+  const store_notes = document.getElementById('storeNotes').value.trim();
+  const { ok, data } = await api(`/api/sale-events/proposals/${proposalId}/items`, {
+    method: 'PUT',
+    body: JSON.stringify({ items, store_notes })
+  });
+  if (ok) { showToast('Draft saved'); }
+  else { alert('Error: ' + (data.error || 'Unknown')); }
+}
+
+async function submitProposal() {
+  const items = collectItems();
+  if (items.length === 0) { alert('Add at least one item before submitting.'); return; }
+  const invalid = items.find(i => !i.discount_value || i.discount_value <= 0);
+  if (invalid) { alert(`Set a discount value for "${invalid.item_name}" before submitting.`); return; }
+
+  const store_notes = document.getElementById('storeNotes').value.trim();
+  await api(`/api/sale-events/proposals/${proposalId}/items`, {
+    method: 'PUT',
+    body: JSON.stringify({ items, store_notes })
+  });
+
+  const { ok, data } = await api(`/api/sale-events/proposals/${proposalId}/submit`, { method: 'POST', body: '{}' });
+  if (ok) {
+    alert('Proposal submitted! The Head Inventory Manager will review it.');
+    window.location.href = '/store-tasks';
+  } else {
+    alert('Error: ' + (data.error || 'Unknown'));
+  }
+}
+
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.textContent = msg;
+  t.style.cssText = 'position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:white;padding:10px 20px;border-radius:8px;font-size:14px;z-index:9999;';
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2500);
+}
+
+init();
+</script>
+</body>
+</html>

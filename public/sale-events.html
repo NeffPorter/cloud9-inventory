@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sale Schedule</title>
+<script src="/navbar.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; }
+#navbar-container { position: sticky; top: 0; z-index: 100; }
+.page { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+.page-title { font-size: 22px; font-weight: 600; }
+.btn { padding: 9px 18px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: opacity .15s; }
+.btn:hover { opacity: .85; }
+.btn-primary { background: #2563eb; color: white; }
+.btn-success { background: #16a34a; color: white; }
+.btn-danger { background: #dc2626; color: white; }
+.btn-warning { background: #d97706; color: white; }
+.btn-ghost { background: transparent; border: 1px solid #ddd; color: #444; }
+.btn-sm { padding: 5px 12px; font-size: 13px; }
+.badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+.badge-draft { background: #f3f4f6; color: #6b7280; }
+.badge-active { background: #dcfce7; color: #16a34a; }
+.badge-completed { background: #dbeafe; color: #1d4ed8; }
+.badge-cancelled { background: #fef2f2; color: #dc2626; }
+.badge-pending { background: #fef9c3; color: #854d0e; }
+.badge-submitted { background: #dbeafe; color: #1d4ed8; }
+.badge-approved { background: #dcfce7; color: #16a34a; }
+.badge-rejected { background: #fef2f2; color: #dc2626; }
+.badge-under_review { background: #ede9fe; color: #6d28d9; }
+
+.empty { text-align: center; padding: 60px 20px; color: #888; }
+.empty-icon { font-size: 48px; margin-bottom: 12px; }
+
+/* Event cards */
+.event-card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; margin-bottom: 12px; overflow: hidden; }
+.event-card-header { padding: 18px 20px; display: flex; align-items: flex-start; gap: 16px; cursor: pointer; }
+.event-card-header:hover { background: #fafafa; }
+.event-info { flex: 1; min-width: 0; }
+.event-name { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.event-meta { font-size: 13px; color: #666; display: flex; flex-wrap: wrap; gap: 10px; }
+.event-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.event-body { padding: 0 20px 18px; border-top: 1px solid #f0f0f0; display: none; }
+.event-body.open { display: block; padding-top: 16px; }
+
+/* Proposal mini-list */
+.proposal-list { display: grid; gap: 8px; }
+.proposal-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #fafafa; border: 1px solid #e5e7eb; border-radius: 8px; }
+.proposal-store { font-size: 14px; font-weight: 500; flex: 1; }
+.proposal-actions { display: flex; gap: 8px; }
+
+/* Modal */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 200; align-items: center; justify-content: center; padding: 16px; }
+.modal-overlay.open { display: flex; }
+.modal { background: white; border-radius: 16px; width: 100%; max-width: 580px; max-height: 90vh; overflow-y: auto; }
+.modal-header { padding: 20px 24px 0; display: flex; align-items: center; justify-content: space-between; }
+.modal-header h2 { font-size: 18px; font-weight: 600; }
+.modal-close { background: none; border: none; font-size: 22px; cursor: pointer; color: #888; }
+.modal-body { padding: 20px 24px; display: grid; gap: 14px; }
+.modal-footer { padding: 0 24px 20px; display: flex; gap: 10px; justify-content: flex-end; }
+.field { display: grid; gap: 6px; }
+.field label { font-size: 13px; font-weight: 500; color: #555; }
+.field input, .field select, .field textarea { padding: 9px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; width: 100%; }
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: #2563eb; }
+.field textarea { resize: vertical; min-height: 70px; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.store-checkboxes { display: grid; gap: 6px; }
+.store-check { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; }
+.store-check input { width: 16px; height: 16px; cursor: pointer; }
+.store-check:hover { background: #f9fafb; }
+
+/* Review modal */
+.review-items { display: grid; gap: 6px; margin-top: 8px; }
+.review-item-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: #f9fafb; border-radius: 6px; font-size: 13px; }
+.review-item-name { flex: 1; font-weight: 500; }
+.review-discount { color: #16a34a; font-weight: 600; }
+</style>
+</head>
+<body>
+<div id="navbar-container"></div>
+<div class="page">
+  <div class="page-header">
+    <h1 class="page-title">🎯 Sale Schedule</h1>
+    <button class="btn btn-primary" onclick="openCreateModal()">+ New Sale Event</button>
+  </div>
+  <div id="eventList"><div class="empty"><div class="empty-icon">🎯</div><div>Loading...</div></div></div>
+</div>
+
+<!-- Create Event Modal -->
+<div class="modal-overlay" id="createModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="createModalTitle">New Sale Event</h2>
+      <button class="modal-close" onclick="closeCreateModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Sale name</label>
+        <input type="text" id="fName" placeholder="e.g. Summer Clearance 2026">
+      </div>
+      <div class="field">
+        <label>Purpose / description</label>
+        <textarea id="fPurpose" placeholder="What is this sale for? Any notes for store managers..."></textarea>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Sale start date</label>
+          <input type="date" id="fStart">
+        </div>
+        <div class="field">
+          <label>Sale end date</label>
+          <input type="date" id="fEnd">
+        </div>
+      </div>
+      <div class="field">
+        <label>Proposal due date <small style="color:#888">(deadline for stores to submit)</small></label>
+        <input type="date" id="fDue">
+      </div>
+      <div class="field">
+        <label>Assign to stores</label>
+        <div class="store-checkboxes" id="storeCheckboxes">
+          <div style="color:#888;font-size:13px">Loading stores...</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeCreateModal()">Cancel</button>
+      <button class="btn btn-primary" id="createSaveBtn" onclick="saveEvent()">Create Sale Event</button>
+    </div>
+  </div>
+</div>
+
+<!-- Review Proposal Modal -->
+<div class="modal-overlay" id="reviewModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="reviewTitle">Review Proposal</h2>
+      <button class="modal-close" onclick="closeReviewModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="reviewStoreInfo" style="font-size:13px;color:#666;margin-bottom:4px"></div>
+      <div id="reviewStatusBadge"></div>
+      <div class="field" style="margin-top:12px">
+        <label>Proposed items & discounts</label>
+        <div class="review-items" id="reviewItems"></div>
+      </div>
+      <div id="reviewStoreNotes" style="display:none" class="field">
+        <label>Store notes</label>
+        <div id="reviewStoreNotesText" style="background:#f9fafb;padding:10px;border-radius:8px;font-size:13px;"></div>
+      </div>
+      <div class="field">
+        <label>Your notes / feedback <small style="color:#888">(visible to store)</small></label>
+        <textarea id="reviewHimNotes" placeholder="Optional feedback or adjustments..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer" id="reviewFooter">
+      <button class="btn btn-ghost" onclick="closeReviewModal()">Cancel</button>
+      <button class="btn btn-danger btn-sm" onclick="rejectProposal()">Send Back for Revision</button>
+      <button class="btn btn-success" onclick="approveProposal()">Approve</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem('authToken');
+let allStores = [], events = [], reviewingProposalId = null, editingEventId = null;
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, { headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, ...opts });
+  return res.json();
+}
+
+async function init() {
+  if (!token) { window.location.href = '/'; return; }
+  const storeData = await api('/api/inventory/stores');
+  allStores = storeData.stores || [];
+  await loadEvents();
+}
+
+async function loadEvents() {
+  const list = document.getElementById('eventList');
+  list.innerHTML = '<div class="empty"><div class="empty-icon">🎯</div><div>Loading...</div></div>';
+  events = await api('/api/sale-events');
+
+  if (!Array.isArray(events) || events.length === 0) {
+    list.innerHTML = '<div class="empty"><div class="empty-icon">🎯</div><div>No sale events yet.<br><small>Create one to assign discount proposals to your stores.</small></div></div>';
+    return;
+  }
+
+  list.innerHTML = events.map(ev => {
+    const proposalSummary = buildProposalSummary(ev.proposals || []);
+    return `
+    <div class="event-card" id="event-${ev.id}">
+      <div class="event-card-header" onclick="toggleEvent('${ev.id}')">
+        <div class="event-info">
+          <div class="event-name">${ev.name} <span class="badge badge-${ev.status}">${ev.status}</span></div>
+          <div class="event-meta">
+            <span>📅 ${ev.start_date} → ${ev.end_date}</span>
+            <span>🗓️ Proposals due ${ev.proposal_due_date}</span>
+            <span>🏪 ${(ev.assigned_stores || []).map(s=>s.name).join(', ') || 'No stores'}</span>
+            <span>${proposalSummary}</span>
+          </div>
+        </div>
+        <div class="event-actions" onclick="event.stopPropagation()">
+          <button class="btn btn-ghost btn-sm" onclick="openEditModal('${ev.id}')">Edit</button>
+        </div>
+      </div>
+      <div class="event-body" id="body-${ev.id}">
+        <div style="font-size:13px;color:#555;margin-bottom:12px">${ev.purpose || ev.description || '<em style="color:#999">No description</em>'}</div>
+        <div class="proposal-list">
+          ${(ev.proposals || []).map(p => {
+            const store = allStores.find(s => s.id === p.store_id) || { name: 'Unknown Store' };
+            return `
+            <div class="proposal-row">
+              <div class="proposal-store">${store.name}</div>
+              <span class="badge badge-${p.status}">${p.status}</span>
+              <div class="proposal-actions">
+                ${(p.status === 'submitted' || p.status === 'under_review') ? `<button class="btn btn-primary btn-sm" onclick="openReview('${p.id}')">Review</button>` : ''}
+                ${p.status === 'approved' ? `<button class="btn btn-ghost btn-sm" onclick="openReview('${p.id}')">View</button>` : ''}
+                ${p.status === 'pending' || p.status === 'rejected' ? `<span style="font-size:12px;color:#888">Awaiting submission</span>` : ''}
+              </div>
+            </div>`;
+          }).join('') || '<div style="color:#999;font-size:13px;padding:8px 0">No stores assigned yet</div>'}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function buildProposalSummary(proposals) {
+  if (!proposals.length) return '📋 No proposals';
+  const approved = proposals.filter(p => p.status === 'approved').length;
+  const submitted = proposals.filter(p => p.status === 'submitted' || p.status === 'under_review').length;
+  const pending = proposals.filter(p => p.status === 'pending' || p.status === 'rejected').length;
+  const parts = [];
+  if (approved) parts.push(`✅ ${approved} approved`);
+  if (submitted) parts.push(`⏳ ${submitted} awaiting review`);
+  if (pending) parts.push(`📝 ${pending} pending`);
+  return parts.join(' · ');
+}
+
+function toggleEvent(id) {
+  const body = document.getElementById(`body-${id}`);
+  body.classList.toggle('open');
+}
+
+// ── Create / Edit Modal ────────────────────────────────────────────────────
+function openCreateModal() {
+  editingEventId = null;
+  document.getElementById('createModalTitle').textContent = 'New Sale Event';
+  document.getElementById('createSaveBtn').textContent = 'Create Sale Event';
+  document.getElementById('fName').value = '';
+  document.getElementById('fPurpose').value = '';
+  document.getElementById('fStart').value = '';
+  document.getElementById('fEnd').value = '';
+  document.getElementById('fDue').value = '';
+  renderStoreCheckboxes([]);
+  document.getElementById('createModal').classList.add('open');
+}
+
+async function openEditModal(eventId) {
+  editingEventId = eventId;
+  const ev = events.find(e => e.id === eventId);
+  if (!ev) return;
+  document.getElementById('createModalTitle').textContent = 'Edit Sale Event';
+  document.getElementById('createSaveBtn').textContent = 'Save Changes';
+  document.getElementById('fName').value = ev.name;
+  document.getElementById('fPurpose').value = ev.purpose || ev.description || '';
+  document.getElementById('fStart').value = ev.start_date;
+  document.getElementById('fEnd').value = ev.end_date;
+  document.getElementById('fDue').value = ev.proposal_due_date;
+  const assignedIds = (ev.assigned_stores || []).map(s => s.id);
+  renderStoreCheckboxes(assignedIds);
+  document.getElementById('createModal').classList.add('open');
+}
+
+function renderStoreCheckboxes(checkedIds) {
+  document.getElementById('storeCheckboxes').innerHTML = allStores.map(s =>
+    `<label class="store-check">
+      <input type="checkbox" value="${s.id}" ${checkedIds.includes(s.id) ? 'checked' : ''}>
+      ${s.name}
+    </label>`
+  ).join('') || '<div style="color:#888;font-size:13px">No stores found</div>';
+}
+
+function closeCreateModal() { document.getElementById('createModal').classList.remove('open'); }
+
+async function saveEvent() {
+  const name = document.getElementById('fName').value.trim();
+  const purpose = document.getElementById('fPurpose').value.trim();
+  const start_date = document.getElementById('fStart').value;
+  const end_date = document.getElementById('fEnd').value;
+  const proposal_due_date = document.getElementById('fDue').value;
+  const store_ids = [...document.querySelectorAll('#storeCheckboxes input:checked')].map(el => el.value);
+
+  if (!name || !start_date || !end_date || !proposal_due_date) {
+    alert('Please fill in name, dates, and proposal due date.'); return;
+  }
+
+  const btn = document.getElementById('createSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+
+  const payload = { name, description: purpose, purpose, start_date, end_date, proposal_due_date, store_ids };
+
+  let res, data;
+  if (editingEventId) {
+    res = await fetch(`/api/sale-events/${editingEventId}`, { method: 'PUT', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    data = await res.json();
+    if (res.ok && store_ids.length) {
+      await fetch(`/api/sale-events/${editingEventId}/stores`, { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ store_ids }) });
+    }
+  } else {
+    res = await fetch('/api/sale-events', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    data = await res.json();
+  }
+
+  btn.disabled = false; btn.textContent = editingEventId ? 'Save Changes' : 'Create Sale Event';
+
+  if (!res.ok) { alert('Error: ' + (data.error || 'Unknown')); return; }
+  closeCreateModal();
+  loadEvents();
+}
+
+// ── Review Modal ───────────────────────────────────────────────────────────
+async function openReview(proposalId) {
+  reviewingProposalId = proposalId;
+  const data = await api(`/api/sale-events/proposals/${proposalId}`);
+  document.getElementById('reviewTitle').textContent = `Review: ${data.sale_events?.name || 'Proposal'}`;
+  document.getElementById('reviewStoreInfo').textContent = `Store: ${data.stores?.name || '—'} · Submitted: ${data.submitted_at ? new Date(data.submitted_at).toLocaleDateString() : 'Not yet'}`;
+  document.getElementById('reviewStatusBadge').innerHTML = `<span class="badge badge-${data.status}">${data.status}</span>`;
+
+  const items = data.items || [];
+  document.getElementById('reviewItems').innerHTML = items.length
+    ? items.map(i => `
+      <div class="review-item-row">
+        <div class="review-item-name">${i.item_name}${i.sku ? ' <span style="color:#999;font-weight:400">('+i.sku+')</span>' : ''}</div>
+        <div class="review-discount">${i.discount_type === 'percent' ? i.discount_value + '% off' : '$' + Number(i.discount_value).toFixed(2) + ' off'}</div>
+      </div>`).join('')
+    : '<div style="color:#999;font-size:13px;padding:8px 0">No items in this proposal</div>';
+
+  if (data.store_notes) {
+    document.getElementById('reviewStoreNotes').style.display = '';
+    document.getElementById('reviewStoreNotesText').textContent = data.store_notes;
+  } else {
+    document.getElementById('reviewStoreNotes').style.display = 'none';
+  }
+
+  document.getElementById('reviewHimNotes').value = data.him_notes || '';
+  const footer = document.getElementById('reviewFooter');
+  if (data.status === 'approved') {
+    footer.innerHTML = '<button class="btn btn-ghost" onclick="closeReviewModal()">Close</button>';
+  } else {
+    footer.innerHTML = `
+      <button class="btn btn-ghost" onclick="closeReviewModal()">Cancel</button>
+      <button class="btn btn-danger btn-sm" onclick="rejectProposal()">Send Back for Revision</button>
+      <button class="btn btn-success" onclick="approveProposal()">Approve</button>`;
+  }
+
+  document.getElementById('reviewModal').classList.add('open');
+}
+
+function closeReviewModal() { document.getElementById('reviewModal').classList.remove('open'); }
+
+async function approveProposal() {
+  const him_notes = document.getElementById('reviewHimNotes').value.trim();
+  const res = await fetch(`/api/sale-events/proposals/${reviewingProposalId}/approve`, {
+    method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ him_notes })
+  });
+  if (res.ok) { closeReviewModal(); loadEvents(); }
+  else { const d = await res.json(); alert('Error: ' + d.error); }
+}
+
+async function rejectProposal() {
+  const him_notes = document.getElementById('reviewHimNotes').value.trim();
+  if (!him_notes) { alert('Please add feedback notes before sending back for revision.'); return; }
+  const res = await fetch(`/api/sale-events/proposals/${reviewingProposalId}/reject`, {
+    method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ him_notes })
+  });
+  if (res.ok) { closeReviewModal(); loadEvents(); }
+  else { const d = await res.json(); alert('Error: ' + d.error); }
+}
+
+document.getElementById('createModal').addEventListener('click', e => { if (e.target === document.getElementById('createModal')) closeCreateModal(); });
+document.getElementById('reviewModal').addEventListener('click', e => { if (e.target === document.getElementById('reviewModal')) closeReviewModal(); });
+
+init();
+</script>
+</body>
+</html>
