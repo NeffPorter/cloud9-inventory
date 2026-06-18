@@ -195,7 +195,10 @@ async function loadSchedules() {
   if (!currentStoreId) { grid.innerHTML = '<div class="empty"><div class="empty-icon">🏷️</div><div>Select a store to view discount schedules</div></div>'; return; }
 
   grid.innerHTML = '<div style="padding:40px;text-align:center;color:#888">Loading...</div>';
-  const schedules = await api(`/api/schedules?store_id=${currentStoreId}`);
+  const [schedules] = await Promise.all([
+    api(`/api/schedules?store_id=${currentStoreId}`),
+    preloadInventoryData()
+  ]);
 
   if (!Array.isArray(schedules) || schedules.length === 0) {
     grid.innerHTML = '<div class="empty"><div class="empty-icon">🏷️</div><div>No discount schedules yet.<br><small>Create one to automatically apply discounts to Clover items on a date range.</small></div></div>';
@@ -226,8 +229,6 @@ async function loadSchedules() {
     </div>`;
   }).join('');
 
-  // Preload inventory data for the modal
-  await preloadInventoryData();
 }
 
 async function preloadInventoryData() {
