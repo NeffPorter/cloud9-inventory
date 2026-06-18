@@ -130,7 +130,7 @@ router.post('/', auth, async (req, res) => {
     }
 
     const poNumber = await getNextPONumber(store_id, distributor);
-    const totalCost = Math.round(items.reduce((sum, item) => sum + (item.unit_cost * item.ordered_qty), 0) * 100) / 100;
+    const totalCost = Math.round(items.reduce((sum, item) => sum + ((item.unit_cost || 0) * (item.ordered_qty || 0)), 0) * 100) / 100;
 
     const { needsApproval, budget } = await checkBudgetApproval(store_id, totalCost);
 
@@ -422,13 +422,33 @@ router.put('/:id/items/:itemId', auth, async (req, res) => {
       return sum + rem * i.unit_cost;
     }, 0);
 
-    await supabase.from('purchase_orders').update({
+    const poUpdates = {
       total_cost: Math.round(newTotal * 100) / 100,
       remaining_balance: Math.round(newBalance * 100) / 100,
       updated_at: new Date().toISOString()
-    }).eq('id', req.params.id);
+    };
 
-    res.json({ success: true });
+    // Re-check budget whenever PO is still open
+    if (po.status === 'ordered' || po.status === 'pending_approval') {
+      const { needsApproval } = await checkBudgetApproval(po.store_id, Math.round(newTotal * 100) / 100, po.id);
+      if (needsApproval && po.status !== 'pending_approval') {
+        poUpdates.status = 'pending_approval';
+        const { data: store } = await supabase.from('stores').select('name').eq('id', po.store_id).single();
+        await notify({
+          type: 'po_pending_approval',
+          title: 'PO needs approval',
+          message: `PO ${po.po_number} (${po.distributor}) for ${store?.name || 'a store'} — qty change brought total to $${(Math.round(newTotal * 100) / 100).toFixed(2)}, pushing this week's spend over budget.`,
+          link: `/pos/view?id=${po.id}`,
+          store_id: po.store_id
+        });
+      } else if (!needsApproval && po.status === 'pending_approval') {
+        poUpdates.status = 'ordered';
+      }
+    }
+
+    await supabase.from('purchase_orders').update(poUpdates).eq('id', req.params.id);
+
+    res.json({ success: true, status: poUpdates.status || po.status });
   } catch (err) {
     console.error('Update PO item error:', err);
     res.status(500).json({ error: err.message });
@@ -455,13 +475,21 @@ router.delete('/:id/items/:itemId', auth, async (req, res) => {
     const newTotal = (remaining || []).reduce((sum, i) => sum + i.ordered_qty * i.unit_cost, 0);
     const newBalance = (remaining || []).reduce((sum, i) => sum + i.remaining_qty * i.unit_cost, 0);
 
-    await supabase.from('purchase_orders').update({
+    const delUpdates = {
       total_cost: Math.round(newTotal * 100) / 100,
       remaining_balance: Math.round(newBalance * 100) / 100,
       updated_at: new Date().toISOString()
-    }).eq('id', req.params.id);
+    };
 
-    res.json({ success: true });
+    // If PO was pending_approval and removing this item brings it back under budget, restore to ordered
+    if (po.status === 'pending_approval') {
+      const { needsApproval } = await checkBudgetApproval(po.store_id, Math.round(newTotal * 100) / 100, po.id);
+      if (!needsApproval) delUpdates.status = 'ordered';
+    }
+
+    await supabase.from('purchase_orders').update(delUpdates).eq('id', req.params.id);
+
+    res.json({ success: true, status: delUpdates.status || po.status });
   } catch (err) {
     console.error('Remove PO item error:', err);
     res.status(500).json({ error: err.message });

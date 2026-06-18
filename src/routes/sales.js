@@ -6,7 +6,7 @@ const { calculateSuggestedOrder } = require('../services/suggested');
 const { notify } = require('../services/notify');
 const supabase = require('../lib/supabase');
 
-const LOW_STOCK_THRESHOLD = 5;
+// Per-category low stock threshold is fetched dynamically in updateInventoryItem.
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -211,16 +211,18 @@ async function updateInventoryItem(store, itemId) {
       }
     } catch (_) {}
 
-    // --- Buffer days: per category setting ---
+    // --- Buffer days + low stock threshold: per category setting ---
     let bufferDays = 3; // default
+    let lowStockThreshold = 5; // default
     try {
       const { data: catSetting } = await supabase
         .from('category_settings')
-        .select('buffer_days')
+        .select('buffer_days, low_stock_threshold')
         .eq('store_id', store.id)
         .eq('category', category)
         .single();
       if (catSetting?.buffer_days != null) bufferDays = catSetting.buffer_days;
+      if (catSetting?.low_stock_threshold != null) lowStockThreshold = catSetting.low_stock_threshold;
     } catch (_) {}
 
     const cutoff = new Date();
@@ -234,7 +236,7 @@ async function updateInventoryItem(store, itemId) {
     (salesRows || []).forEach(row => {
       if (!row.item_summary || row.item_summary === 'N/A') return;
       row.item_summary.split(',').forEach(part => {
-        const match = part.trim().match(/^([A-Z0-9]+)\s+x(\d+\.?\d*)/);
+        const match = part.trim().match(/^([A-Za-z0-9]+)\s+x(\d+\.?\d*)/i);
         if (match && match[1] === itemId) {
           unitsSold += row.type === 'Refund' ? -(parseFloat(match[2]) || 1) : (parseFloat(match[2]) || 1);
         }
@@ -269,8 +271,8 @@ await supabase.from('inventory_items').upsert([{
     const itemStatus = existingItem?.status || 'Active';
     if (itemStatus === 'Active') {
       const prevQty = existingItem?.clover_qty;
-      const wasAboveThreshold = prevQty === undefined || prevQty === null || prevQty > LOW_STOCK_THRESHOLD;
-      if (cloverQty <= LOW_STOCK_THRESHOLD && wasAboveThreshold) {
+      const wasAboveThreshold = prevQty === undefined || prevQty === null || prevQty > lowStockThreshold;
+      if (cloverQty <= lowStockThreshold && wasAboveThreshold) {
         const displayName = existingItem?.group_name || groupName || item.name;
         const displayCategory = existingItem?.category || category;
         await notify({
@@ -508,7 +510,7 @@ router.get('/item-performance', auth, async (req, res) => {
     (sales || []).forEach(row => {
       if (!row.item_summary || row.item_summary === 'N/A') return;
       row.item_summary.split(',').forEach(part => {
-        const m = part.trim().match(/^([A-Z0-9]+)\s+x(\d+\.?\d*)/);
+        const m = part.trim().match(/^([A-Za-z0-9]+)\s+x(\d+\.?\d*)/i);
         if (m) {
           const qty = parseFloat(m[2]) || 0;
           unitsSold[m[1]] = (unitsSold[m[1]] || 0) + (row.type === 'Refund' ? -qty : qty);

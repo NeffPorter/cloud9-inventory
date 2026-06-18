@@ -261,6 +261,8 @@ let budget = null;
 let invoices = [];
 let storeName = '';
 let distributors = [];
+let committedPos = 0;
+let openPos = [];
 let selectedFile = null;
 
 async function init() {
@@ -283,6 +285,8 @@ async function init() {
     invoices = budgetData.invoices || [];
     storeName = budgetData.store_name || '';
     distributors = distData.distributors || [];
+    committedPos = budgetData.committed_pos || 0;
+    openPos = budgetData.open_pos || [];
 
     if (!budget) { document.getElementById('pageContent').innerHTML = '<div style="padding:40px;text-align:center;color:#aaa">Budget not found.</div>'; return; }
 
@@ -323,8 +327,10 @@ function spendColor(pct) {
 function renderPage() {
   const activeBudget = budget.status === 'approved_extended' ? budget.budget_45 : budget.budget_30;
   const spent = budget.total_invoiced || 0;
-  const remaining = Math.max(0, activeBudget - spent);
-  const pct = activeBudget > 0 ? Math.min(100, (spent / activeBudget) * 100) : 0;
+  const totalExposure = spent + committedPos;
+  const remaining = Math.max(0, activeBudget - totalExposure);
+  const pct = activeBudget > 0 ? Math.min(100, (totalExposure / activeBudget) * 100) : 0;
+  const spentPct = activeBudget > 0 ? Math.min(100, (spent / activeBudget) * 100) : 0;
   const color = spendColor(pct);
   const isComplete = budget.status === 'complete';
   const isAdmin = user.role === 'admin';
@@ -381,9 +387,23 @@ function renderPage() {
 
   html += `
     <div class="summary-card highlight">
-      <div class="summary-card-label">Spent</div>
+      <div class="summary-card-label">Invoiced</div>
       <div class="summary-card-value">${formatMoney(spent)}</div>
+    </div>`;
+
+  if (committedPos > 0) {
+    html += `
+    <div class="summary-card" style="border-left:3px solid #e65100">
+      <div class="summary-card-label">Open POs</div>
+      <div class="summary-card-value" style="color:#e65100">${formatMoney(committedPos)}</div>
     </div>
+    <div class="summary-card">
+      <div class="summary-card-label">Total Exposure</div>
+      <div class="summary-card-value" style="color:${totalExposure > activeBudget && activeBudget > 0 ? '#e53e3e' : '#333'}">${formatMoney(totalExposure)}</div>
+    </div>`;
+  }
+
+  html += `
     <div class="summary-card">
       <div class="summary-card-label">Remaining</div>
       <div class="summary-card-value" style="color:${remaining <= 0 ? '#e53e3e' : '#2e7d32'}">${formatMoney(remaining)}</div>
@@ -391,17 +411,19 @@ function renderPage() {
   </div>`;
 
   // Progress bar
+  const commitPct = activeBudget > 0 ? Math.min(100 - spentPct, (committedPos / activeBudget) * 100) : 0;
   html += `
     <div class="progress-section">
       <div class="progress-header">
         <div class="progress-label">Budget Used</div>
-        <div class="progress-pct" style="color:${color}">${pct.toFixed(1)}%</div>
+        <div class="progress-pct" style="color:${color}">${pct.toFixed(1)}%${committedPos > 0 ? ` <span style="font-size:12px;color:#e65100">(incl. open POs)</span>` : ''}</div>
       </div>
-      <div class="progress-bg">
-        <div class="progress-fill" style="width:${pct}%;background:${color}"></div>
+      <div class="progress-bg" style="position:relative;overflow:hidden">
+        <div class="progress-fill" style="width:${spentPct}%;background:${color};position:absolute;left:0;top:0;bottom:0"></div>
+        ${commitPct > 0 ? `<div style="width:${commitPct}%;background:#e6510066;position:absolute;left:${spentPct}%;top:0;bottom:0;border-left:2px dashed #e65100"></div>` : ''}
       </div>
       <div class="progress-sub">
-        <span>${formatMoney(spent)} spent</span>
+        <span>${formatMoney(spent)} invoiced${committedPos > 0 ? ` + ${formatMoney(committedPos)} committed` : ''}</span>
         <span>${formatMoney(remaining)} remaining of ${formatMoney(activeBudget)}</span>
       </div>
     </div>`;
@@ -458,6 +480,35 @@ function renderPage() {
   }
 
   html += `</div>`;
+
+  // Open POs section
+  if (openPos.length > 0) {
+    html += `
+    <div class="section-header" style="margin-top:24px">
+      <div class="section-title">📦 Open POs This Week</div>
+    </div>
+    <div class="invoice-table-wrap">
+      <table class="invoice-table">
+        <thead><tr>
+          <th>PO #</th>
+          <th>Distributor</th>
+          <th>Status</th>
+          <th>Total</th>
+          <th>Remaining</th>
+        </tr></thead><tbody>`;
+    openPos.forEach(po => {
+      const statusLabel = { ordered: 'Ordered', partial: 'Partial', pending_approval: '⏳ Needs Approval' }[po.status] || po.status;
+      const statusColor = po.status === 'pending_approval' ? '#e65100' : '#333';
+      html += `<tr>
+        <td><a href="/pos/view?id=${po.id}" style="color:#2f5597;text-decoration:none;font-weight:600">${po.po_number}</a></td>
+        <td>${po.distributor}</td>
+        <td style="color:${statusColor};font-weight:${po.status === 'pending_approval' ? '600' : '400'}">${statusLabel}</td>
+        <td>${formatMoney(po.total_cost)}</td>
+        <td>${formatMoney(po.remaining_balance)}</td>
+      </tr>`;
+    });
+    html += `</tbody></table></div>`;
+  }
 
   // Bottom actions
   if (!isComplete) {
@@ -625,6 +676,7 @@ async function deleteInvoice(invoiceId) {
     const data = await res.json();
     if (res.ok) {
       budget.total_invoiced = data.new_total;
+      budget.status = data.new_status;
       invoices = invoices.filter(i => i.id !== invoiceId);
       renderPage();
     }

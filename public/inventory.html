@@ -666,7 +666,7 @@
       let saved = 0;
       for (const itemId of itemIds) {
         try {
-          await fetch(`/api/inventory/items/${itemId}`, {
+          const res = await fetch(`/api/inventory/items/${itemId}`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
@@ -674,11 +674,12 @@
             },
             body: JSON.stringify(pendingChanges[itemId])
           });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const item = allItems.find(i => i.id === itemId);
           if (item) Object.assign(item, pendingChanges[itemId]);
           saved++;
         } catch (err) {
-          console.error('Save error:', err);
+          console.error('Save error for item', itemId, ':', err);
         }
       }
 

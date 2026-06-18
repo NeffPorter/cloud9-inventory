@@ -651,7 +651,7 @@
     const payload = {
       store_id: storeId,
       distributor,
-      from_suggested: fromSuggested,
+      from_suggested: items.some(s => s.fromSuggested),
       items: items.map(s => ({
         item_id: s.item.id,
         category: s.item.category,

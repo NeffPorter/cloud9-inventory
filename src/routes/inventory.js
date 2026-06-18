@@ -632,7 +632,7 @@ router.post('/category-settings/recalculate', auth, async (req, res) => {
     (salesRows || []).forEach(row => {
       if (!row.item_summary || row.item_summary === 'N/A') return;
       row.item_summary.split(',').forEach(part => {
-        const match = part.trim().match(/^([A-Z0-9]+)\s+x(\d+\.?\d*)/);
+        const match = part.trim().match(/^([A-Za-z0-9]+)\s+x(\d+\.?\d*)/i);
         if (match && itemIdSet.has(match[1])) {
           const qty = parseFloat(match[2]) || 1;
           soldMap[match[1]] = (soldMap[match[1]] || 0) + (row.type === 'Refund' ? -qty : qty);

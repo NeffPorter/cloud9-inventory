@@ -213,7 +213,20 @@ router.get('/:id', auth, async (req, res) => {
       .eq('id', budget.store_id)
       .single();
 
-    res.json({ budget, invoices: invoices || [], store_name: store?.name || '' });
+    // Sum open PO commitments for this budget week
+    const { data: openPOs } = await supabase
+      .from('purchase_orders')
+      .select('id, po_number, distributor, total_cost, remaining_balance, status')
+      .eq('store_id', budget.store_id)
+      .in('status', ['ordered', 'partial', 'pending_approval'])
+      .gte('created_at', `${budget.week_start}T00:00:00.000Z`)
+      .lte('created_at', `${budget.week_end}T23:59:59.999Z`);
+
+    const committed_pos = Math.round(
+      (openPOs || []).reduce((sum, p) => sum + (p.total_cost || 0), 0) * 100
+    ) / 100;
+
+    res.json({ budget, invoices: invoices || [], store_name: store?.name || '', committed_pos, open_pos: openPOs || [] });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

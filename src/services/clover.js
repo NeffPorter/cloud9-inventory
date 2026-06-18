@@ -112,7 +112,7 @@ function extractRefundedItems(fullOrder) {
 
   (fullOrder.refunds?.elements || []).forEach(refund => {
     (refund.lineItems?.elements || []).forEach(rl => {
-      const itemId = (rl.item?.id || rl.id || '').toString().trim();
+      const itemId = (rl.item?.id || '').toString().trim();
       if (!itemId || itemId.length < 8) return;
       const qty = rl.unitQty ? (rl.unitQty / 1000) : (rl.quantity || 1);
       if (!itemMap[itemId]) itemMap[itemId] = { qty: 0 };
