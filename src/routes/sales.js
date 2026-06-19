@@ -129,7 +129,9 @@ router.post('/generate-test-data', auth, async (req, res) => {
       errors: errors.slice(0, 5)
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+    console.error('generate-test-data failed:', detail);
+    res.status(500).json({ error: detail });
   }
 });
 
