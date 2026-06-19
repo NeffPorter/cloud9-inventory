@@ -13,7 +13,7 @@ function cloverHeaders(token) {
 // Get target items with price + name. Note: inventory_items.id IS the Clover item ID.
 async function getTargetItems(storeId, targetType, targetIds) {
   let query = supabase.from('inventory_items')
-    .select('id, price, variant_name')
+    .select('id, price, variant_name, group_name')
     .eq('store_id', storeId);
 
   if (targetType === 'category') query = query.in('category', targetIds);
@@ -33,11 +33,14 @@ function calcDiscountedPrice(originalPrice, discountType, discountValue) {
   return Math.max(0, Math.round(p * 100) / 100);
 }
 
-// Update name + price for a single Clover item
+// Update price (and optionally name) for a single Clover item.
+// name should be null for grouped items — Clover won't allow name changes on grouped items.
 async function setCloverItem(merchantId, apiToken, cloverItemId, name, priceDollars) {
+  const body = { price: Math.round(priceDollars * 100) };
+  if (name) body.name = name;
   await axios.post(
     `${CLOVER_BASE}${merchantId}/items/${cloverItemId}`,
-    { name, price: Math.round(priceDollars * 100) },
+    body,
     { headers: cloverHeaders(apiToken) }
   );
 }
@@ -47,14 +50,16 @@ async function restoreCloverItems(store, storeId, appliedItemIds) {
   if (!appliedItemIds?.length) return;
   const { data: items } = await supabase
     .from('inventory_items')
-    .select('id, price, variant_name')
+    .select('id, price, variant_name, group_name')
     .in('id', appliedItemIds)
     .eq('store_id', storeId);
 
   for (const item of items || []) {
     if (!item.price) continue;
+    // Only restore name for ungrouped items — Clover blocks name changes on grouped items
+    const restoreName = item.group_name ? null : item.variant_name;
     try {
-      await setCloverItem(store.merchant_id, store.api_token, item.id, item.variant_name, item.price);
+      await setCloverItem(store.merchant_id, store.api_token, item.id, restoreName, item.price);
     } catch (err) {
       console.error(`Failed to restore item ${item.id}:`, err.message);
     }
@@ -226,7 +231,8 @@ async function activateSchedule(schedule) {
     for (const item of items) {
       if (!item.price) { result.errors.push(`Item ${item.id} (${item.variant_name}) skipped — no price set`); continue; }
       const discountedPrice = calcDiscountedPrice(parseFloat(item.price), schedule.discount_type, schedule.discount_value);
-      const saleName = `${schedule.name} (${item.variant_name})`;
+      // Clover won't allow name changes on grouped items — only update price for those
+      const saleName = item.group_name ? null : `${schedule.name} (${item.variant_name})`;
       try {
         await setCloverItem(store.merchant_id, store.api_token, item.id, saleName, discountedPrice);
         result.applied.push(item.id);

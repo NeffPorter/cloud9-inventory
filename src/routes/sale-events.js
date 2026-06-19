@@ -18,9 +18,11 @@ function calcDiscountedPrice(originalPrice, discountType, discountValue) {
 }
 
 async function setCloverItem(merchantId, apiToken, cloverItemId, name, priceDollars) {
+  const body = { price: Math.round(priceDollars * 100) };
+  if (name) body.name = name;
   await axios.post(
     `${CLOVER_BASE}${merchantId}/items/${cloverItemId}`,
-    { name, price: Math.round(priceDollars * 100) },
+    body,
     { headers: cloverHeaders(apiToken) }
   );
 }
@@ -388,14 +390,15 @@ async function applyProposalToClover(proposal, store) {
 
       // Get current price + variant name from our DB (id IS the Clover item ID)
       const { data: invItem } = await supabase.from('inventory_items')
-        .select('price, variant_name')
+        .select('price, variant_name, group_name')
         .eq('id', itemId)
         .single();
 
       if (!invItem?.price) continue;
 
-      const discountedPrice = calcDiscountedPrice(invItem.price, propItem.discount_type, propItem.discount_value);
-      const newName = `${saleName} (${invItem.variant_name || propItem.item_name})`;
+      const discountedPrice = calcDiscountedPrice(parseFloat(invItem.price), propItem.discount_type, propItem.discount_value);
+      // Clover won't allow name changes on grouped items
+      const newName = invItem.group_name ? null : `${saleName} (${invItem.variant_name || propItem.item_name})`;
 
       try {
         await setCloverItem(store.merchant_id, store.api_token, itemId, newName, discountedPrice);
@@ -424,14 +427,15 @@ async function removeProposalFromClover(proposal, store) {
 
     // Restore original name + price from our DB
     const { data: items } = await supabase.from('inventory_items')
-      .select('id, price, variant_name')
+      .select('id, price, variant_name, group_name')
       .in('id', appliedIds)
       .eq('store_id', proposal.store_id);
 
     for (const item of items || []) {
       if (!item.price) continue;
+      const restoreName = item.group_name ? null : item.variant_name;
       try {
-        await setCloverItem(store.merchant_id, store.api_token, item.id, item.variant_name, item.price);
+        await setCloverItem(store.merchant_id, store.api_token, item.id, restoreName, parseFloat(item.price));
       } catch (err) {
         console.error(`Failed to restore item ${item.id}:`, err.message);
       }
