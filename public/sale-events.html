@@ -205,6 +205,7 @@ async function loadEvents() {
         </div>
         <div class="event-actions" onclick="event.stopPropagation()">
           <button class="btn btn-ghost btn-sm" onclick="openEditModal('${ev.id}')">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteEvent('${ev.id}','${ev.name.replace(/'/g,"\\'")}')">Delete</button>
         </div>
       </div>
       <div class="event-body" id="body-${ev.id}">
@@ -382,6 +383,12 @@ async function rejectProposal() {
   });
   if (res.ok) { closeReviewModal(); loadEvents(); }
   else { const d = await res.json(); alert('Error: ' + d.error); }
+}
+
+async function deleteEvent(id, name) {
+  if (!confirm(`Permanently delete "${name}" and all its proposals and tasks?\n\nThis cannot be undone.`)) return;
+  const res = await fetch(`/api/sale-events/${id}`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
+  if (res.ok) { loadEvents(); } else { const d = await res.json(); alert('Error: ' + (d.error || 'Failed to delete')); }
 }
 
 document.getElementById('createModal').addEventListener('click', e => { if (e.target === document.getElementById('createModal')) closeCreateModal(); });

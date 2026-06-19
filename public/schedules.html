@@ -180,7 +180,7 @@ let stores = [], currentStoreId = null;
 let discountType = 'percent', targetType = 'category';
 let selectedTargets = []; // [{id, label}]
 let allItems = [], allCategories = [], allGroups = [];
-let editingId = null;
+let editingId = null, _lastSchedules = [];
 
 async function api(path, opts = {}) {
   const res = await fetch(path, { headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, ...opts });
@@ -211,6 +211,7 @@ async function loadSchedules() {
     preloadInventoryData()
   ]);
 
+  _lastSchedules = Array.isArray(schedules) ? schedules : [];
   if (!Array.isArray(schedules) || schedules.length === 0) {
     grid.innerHTML = '<div class="empty"><div class="empty-icon">🏷️</div><div>No discount schedules yet.<br><small>Create one to automatically apply discounts to Clover items on a date range.</small></div></div>';
     return;
@@ -221,7 +222,9 @@ async function loadSchedules() {
     const typeLabel = s.discount_type === 'percent' ? `${s.discount_value}% off` : `$${Number(s.discount_value).toFixed(2)} off`;
     const targetLabel = s.target_type === 'category' ? 'Categories' : s.target_type === 'item_group' ? 'Item Groups' : 'Items';
     const targets = (s.target_ids || []).join(', ');
+    const canEdit = s.status === 'scheduled';
     const canCancel = s.status === 'scheduled' || s.status === 'active';
+    const safeName = s.name.replace(/'/g,"\\'");
     return `
     <div class="schedule-card">
       <div class="schedule-info">
@@ -235,7 +238,9 @@ async function loadSchedules() {
         </div>
       </div>
       <div class="schedule-actions">
-        ${canCancel ? `<button class="btn btn-danger btn-sm" onclick="cancelSchedule('${s.id}', '${s.name.replace(/'/g,"\\'")}')">Cancel</button>` : ''}
+        ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick="openEditSchedule('${s.id}')">Edit</button>` : ''}
+        ${canCancel ? `<button class="btn btn-ghost btn-sm" style="color:#d97706;border-color:#d97706" onclick="cancelSchedule('${s.id}','${safeName}')">Cancel</button>` : ''}
+        <button class="btn btn-danger btn-sm" onclick="deleteSchedule('${s.id}','${safeName}')">Delete</button>
       </div>
     </div>`;
   }).join('');
@@ -398,10 +403,45 @@ async function saveSchedule(force = false) {
   loadSchedules();
 }
 
+function openEditSchedule(id) {
+  const schedules = [...document.querySelectorAll('.schedule-card')];
+  // Re-fetch from last loaded data — we need to store them
+  const s = _lastSchedules?.find(x => x.id === id);
+  if (!s) return;
+  editingId = id;
+  document.getElementById('modalTitle').textContent = 'Edit Discount Schedule';
+  document.getElementById('saveBtn').textContent = 'Save Changes';
+  document.getElementById('fName').value = s.name;
+  document.getElementById('fValue').value = s.discount_value;
+  document.getElementById('fStart').value = s.start_date;
+  document.getElementById('fEnd').value = s.end_date;
+  document.getElementById('conflictBanner').style.display = 'none';
+  setDiscountType(s.discount_type);
+
+  // Rebuild selectedTargets from stored data
+  selectedTargets = (s.target_ids || []).map(id => ({ id, label: id }));
+  setTargetType(s.target_type); // resets selectedTargets — set after
+  selectedTargets = (s.target_ids || []).map(tid => {
+    if (s.target_type === 'item') {
+      const item = allItems.find(i => i.id === tid);
+      return { id: tid, label: item ? (item.group_name ? item.group_name + ' · ' : '') + (item.variant_name || '') : tid };
+    }
+    return { id: tid, label: tid };
+  });
+  renderChips();
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
 async function cancelSchedule(id, name) {
-  if (!confirm(`Cancel the discount schedule "${name}"? If it's active on Clover, the discount will be removed from all items.`)) return;
-  const res = await fetch(`/api/schedules/${id}`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
+  if (!confirm(`Cancel the discount schedule "${name}"?\n\nIf it's currently active on Clover, prices will be restored to normal.`)) return;
+  const res = await fetch(`/api/schedules/${id}/cancel`, { method: 'PUT', headers: { Authorization: 'Bearer ' + token } });
   if (res.ok) { loadSchedules(); } else { alert('Failed to cancel schedule'); }
+}
+
+async function deleteSchedule(id, name) {
+  if (!confirm(`Permanently delete "${name}"?\n\nThis cannot be undone. If it's active on Clover, prices will be restored first.`)) return;
+  const res = await fetch(`/api/schedules/${id}`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
+  if (res.ok) { loadSchedules(); } else { alert('Failed to delete schedule'); }
 }
 
 document.getElementById('modalOverlay').addEventListener('click', e => { if (e.target === document.getElementById('modalOverlay')) closeModal(); });

@@ -111,6 +111,36 @@ router.put('/:id', auth, requireAdmin, async (req, res) => {
   }
 });
 
+// DELETE /api/sale-events/:id — hard delete event + all related data
+router.delete('/:id', auth, requireAdmin, async (req, res) => {
+  try {
+    const evId = req.params.id;
+    // Get all proposals for this event so we can cascade-delete tasks
+    const { data: proposals } = await supabase.from('sale_proposals').select('id').eq('sale_event_id', evId);
+    const proposalIds = (proposals || []).map(p => p.id);
+
+    if (proposalIds.length) {
+      // Delete store tasks tied to these proposals
+      await supabase.from('store_tasks').delete().in('reference_id', proposalIds).eq('task_type', 'sale_proposal');
+      // Delete proposal items
+      await supabase.from('sale_proposal_items').delete().in('proposal_id', proposalIds);
+      // Delete proposals
+      await supabase.from('sale_proposals').delete().eq('sale_event_id', evId);
+    }
+
+    // Delete store assignments
+    await supabase.from('sale_event_stores').delete().eq('sale_event_id', evId);
+
+    // Delete the event itself
+    const { error } = await supabase.from('sale_events').delete().eq('id', evId);
+    if (error) throw error;
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/sale-events/:id/stores — assign stores to event
 router.post('/:id/stores', auth, requireAdmin, async (req, res) => {
   try {

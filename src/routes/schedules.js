@@ -10,12 +10,11 @@ function cloverHeaders(token) {
   return { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
 }
 
-// Get target items with price + name + clover_item_id
+// Get target items with price + name. Note: inventory_items.id IS the Clover item ID.
 async function getTargetItems(storeId, targetType, targetIds) {
   let query = supabase.from('inventory_items')
-    .select('id, clover_item_id, price, variant_name')
-    .eq('store_id', storeId)
-    .not('clover_item_id', 'is', null);
+    .select('id, price, variant_name')
+    .eq('store_id', storeId);
 
   if (targetType === 'category') query = query.in('category', targetIds);
   else if (targetType === 'item_group') query = query.in('group_name', targetIds);
@@ -48,16 +47,16 @@ async function restoreCloverItems(store, storeId, appliedItemIds) {
   if (!appliedItemIds?.length) return;
   const { data: items } = await supabase
     .from('inventory_items')
-    .select('clover_item_id, price, variant_name')
-    .in('clover_item_id', appliedItemIds)
+    .select('id, price, variant_name')
+    .in('id', appliedItemIds)
     .eq('store_id', storeId);
 
   for (const item of items || []) {
     if (!item.price) continue;
     try {
-      await setCloverItem(store.merchant_id, store.api_token, item.clover_item_id, item.variant_name, item.price);
+      await setCloverItem(store.merchant_id, store.api_token, item.id, item.variant_name, item.price);
     } catch (err) {
-      console.error(`Failed to restore item ${item.clover_item_id}:`, err.message);
+      console.error(`Failed to restore item ${item.id}:`, err.message);
     }
   }
 }
@@ -163,13 +162,12 @@ router.put('/:id', auth, async (req, res) => {
   }
 });
 
-// DELETE /api/schedules/:id — cancel
-router.delete('/:id', auth, async (req, res) => {
+// PUT /api/schedules/:id/cancel — soft cancel (restore Clover, keep record)
+router.put('/:id/cancel', auth, async (req, res) => {
   try {
     const { data: schedule } = await supabase.from('discount_schedules').select('*').eq('id', req.params.id).single();
     if (!schedule) return res.status(404).json({ error: 'Not found' });
 
-    // Restore Clover prices if currently active
     if (schedule.status === 'active' && schedule.applied_item_ids?.length) {
       const { data: store } = await supabase.from('stores').select('merchant_id, api_token').eq('id', schedule.store_id).single();
       if (store?.merchant_id && store?.api_token) {
@@ -178,6 +176,27 @@ router.delete('/:id', auth, async (req, res) => {
     }
 
     await supabase.from('discount_schedules').update({ status: 'cancelled', updated_at: new Date().toISOString() }).eq('id', req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/schedules/:id — hard delete (restore Clover if active, then remove record)
+router.delete('/:id', auth, async (req, res) => {
+  try {
+    const { data: schedule } = await supabase.from('discount_schedules').select('*').eq('id', req.params.id).single();
+    if (!schedule) return res.status(404).json({ error: 'Not found' });
+
+    if (schedule.status === 'active' && schedule.applied_item_ids?.length) {
+      const { data: store } = await supabase.from('stores').select('merchant_id, api_token').eq('id', schedule.store_id).single();
+      if (store?.merchant_id && store?.api_token) {
+        await restoreCloverItems(store, schedule.store_id, schedule.applied_item_ids);
+      }
+    }
+
+    const { error } = await supabase.from('discount_schedules').delete().eq('id', req.params.id);
+    if (error) throw error;
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -202,10 +221,10 @@ async function activateSchedule(schedule) {
       const discountedPrice = calcDiscountedPrice(item.price, schedule.discount_type, schedule.discount_value);
       const saleName = `${schedule.name} (${item.variant_name})`;
       try {
-        await setCloverItem(store.merchant_id, store.api_token, item.clover_item_id, saleName, discountedPrice);
-        applied.push(item.clover_item_id);
+        await setCloverItem(store.merchant_id, store.api_token, item.id, saleName, discountedPrice);
+        applied.push(item.id);
       } catch (err) {
-        console.error(`Failed to set sale price for item ${item.clover_item_id}:`, err.message);
+        console.error(`Failed to set sale price for item ${item.id}:`, err.message);
       }
     }
 
