@@ -10,77 +10,55 @@ function cloverHeaders(token) {
   return { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
 }
 
-// Resolve target_ids to Clover item IDs
-async function resolveCloverItemIds(storeId, targetType, targetIds) {
-  let query = supabase.from('inventory_items').select('clover_item_id, group_name, category').eq('store_id', storeId).not('clover_item_id', 'is', null);
+// Get target items with price + clover_item_id
+async function getTargetItems(storeId, targetType, targetIds) {
+  let query = supabase.from('inventory_items')
+    .select('id, clover_item_id, price')
+    .eq('store_id', storeId)
+    .not('clover_item_id', 'is', null);
 
-  if (targetType === 'category') {
-    query = query.in('category', targetIds);
-  } else if (targetType === 'item_group') {
-    query = query.in('group_name', targetIds);
-  } else if (targetType === 'item') {
-    query = query.in('id', targetIds);
-  }
+  if (targetType === 'category') query = query.in('category', targetIds);
+  else if (targetType === 'item_group') query = query.in('group_name', targetIds);
+  else query = query.in('id', targetIds);
 
   const { data, error } = await query;
   if (error) throw error;
-  return [...new Set((data || []).map(i => i.clover_item_id).filter(Boolean))];
+  return data || [];
 }
 
-// Create discount in Clover, attach to items, return { cloverDiscountId, appliedItemIds }
-async function applyToClover(merchantId, apiToken, name, discountType, discountValue, cloverItemIds) {
-  // Create the discount object
-  const discountPayload = { name };
-  if (discountType === 'percent') {
-    discountPayload.percentage = Math.round(discountValue * 10); // Clover uses tenths of a percent
-  } else {
-    discountPayload.amount = Math.round(discountValue * 100); // Clover uses cents
-  }
+// Calculate discounted price (returns dollars)
+function calcDiscountedPrice(originalPrice, discountType, discountValue) {
+  let p = discountType === 'percent'
+    ? originalPrice * (1 - discountValue / 100)
+    : originalPrice - discountValue;
+  return Math.max(0, Math.round(p * 100) / 100);
+}
 
-  const createRes = await axios.post(
-    `${CLOVER_BASE}${merchantId}/discounts`,
-    discountPayload,
+// Update price for a single Clover item (price in dollars)
+async function setCloverPrice(merchantId, apiToken, cloverItemId, priceDollars) {
+  await axios.post(
+    `${CLOVER_BASE}${merchantId}/items/${cloverItemId}`,
+    { price: Math.round(priceDollars * 100) },
     { headers: cloverHeaders(apiToken) }
   );
-  const cloverDiscountId = createRes.data.id;
-
-  // Attach discount to each item
-  const applied = [];
-  for (const itemId of cloverItemIds) {
-    try {
-      await axios.post(
-        `${CLOVER_BASE}${merchantId}/items/${itemId}/discounts`,
-        { id: cloverDiscountId },
-        { headers: cloverHeaders(apiToken) }
-      );
-      applied.push(itemId);
-    } catch (err) {
-      console.error(`Failed to attach discount to item ${itemId}:`, err.message);
-    }
-  }
-
-  return { cloverDiscountId, appliedItemIds: applied };
 }
 
-// Remove discount from all items and delete from Clover
-async function removeFromClover(merchantId, apiToken, cloverDiscountId, appliedItemIds) {
-  for (const itemId of appliedItemIds) {
+// Restore original prices from our DB to Clover
+async function restoreCloverPrices(store, storeId, appliedItemIds) {
+  if (!appliedItemIds?.length) return;
+  const { data: items } = await supabase
+    .from('inventory_items')
+    .select('clover_item_id, price')
+    .in('clover_item_id', appliedItemIds)
+    .eq('store_id', storeId);
+
+  for (const item of items || []) {
+    if (!item.price) continue;
     try {
-      await axios.delete(
-        `${CLOVER_BASE}${merchantId}/items/${itemId}/discounts/${cloverDiscountId}`,
-        { headers: cloverHeaders(apiToken) }
-      );
+      await setCloverPrice(store.clover_merchant_id, store.clover_api_token, item.clover_item_id, item.price);
     } catch (err) {
-      console.error(`Failed to remove discount from item ${itemId}:`, err.message);
+      console.error(`Failed to restore price for ${item.clover_item_id}:`, err.message);
     }
-  }
-  try {
-    await axios.delete(
-      `${CLOVER_BASE}${merchantId}/discounts/${cloverDiscountId}`,
-      { headers: cloverHeaders(apiToken) }
-    );
-  } catch (err) {
-    console.error(`Failed to delete Clover discount ${cloverDiscountId}:`, err.message);
   }
 }
 
@@ -95,22 +73,13 @@ async function checkConflicts(storeId, targetType, targetIds, excludeScheduleId 
 
   if (!active || active.length === 0) return [];
 
-  // Get inventory item IDs for the new schedule's targets
-  let newQuery = supabase.from('inventory_items').select('id, name, group_name, category').eq('store_id', storeId);
-  if (targetType === 'category') newQuery = newQuery.in('category', targetIds);
-  else if (targetType === 'item_group') newQuery = newQuery.in('group_name', targetIds);
-  else if (targetType === 'item') newQuery = newQuery.in('id', targetIds);
-  const { data: newItems } = await newQuery;
-  const newItemIds = new Set((newItems || []).map(i => i.id));
+  const newItems = await getTargetItems(storeId, targetType, targetIds);
+  const newItemIds = new Set(newItems.map(i => i.id));
 
   const conflicts = [];
   for (const sched of active) {
-    let existQuery = supabase.from('inventory_items').select('id').eq('store_id', storeId);
-    if (sched.target_type === 'category') existQuery = existQuery.in('category', sched.target_ids);
-    else if (sched.target_type === 'item_group') existQuery = existQuery.in('group_name', sched.target_ids);
-    else if (sched.target_type === 'item') existQuery = existQuery.in('id', sched.target_ids);
-    const { data: existItems } = await existQuery;
-    const existItemIds = new Set((existItems || []).map(i => i.id));
+    const existItems = await getTargetItems(storeId, sched.target_type, sched.target_ids);
+    const existItemIds = new Set(existItems.map(i => i.id));
 
     const overlap = [...newItemIds].filter(id => existItemIds.has(id));
     if (overlap.length > 0) {
@@ -200,11 +169,11 @@ router.delete('/:id', auth, async (req, res) => {
     const { data: schedule } = await supabase.from('discount_schedules').select('*').eq('id', req.params.id).single();
     if (!schedule) return res.status(404).json({ error: 'Not found' });
 
-    // Remove from Clover if active
-    if (schedule.status === 'active' && schedule.clover_discount_id) {
+    // Restore Clover prices if currently active
+    if (schedule.status === 'active' && schedule.applied_item_ids?.length) {
       const { data: store } = await supabase.from('stores').select('clover_merchant_id, clover_api_token').eq('id', schedule.store_id).single();
       if (store?.clover_merchant_id && store?.clover_api_token) {
-        await removeFromClover(store.clover_merchant_id, store.clover_api_token, schedule.clover_discount_id, schedule.applied_item_ids || []);
+        await restoreCloverPrices(store, schedule.store_id, schedule.applied_item_ids);
       }
     }
 
@@ -215,47 +184,53 @@ router.delete('/:id', auth, async (req, res) => {
   }
 });
 
-// Activate a schedule (called by cron or immediately on create)
+// Activate: update Clover item prices to discounted prices
 async function activateSchedule(schedule) {
   try {
     const { data: store } = await supabase.from('stores').select('clover_merchant_id, clover_api_token').eq('id', schedule.store_id).single();
     if (!store?.clover_merchant_id || !store?.clover_api_token) return;
 
-    const cloverItemIds = await resolveCloverItemIds(schedule.store_id, schedule.target_type, schedule.target_ids);
-    if (cloverItemIds.length === 0) {
+    const items = await getTargetItems(schedule.store_id, schedule.target_type, schedule.target_ids);
+    if (items.length === 0) {
       await supabase.from('discount_schedules').update({ status: 'active', applied_item_ids: [], updated_at: new Date().toISOString() }).eq('id', schedule.id);
       return;
     }
 
-    const { cloverDiscountId, appliedItemIds } = await applyToClover(
-      store.clover_merchant_id, store.clover_api_token,
-      schedule.name, schedule.discount_type, schedule.discount_value, cloverItemIds
-    );
+    const applied = [];
+    for (const item of items) {
+      if (!item.price) continue;
+      const discountedPrice = calcDiscountedPrice(item.price, schedule.discount_type, schedule.discount_value);
+      try {
+        await setCloverPrice(store.clover_merchant_id, store.clover_api_token, item.clover_item_id, discountedPrice);
+        applied.push(item.clover_item_id);
+      } catch (err) {
+        console.error(`Failed to set sale price for item ${item.clover_item_id}:`, err.message);
+      }
+    }
 
     await supabase.from('discount_schedules').update({
       status: 'active',
-      clover_discount_id: cloverDiscountId,
-      applied_item_ids: appliedItemIds,
+      applied_item_ids: applied,
       updated_at: new Date().toISOString()
     }).eq('id', schedule.id);
 
-    console.log(`Activated discount schedule "${schedule.name}" — ${appliedItemIds.length} items`);
+    console.log(`Activated schedule "${schedule.name}" — ${applied.length} items price-updated on Clover`);
   } catch (err) {
     console.error(`Failed to activate schedule ${schedule.id}:`, err.message);
   }
 }
 
-// Expire a schedule (called by cron)
+// Expire: restore original prices from our DB
 async function expireSchedule(schedule) {
   try {
-    if (schedule.clover_discount_id) {
+    if (schedule.applied_item_ids?.length) {
       const { data: store } = await supabase.from('stores').select('clover_merchant_id, clover_api_token').eq('id', schedule.store_id).single();
       if (store?.clover_merchant_id && store?.clover_api_token) {
-        await removeFromClover(store.clover_merchant_id, store.clover_api_token, schedule.clover_discount_id, schedule.applied_item_ids || []);
+        await restoreCloverPrices(store, schedule.store_id, schedule.applied_item_ids);
       }
     }
     await supabase.from('discount_schedules').update({ status: 'expired', updated_at: new Date().toISOString() }).eq('id', schedule.id);
-    console.log(`Expired discount schedule "${schedule.name}"`);
+    console.log(`Expired schedule "${schedule.name}" — prices restored`);
   } catch (err) {
     console.error(`Failed to expire schedule ${schedule.id}:`, err.message);
   }
