@@ -204,40 +204,51 @@ router.delete('/:id', auth, async (req, res) => {
 });
 
 // Activate: update Clover item prices to discounted prices
+// Returns { applied: [...], errors: [...], itemCount: n }
 async function activateSchedule(schedule) {
+  const result = { applied: [], errors: [], itemCount: 0 };
   try {
     const { data: store } = await supabase.from('stores').select('merchant_id, api_token').eq('id', schedule.store_id).single();
-    if (!store?.merchant_id || !store?.api_token) return;
-
-    const items = await getTargetItems(schedule.store_id, schedule.target_type, schedule.target_ids);
-    if (items.length === 0) {
-      await supabase.from('discount_schedules').update({ status: 'active', applied_item_ids: [], updated_at: new Date().toISOString() }).eq('id', schedule.id);
-      return;
+    if (!store?.merchant_id || !store?.api_token) {
+      result.errors.push('Store has no Clover credentials (merchant_id / api_token missing)');
+      return result;
     }
 
-    const applied = [];
+    const items = await getTargetItems(schedule.store_id, schedule.target_type, schedule.target_ids);
+    result.itemCount = items.length;
+
+    if (items.length === 0) {
+      result.errors.push(`No inventory items found for ${schedule.target_type} [${(schedule.target_ids || []).join(', ')}] in this store`);
+      await supabase.from('discount_schedules').update({ status: 'active', applied_item_ids: [], updated_at: new Date().toISOString() }).eq('id', schedule.id);
+      return result;
+    }
+
     for (const item of items) {
-      if (!item.price) continue;
-      const discountedPrice = calcDiscountedPrice(item.price, schedule.discount_type, schedule.discount_value);
+      if (!item.price) { result.errors.push(`Item ${item.id} (${item.variant_name}) skipped — no price set`); continue; }
+      const discountedPrice = calcDiscountedPrice(parseFloat(item.price), schedule.discount_type, schedule.discount_value);
       const saleName = `${schedule.name} (${item.variant_name})`;
       try {
         await setCloverItem(store.merchant_id, store.api_token, item.id, saleName, discountedPrice);
-        applied.push(item.id);
+        result.applied.push(item.id);
       } catch (err) {
-        console.error(`Failed to set sale price for item ${item.id}:`, err.message);
+        const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+        result.errors.push(`Item ${item.variant_name} (${item.id}): ${detail}`);
+        console.error(`Failed to set sale price for item ${item.id}:`, detail);
       }
     }
 
     await supabase.from('discount_schedules').update({
       status: 'active',
-      applied_item_ids: applied,
+      applied_item_ids: result.applied,
       updated_at: new Date().toISOString()
     }).eq('id', schedule.id);
 
-    console.log(`Activated schedule "${schedule.name}" — ${applied.length} items price-updated on Clover`);
+    console.log(`Activated schedule "${schedule.name}" — ${result.applied.length}/${items.length} items updated on Clover`);
   } catch (err) {
+    result.errors.push(err.message);
     console.error(`Failed to activate schedule ${schedule.id}:`, err.message);
   }
+  return result;
 }
 
 // Expire: restore original prices from our DB
@@ -262,12 +273,11 @@ router.post('/:id/apply', auth, async (req, res) => {
     const { data: schedule } = await supabase.from('discount_schedules').select('*').eq('id', req.params.id).single();
     if (!schedule) return res.status(404).json({ error: 'Not found' });
 
-    // Reset to scheduled so activateSchedule will run it fresh
     await supabase.from('discount_schedules').update({ status: 'scheduled', applied_item_ids: [] }).eq('id', req.params.id);
-    await activateSchedule({ ...schedule, status: 'scheduled', applied_item_ids: [] });
+    const result = await activateSchedule({ ...schedule, status: 'scheduled', applied_item_ids: [] });
 
     const { data: updated } = await supabase.from('discount_schedules').select('*').eq('id', req.params.id).single();
-    res.json({ success: true, schedule: updated });
+    res.json({ success: true, schedule: updated, applied: result.applied, errors: result.errors, itemCount: result.itemCount });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

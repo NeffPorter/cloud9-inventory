@@ -439,8 +439,13 @@ async function applyNow(id) {
   const res = await fetch(`/api/schedules/${id}/apply`, { method: 'POST', headers: { Authorization: 'Bearer ' + token } });
   const data = await res.json();
   if (res.ok) {
-    const count = data.schedule?.applied_item_ids?.length || 0;
-    alert(count > 0 ? `✅ Applied to ${count} items on Clover!` : '⚠️ Schedule applied but 0 items were updated. Check that the items exist in this store and have prices set.');
+    const count = data.applied?.length || 0;
+    if (count > 0) {
+      alert(`✅ Applied to ${count} item${count !== 1 ? 's' : ''} on Clover!`);
+    } else {
+      const errDetail = (data.errors || []).slice(0, 3).join('\n');
+      alert(`⚠️ 0 items updated.\n\nItems found: ${data.itemCount || 0}\n\n${errDetail || 'Unknown error — check Railway logs.'}`);
+    }
     loadSchedules();
   } else {
     alert('Error: ' + (data.error || 'Failed'));
