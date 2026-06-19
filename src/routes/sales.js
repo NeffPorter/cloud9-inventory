@@ -11,6 +11,19 @@ const supabase = require('../lib/supabase');
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Retry once after a backoff if Clover rate-limits us (429)
+async function withRetry429(fn) {
+  try {
+    return await fn();
+  } catch (err) {
+    if (err.response?.status === 429) {
+      await sleep(2500);
+      return await fn();
+    }
+    throw err;
+  }
+}
+
 // Webhook verification
 router.get('/webhook', (req, res) => {
   const challenge = req.query.challenge;
@@ -194,12 +207,14 @@ router.post('/generate-test-data', auth, async (req, res) => {
           touchedItemIds.add(item.id);
         }
 
-        const orderRes = await axios.post(`${base}/orders`, { state: 'open' }, { headers });
-        const orderId = orderRes.data.id;
+        const orderId = await withRetry429(async () => {
+          const orderRes = await axios.post(`${base}/orders`, { state: 'open' }, { headers });
+          return orderRes.data.id;
+        });
 
-        await axios.post(`${base}/orders/${orderId}/bulk_line_items`, {
+        await withRetry429(() => axios.post(`${base}/orders/${orderId}/bulk_line_items`, {
           items: picks.flatMap(p => Array.from({ length: p.qty }, () => ({ item: { id: p.id }, price: p.price, name: p.name })))
-        }, { headers });
+        }, { headers }));
 
         const gross = picks.reduce((sum, p) => sum + (p.price / 100) * p.qty, 0);
         const totalCost = picks.reduce((sum, p) => sum + p.cost * p.qty, 0);
@@ -213,10 +228,11 @@ router.post('/generate-test-data', auth, async (req, res) => {
         }], { onConflict: 'store_id,order_id,type', ignoreDuplicates: true });
 
         created.push({ orderId, items: picks.length, total: gross });
-        await sleep(400); // avoid Clover rate limit (429)
+        await sleep(900); // avoid Clover rate limit (429)
       } catch (err) {
         const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
         errors.push(detail);
+        await sleep(1500); // back off harder after a real failure
       }
     }
 
