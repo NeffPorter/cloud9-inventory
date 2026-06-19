@@ -55,7 +55,7 @@ async function restoreCloverItems(store, storeId, appliedItemIds) {
   for (const item of items || []) {
     if (!item.price) continue;
     try {
-      await setCloverItem(store.clover_merchant_id, store.clover_api_token, item.clover_item_id, item.name, item.price);
+      await setCloverItem(store.merchant_id, store.api_token, item.clover_item_id, item.name, item.price);
     } catch (err) {
       console.error(`Failed to restore item ${item.clover_item_id}:`, err.message);
     }
@@ -171,8 +171,8 @@ router.delete('/:id', auth, async (req, res) => {
 
     // Restore Clover prices if currently active
     if (schedule.status === 'active' && schedule.applied_item_ids?.length) {
-      const { data: store } = await supabase.from('stores').select('clover_merchant_id, clover_api_token').eq('id', schedule.store_id).single();
-      if (store?.clover_merchant_id && store?.clover_api_token) {
+      const { data: store } = await supabase.from('stores').select('merchant_id, api_token').eq('id', schedule.store_id).single();
+      if (store?.merchant_id && store?.api_token) {
         await restoreCloverItems(store, schedule.store_id, schedule.applied_item_ids);
       }
     }
@@ -187,8 +187,8 @@ router.delete('/:id', auth, async (req, res) => {
 // Activate: update Clover item prices to discounted prices
 async function activateSchedule(schedule) {
   try {
-    const { data: store } = await supabase.from('stores').select('clover_merchant_id, clover_api_token').eq('id', schedule.store_id).single();
-    if (!store?.clover_merchant_id || !store?.clover_api_token) return;
+    const { data: store } = await supabase.from('stores').select('merchant_id, api_token').eq('id', schedule.store_id).single();
+    if (!store?.merchant_id || !store?.api_token) return;
 
     const items = await getTargetItems(schedule.store_id, schedule.target_type, schedule.target_ids);
     if (items.length === 0) {
@@ -202,7 +202,7 @@ async function activateSchedule(schedule) {
       const discountedPrice = calcDiscountedPrice(item.price, schedule.discount_type, schedule.discount_value);
       const saleName = `${schedule.name} (${item.name})`;
       try {
-        await setCloverItem(store.clover_merchant_id, store.clover_api_token, item.clover_item_id, saleName, discountedPrice);
+        await setCloverItem(store.merchant_id, store.api_token, item.clover_item_id, saleName, discountedPrice);
         applied.push(item.clover_item_id);
       } catch (err) {
         console.error(`Failed to set sale price for item ${item.clover_item_id}:`, err.message);
@@ -225,8 +225,8 @@ async function activateSchedule(schedule) {
 async function expireSchedule(schedule) {
   try {
     if (schedule.applied_item_ids?.length) {
-      const { data: store } = await supabase.from('stores').select('clover_merchant_id, clover_api_token').eq('id', schedule.store_id).single();
-      if (store?.clover_merchant_id && store?.clover_api_token) {
+      const { data: store } = await supabase.from('stores').select('merchant_id, api_token').eq('id', schedule.store_id).single();
+      if (store?.merchant_id && store?.api_token) {
         await restoreCloverItems(store, schedule.store_id, schedule.applied_item_ids);
       }
     }

@@ -285,7 +285,7 @@ async function runSaleEventCron() {
   // Apply discounts for events starting today (approved proposals not yet applied)
   const { data: toApply } = await supabase
     .from('sale_proposals')
-    .select('*, sale_events(start_date, end_date, name), stores(clover_merchant_id, clover_api_token)')
+    .select('*, sale_events(start_date, end_date, name), stores(merchant_id, api_token)')
     .eq('status', 'approved')
     .eq('clover_applied', false);
 
@@ -295,7 +295,7 @@ async function runSaleEventCron() {
     if (ev.end_date < today) continue; // already expired
 
     const store = proposal.stores;
-    if (!store?.clover_merchant_id || !store?.clover_api_token) continue;
+    if (!store?.merchant_id || !store?.api_token) continue;
 
     await applyProposalToClover(proposal, store);
   }
@@ -303,7 +303,7 @@ async function runSaleEventCron() {
   // Remove discounts for events that ended yesterday
   const { data: toRemove } = await supabase
     .from('sale_proposals')
-    .select('*, sale_events(end_date, name), stores(clover_merchant_id, clover_api_token)')
+    .select('*, sale_events(end_date, name), stores(merchant_id, api_token)')
     .eq('status', 'approved')
     .eq('clover_applied', true);
 
@@ -311,7 +311,7 @@ async function runSaleEventCron() {
     const ev = proposal.sale_events;
     if (!ev || ev.end_date >= today) continue; // still active
     const store = proposal.stores;
-    if (!store?.clover_merchant_id || !store?.clover_api_token) continue;
+    if (!store?.merchant_id || !store?.api_token) continue;
     await removeProposalFromClover(proposal, store);
   }
 }
@@ -340,8 +340,8 @@ async function applyProposalToClover(proposal, store) {
       else payload.amount = Math.round(g.discount_value * 100);
 
       const createRes = await axios.post(
-        `${CLOVER_BASE}${store.clover_merchant_id}/discounts`, payload,
-        { headers: cloverHeaders(store.clover_api_token) }
+        `${CLOVER_BASE}${store.merchant_id}/discounts`, payload,
+        { headers: cloverHeaders(store.api_token) }
       );
       const discountId = createRes.data.id;
       appliedDiscountIds.push(discountId);
@@ -349,9 +349,9 @@ async function applyProposalToClover(proposal, store) {
       for (const itemId of g.clover_item_ids) {
         try {
           await axios.post(
-            `${CLOVER_BASE}${store.clover_merchant_id}/items/${itemId}/discounts`,
+            `${CLOVER_BASE}${store.merchant_id}/items/${itemId}/discounts`,
             { id: discountId },
-            { headers: cloverHeaders(store.clover_api_token) }
+            { headers: cloverHeaders(store.api_token) }
           );
         } catch (e) {
           console.error(`Failed to attach discount to item ${itemId}:`, e.message);
@@ -365,7 +365,7 @@ async function applyProposalToClover(proposal, store) {
       updated_at: new Date().toISOString()
     }).eq('id', proposal.id);
 
-    console.log(`Applied sale "${discountName}" to Clover for store ${store.clover_merchant_id}`);
+    console.log(`Applied sale "${discountName}" to Clover for store ${store.merchant_id}`);
   } catch (err) {
     console.error(`applyProposalToClover error for proposal ${proposal.id}:`, err.message);
   }
@@ -382,19 +382,19 @@ async function removeProposalFromClover(proposal, store) {
       // Get items attached to this discount and remove
       try {
         const itemsRes = await axios.get(
-          `${CLOVER_BASE}${store.clover_merchant_id}/discounts/${discountId}/items`,
-          { headers: cloverHeaders(store.clover_api_token) }
+          `${CLOVER_BASE}${store.merchant_id}/discounts/${discountId}/items`,
+          { headers: cloverHeaders(store.api_token) }
         );
         const cloverItems = itemsRes.data?.elements || [];
         for (const ci of cloverItems) {
           try {
             await axios.delete(
-              `${CLOVER_BASE}${store.clover_merchant_id}/items/${ci.id}/discounts/${discountId}`,
-              { headers: cloverHeaders(store.clover_api_token) }
+              `${CLOVER_BASE}${store.merchant_id}/items/${ci.id}/discounts/${discountId}`,
+              { headers: cloverHeaders(store.api_token) }
             );
           } catch (e) {}
         }
-        await axios.delete(`${CLOVER_BASE}${store.clover_merchant_id}/discounts/${discountId}`, { headers: cloverHeaders(store.clover_api_token) });
+        await axios.delete(`${CLOVER_BASE}${store.merchant_id}/discounts/${discountId}`, { headers: cloverHeaders(store.api_token) });
       } catch (e) {
         console.error(`Failed to remove discount ${discountId}:`, e.message);
       }
