@@ -10,10 +10,10 @@ function cloverHeaders(token) {
   return { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
 }
 
-// Get target items with price + clover_item_id
+// Get target items with price + name + clover_item_id
 async function getTargetItems(storeId, targetType, targetIds) {
   let query = supabase.from('inventory_items')
-    .select('id, clover_item_id, price')
+    .select('id, clover_item_id, price, name')
     .eq('store_id', storeId)
     .not('clover_item_id', 'is', null);
 
@@ -34,30 +34,30 @@ function calcDiscountedPrice(originalPrice, discountType, discountValue) {
   return Math.max(0, Math.round(p * 100) / 100);
 }
 
-// Update price for a single Clover item (price in dollars)
-async function setCloverPrice(merchantId, apiToken, cloverItemId, priceDollars) {
+// Update name + price for a single Clover item
+async function setCloverItem(merchantId, apiToken, cloverItemId, name, priceDollars) {
   await axios.post(
     `${CLOVER_BASE}${merchantId}/items/${cloverItemId}`,
-    { price: Math.round(priceDollars * 100) },
+    { name, price: Math.round(priceDollars * 100) },
     { headers: cloverHeaders(apiToken) }
   );
 }
 
-// Restore original prices from our DB to Clover
-async function restoreCloverPrices(store, storeId, appliedItemIds) {
+// Restore original name + price from our DB to Clover
+async function restoreCloverItems(store, storeId, appliedItemIds) {
   if (!appliedItemIds?.length) return;
   const { data: items } = await supabase
     .from('inventory_items')
-    .select('clover_item_id, price')
+    .select('clover_item_id, price, name')
     .in('clover_item_id', appliedItemIds)
     .eq('store_id', storeId);
 
   for (const item of items || []) {
     if (!item.price) continue;
     try {
-      await setCloverPrice(store.clover_merchant_id, store.clover_api_token, item.clover_item_id, item.price);
+      await setCloverItem(store.clover_merchant_id, store.clover_api_token, item.clover_item_id, item.name, item.price);
     } catch (err) {
-      console.error(`Failed to restore price for ${item.clover_item_id}:`, err.message);
+      console.error(`Failed to restore item ${item.clover_item_id}:`, err.message);
     }
   }
 }
@@ -173,7 +173,7 @@ router.delete('/:id', auth, async (req, res) => {
     if (schedule.status === 'active' && schedule.applied_item_ids?.length) {
       const { data: store } = await supabase.from('stores').select('clover_merchant_id, clover_api_token').eq('id', schedule.store_id).single();
       if (store?.clover_merchant_id && store?.clover_api_token) {
-        await restoreCloverPrices(store, schedule.store_id, schedule.applied_item_ids);
+        await restoreCloverItems(store, schedule.store_id, schedule.applied_item_ids);
       }
     }
 
@@ -200,8 +200,9 @@ async function activateSchedule(schedule) {
     for (const item of items) {
       if (!item.price) continue;
       const discountedPrice = calcDiscountedPrice(item.price, schedule.discount_type, schedule.discount_value);
+      const saleName = `${schedule.name} (${item.name})`;
       try {
-        await setCloverPrice(store.clover_merchant_id, store.clover_api_token, item.clover_item_id, discountedPrice);
+        await setCloverItem(store.clover_merchant_id, store.clover_api_token, item.clover_item_id, saleName, discountedPrice);
         applied.push(item.clover_item_id);
       } catch (err) {
         console.error(`Failed to set sale price for item ${item.clover_item_id}:`, err.message);
@@ -226,7 +227,7 @@ async function expireSchedule(schedule) {
     if (schedule.applied_item_ids?.length) {
       const { data: store } = await supabase.from('stores').select('clover_merchant_id, clover_api_token').eq('id', schedule.store_id).single();
       if (store?.clover_merchant_id && store?.clover_api_token) {
-        await restoreCloverPrices(store, schedule.store_id, schedule.applied_item_ids);
+        await restoreCloverItems(store, schedule.store_id, schedule.applied_item_ids);
       }
     }
     await supabase.from('discount_schedules').update({ status: 'expired', updated_at: new Date().toISOString() }).eq('id', schedule.id);
