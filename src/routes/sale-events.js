@@ -6,6 +6,8 @@ const auth = require('../middleware/auth');
 
 const CLOVER_BASE = 'https://api.clover.com/v3/merchants/';
 
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
 function cloverHeaders(token) {
   return { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
 }
@@ -403,8 +405,20 @@ async function applyProposalToClover(proposal, store) {
       try {
         await setCloverItem(store.merchant_id, store.api_token, itemId, newName, discountedPrice);
         applied.push(itemId);
+        await sleep(300);
       } catch (err) {
-        console.error(`Failed to apply sale to item ${itemId}:`, err.message);
+        if (err.response?.status === 429) {
+          await sleep(2000);
+          try {
+            await setCloverItem(store.merchant_id, store.api_token, itemId, newName, discountedPrice);
+            applied.push(itemId);
+            await sleep(300);
+          } catch (retryErr) {
+            console.error(`Failed after retry for item ${itemId}:`, retryErr.message);
+          }
+        } else {
+          console.error(`Failed to apply sale to item ${itemId}:`, err.message);
+        }
       }
     }
 
@@ -436,6 +450,7 @@ async function removeProposalFromClover(proposal, store) {
       const restoreName = item.group_name ? null : item.variant_name;
       try {
         await setCloverItem(store.merchant_id, store.api_token, item.id, restoreName, parseFloat(item.price));
+        await sleep(300);
       } catch (err) {
         console.error(`Failed to restore item ${item.id}:`, err.message);
       }

@@ -6,6 +6,8 @@ const auth = require('../middleware/auth');
 
 const CLOVER_BASE = 'https://api.clover.com/v3/merchants/';
 
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
 function cloverHeaders(token) {
   return { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
 }
@@ -60,6 +62,7 @@ async function restoreCloverItems(store, storeId, appliedItemIds) {
     const restoreName = item.group_name ? null : item.variant_name;
     try {
       await setCloverItem(store.merchant_id, store.api_token, item.id, restoreName, item.price);
+      await sleep(300);
     } catch (err) {
       console.error(`Failed to restore item ${item.id}:`, err.message);
     }
@@ -236,10 +239,25 @@ async function activateSchedule(schedule) {
       try {
         await setCloverItem(store.merchant_id, store.api_token, item.id, saleName, discountedPrice);
         result.applied.push(item.id);
+        await sleep(300); // avoid Clover rate limit (429)
       } catch (err) {
-        const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
-        result.errors.push(`Item ${item.variant_name} (${item.id}): ${detail}`);
-        console.error(`Failed to set sale price for item ${item.id}:`, detail);
+        if (err.response?.status === 429) {
+          // Rate limited — wait 2s and retry once
+          await sleep(2000);
+          try {
+            await setCloverItem(store.merchant_id, store.api_token, item.id, saleName, discountedPrice);
+            result.applied.push(item.id);
+            await sleep(300);
+          } catch (retryErr) {
+            const detail = retryErr.response?.data ? JSON.stringify(retryErr.response.data) : retryErr.message;
+            result.errors.push(`Item ${item.variant_name} (${item.id}): ${detail}`);
+            console.error(`Failed after retry for item ${item.id}:`, detail);
+          }
+        } else {
+          const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+          result.errors.push(`Item ${item.variant_name} (${item.id}): ${detail}`);
+          console.error(`Failed to set sale price for item ${item.id}:`, detail);
+        }
       }
     }
 
