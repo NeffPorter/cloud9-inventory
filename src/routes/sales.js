@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const axios = require('axios');
 const auth = require('../middleware/auth');
 const { fetchFullOrder, fetchOrderRefunds, fetchItem, pushStockToClover, extractLineItems, extractRefundedItems, createCashSale, getCashTenderId } = require('../services/clover');
 const { calculateSuggestedOrder } = require('../services/suggested');
@@ -61,6 +62,46 @@ router.post('/webhook', async (req, res) => {
   } catch (err) {
     console.error('Webhook error:', err);
     res.status(500).send('ERROR');
+  }
+});
+
+// GET /api/sales/test-sale-diagnostic — isolate exactly which Clover call 401s (tenders vs orders
+// vs line_items vs payments) so we can tell whether it's a missing OAuth permission/scope issue.
+router.get('/test-sale-diagnostic', auth, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    const { store_id } = req.query;
+    const { data: store } = await supabase.from('stores').select('*').eq('id', store_id).single();
+    if (!store?.merchant_id || !store?.api_token) return res.status(400).json({ error: 'No credentials' });
+
+    const steps = {};
+    const headers = { Authorization: 'Bearer ' + store.api_token, 'Content-Type': 'application/json' };
+    const base = `https://api.clover.com/v3/merchants/${store.merchant_id}`;
+
+    try {
+      const r = await axios.get(`${base}/tenders`, { headers });
+      steps.tenders = { ok: true, count: r.data.elements?.length, sample: r.data.elements?.[0] };
+    } catch (err) {
+      steps.tenders = { ok: false, status: err.response?.status, data: err.response?.data };
+    }
+
+    try {
+      const r = await axios.get(`${base}/items?limit=1`, { headers });
+      steps.items = { ok: true, count: r.data.elements?.length };
+    } catch (err) {
+      steps.items = { ok: false, status: err.response?.status, data: err.response?.data };
+    }
+
+    try {
+      const r = await axios.post(`${base}/orders`, { state: 'open' }, { headers });
+      steps.createOrder = { ok: true, orderId: r.data.id };
+    } catch (err) {
+      steps.createOrder = { ok: false, status: err.response?.status, data: err.response?.data };
+    }
+
+    res.json(steps);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
