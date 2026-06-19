@@ -47,6 +47,44 @@ async function setCloverItem(merchantId, apiToken, cloverItemId, name, priceDoll
   );
 }
 
+// "20% OFF" or "$5 OFF"
+function formatDiscountLabel(discountType, discountValue) {
+  return discountType === 'percent' ? `${discountValue}% OFF` : `$${discountValue} OFF`;
+}
+
+// Grouped items can't have their own name changed, but the item GROUP's name can be —
+// and Clover derives each grouped item's displayed/receipt name from the group name + its
+// variant attribute. So renaming the group is how a sale gets flagged on the receipt for variants.
+async function getCloverItemGroupId(merchantId, apiToken, cloverItemId) {
+  const res = await axios.get(
+    `${CLOVER_BASE}${merchantId}/items/${cloverItemId}?expand=itemGroup`,
+    { headers: cloverHeaders(apiToken) }
+  );
+  return res.data?.itemGroup?.id || null;
+}
+
+async function renameCloverItemGroup(merchantId, apiToken, groupId, name) {
+  await axios.post(
+    `${CLOVER_BASE}${merchantId}/item_groups/${groupId}`,
+    { name },
+    { headers: cloverHeaders(apiToken) }
+  );
+}
+
+// Restore item group names from a schedule's frozen group_renames snapshot
+async function restoreCloverGroups(store, groupRenames) {
+  if (!groupRenames) return;
+  for (const [groupName, info] of Object.entries(groupRenames)) {
+    if (!info?.cloverGroupId || !info?.originalName) continue;
+    try {
+      await renameCloverItemGroup(store.merchant_id, store.api_token, info.cloverGroupId, info.originalName);
+      await sleep(300);
+    } catch (err) {
+      console.error(`Failed to restore group name for ${groupName}:`, err.message);
+    }
+  }
+}
+
 // Restore original name + price to Clover.
 // Always restore from the schedule's frozen original_prices snapshot when available —
 // inventory_items.price can no longer be trusted once Clover syncs the discounted price back into our DB.
@@ -184,6 +222,7 @@ router.put('/:id/cancel', auth, async (req, res) => {
       const { data: store } = await supabase.from('stores').select('merchant_id, api_token').eq('id', schedule.store_id).single();
       if (store?.merchant_id && store?.api_token) {
         await restoreCloverItems(store, schedule.store_id, schedule.applied_item_ids, schedule.original_prices);
+        await restoreCloverGroups(store, schedule.group_renames);
       }
     }
 
@@ -204,6 +243,7 @@ router.delete('/:id', auth, async (req, res) => {
       const { data: store } = await supabase.from('stores').select('merchant_id, api_token').eq('id', schedule.store_id).single();
       if (store?.merchant_id && store?.api_token) {
         await restoreCloverItems(store, schedule.store_id, schedule.applied_item_ids, schedule.original_prices);
+        await restoreCloverGroups(store, schedule.group_renames);
       }
     }
 
@@ -251,12 +291,51 @@ async function activateSchedule(schedule) {
       await supabase.from('discount_schedules').update({ original_prices: originalPrices }).eq('id', schedule.id);
     }
 
+    const discountLabel = formatDiscountLabel(schedule.discount_type, schedule.discount_value);
+
+    // Grouped items can't be renamed individually, but Clover derives each grouped item's
+    // displayed name from its item GROUP's name — so rename the group instead. Freeze the
+    // original group name + Clover group id the first time, like we do for prices.
+    const uniqueGroups = [...new Set(items.filter(i => i.group_name).map(i => i.group_name))];
+    const groupRenames = { ...(schedule.group_renames || {}) };
+    let groupRenamesChanged = false;
+    for (const groupName of uniqueGroups) {
+      if (!groupRenames[groupName]) {
+        const sampleItem = items.find(i => i.group_name === groupName);
+        try {
+          const cloverGroupId = await getCloverItemGroupId(store.merchant_id, store.api_token, sampleItem.id);
+          if (cloverGroupId) {
+            groupRenames[groupName] = { cloverGroupId, originalName: groupName };
+            groupRenamesChanged = true;
+          }
+        } catch (err) {
+          console.error(`Failed to look up item group for ${groupName}:`, err.message);
+        }
+      }
+    }
+    if (groupRenamesChanged) {
+      await supabase.from('discount_schedules').update({ group_renames: groupRenames }).eq('id', schedule.id);
+    }
+    for (const groupName of uniqueGroups) {
+      const info = groupRenames[groupName];
+      if (!info?.cloverGroupId) continue;
+      const newGroupName = `${schedule.name} ${discountLabel} - ${info.originalName}`.slice(0, 127);
+      try {
+        await renameCloverItemGroup(store.merchant_id, store.api_token, info.cloverGroupId, newGroupName);
+        await sleep(300);
+      } catch (err) {
+        const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+        result.errors.push(`Group rename failed for "${groupName}": ${detail}`);
+        console.error(`Failed to rename item group ${groupName}:`, detail);
+      }
+    }
+
     for (const item of items) {
       const basePrice = originalPrices[item.id];
       if (basePrice === undefined) { result.errors.push(`Item ${item.id} (${item.variant_name}) skipped — no price set`); continue; }
       const discountedPrice = calcDiscountedPrice(basePrice, schedule.discount_type, schedule.discount_value);
-      // Clover won't allow name changes on grouped items — only update price for those
-      const saleName = item.group_name ? null : `${schedule.name} (${item.variant_name})`;
+      // Clover won't allow name changes on grouped items — the group itself was renamed above instead
+      const saleName = item.group_name ? null : `${schedule.name} ${discountLabel} - ${item.variant_name}`;
       try {
         await setCloverItem(store.merchant_id, store.api_token, item.id, saleName, discountedPrice);
         result.applied.push(item.id);
@@ -303,6 +382,7 @@ async function expireSchedule(schedule) {
       const { data: store } = await supabase.from('stores').select('merchant_id, api_token').eq('id', schedule.store_id).single();
       if (store?.merchant_id && store?.api_token) {
         await restoreCloverItems(store, schedule.store_id, schedule.applied_item_ids, schedule.original_prices);
+        await restoreCloverGroups(store, schedule.group_renames);
       }
     }
     await supabase.from('discount_schedules').update({ status: 'expired', updated_at: new Date().toISOString() }).eq('id', schedule.id);
