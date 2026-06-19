@@ -236,7 +236,7 @@ async function preloadInventoryData() {
   const items = await api(`/api/inventory/items?store_id=${currentStoreId}`);
   allItems = items.items || items || [];
   const catSet = new Set(), groupSet = new Set();
-  allItems.forEach(i => { if (i.category) catSet.add(i.category); if (i.item_group) groupSet.add(i.item_group); });
+  allItems.forEach(i => { if (i.category) catSet.add(i.category); if (i.group_name) groupSet.add(i.group_name); });
   allCategories = [...catSet].sort();
   allGroups = [...groupSet].sort();
 }

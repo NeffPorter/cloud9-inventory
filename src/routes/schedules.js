@@ -23,12 +23,12 @@ async function auth(req, res, next) {
 
 // Resolve target_ids to Clover item IDs
 async function resolveCloverItemIds(storeId, targetType, targetIds) {
-  let query = supabase.from('inventory_items').select('clover_item_id, item_group, category').eq('store_id', storeId).not('clover_item_id', 'is', null);
+  let query = supabase.from('inventory_items').select('clover_item_id, group_name, category').eq('store_id', storeId).not('clover_item_id', 'is', null);
 
   if (targetType === 'category') {
     query = query.in('category', targetIds);
   } else if (targetType === 'item_group') {
-    query = query.in('item_group', targetIds);
+    query = query.in('group_name', targetIds);
   } else if (targetType === 'item') {
     query = query.in('id', targetIds);
   }
@@ -107,9 +107,9 @@ async function checkConflicts(storeId, targetType, targetIds, excludeScheduleId 
   if (!active || active.length === 0) return [];
 
   // Get inventory item IDs for the new schedule's targets
-  let newQuery = supabase.from('inventory_items').select('id, name, item_group, category').eq('store_id', storeId);
+  let newQuery = supabase.from('inventory_items').select('id, name, group_name, category').eq('store_id', storeId);
   if (targetType === 'category') newQuery = newQuery.in('category', targetIds);
-  else if (targetType === 'item_group') newQuery = newQuery.in('item_group', targetIds);
+  else if (targetType === 'item_group') newQuery = newQuery.in('group_name', targetIds);
   else if (targetType === 'item') newQuery = newQuery.in('id', targetIds);
   const { data: newItems } = await newQuery;
   const newItemIds = new Set((newItems || []).map(i => i.id));
@@ -118,7 +118,7 @@ async function checkConflicts(storeId, targetType, targetIds, excludeScheduleId 
   for (const sched of active) {
     let existQuery = supabase.from('inventory_items').select('id').eq('store_id', storeId);
     if (sched.target_type === 'category') existQuery = existQuery.in('category', sched.target_ids);
-    else if (sched.target_type === 'item_group') existQuery = existQuery.in('item_group', sched.target_ids);
+    else if (sched.target_type === 'item_group') existQuery = existQuery.in('group_name', sched.target_ids);
     else if (sched.target_type === 'item') existQuery = existQuery.in('id', sched.target_ids);
     const { data: existItems } = await existQuery;
     const existItemIds = new Set((existItems || []).map(i => i.id));
