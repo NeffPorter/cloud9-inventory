@@ -47,6 +47,15 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 
 .add-item-bar { display: flex; gap: 10px; margin-top: 14px; }
 .add-item-bar select { flex: 1; padding: 9px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+.search-picker { position: relative; flex: 1; }
+.search-picker-input { width: 100%; padding: 9px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+.search-picker-input:focus { outline: none; border-color: #2563eb; }
+.search-list { display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: white; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.12); max-height: 240px; overflow-y: auto; z-index: 500; }
+.search-list.open { display: block; }
+.search-list-item { padding: 10px 14px; font-size: 13px; cursor: pointer; border-bottom: 1px solid #f5f5f5; }
+.search-list-item:last-child { border-bottom: none; }
+.search-list-item:hover { background: #eff6ff; color: #2563eb; }
+.search-list-empty { padding: 10px 14px; font-size: 13px; color: #aaa; font-style: italic; }
 .btn { padding: 9px 18px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: opacity .15s; }
 .btn:hover { opacity: .85; }
 .btn-primary { background: #2563eb; color: white; }
@@ -147,10 +156,11 @@ function render() {
       </div>
       ${isEditable ? `
       <div class="add-item-bar">
-        <select id="itemSelect">
-          <option value="">— search and add an item —</option>
-          ${allItems.map(i => `<option value="${i.id}" data-clover="${i.clover_item_id || ''}" data-sku="${i.sku || ''}">${i.variant_name || i.group_name}${i.sku ? ' ('+i.sku+')' : ''}</option>`).join('')}
-        </select>
+        <div class="search-picker">
+          <input type="text" class="search-picker-input" id="itemSearch" placeholder="Search items..." autocomplete="off"
+            oninput="filterItemPicker()" onfocus="filterItemPicker()">
+          <div class="search-list" id="itemPickerList"></div>
+        </div>
         <button class="btn btn-ghost btn-sm" onclick="addItem()">+ Add</button>
       </div>` : ''}
     </div>
@@ -195,17 +205,48 @@ function renderItemRow(item) {
   </div>`;
 }
 
+let itemPickerVal = null, itemPickerData = null;
+
+function filterItemPicker() {
+  const q = (document.getElementById('itemSearch')?.value || '').toLowerCase().trim();
+  const list = document.getElementById('itemPickerList');
+  if (!list) return;
+  const filtered = q ? allItems.filter(i => {
+    const full = ((i.group_name || '') + ' ' + (i.variant_name || '')).toLowerCase();
+    return full.includes(q);
+  }) : allItems.slice(0, 80);
+  if (!filtered.length) {
+    list.innerHTML = '<div class="search-list-empty">No matches found</div>';
+  } else {
+    list.innerHTML = filtered.slice(0, 80).map(i => {
+      const label = (i.group_name ? i.group_name + ' · ' : '') + (i.variant_name || '');
+      const safeLabel = label.replace(/'/g, "\\'");
+      const safeClov = (i.clover_item_id || '').replace(/'/g, "\\'");
+      const safeSku = (i.sku || '').replace(/'/g, "\\'");
+      return `<div class="search-list-item" onmousedown="selectItemPicker('${i.id}','${safeLabel}','${safeClov}','${safeSku}')">${label}${i.sku ? ' <span style="color:#aaa;font-size:11px">' + i.sku + '</span>' : ''}</div>`;
+    }).join('');
+  }
+  list.classList.add('open');
+}
+
+function selectItemPicker(id, label, cloverId, sku) {
+  itemPickerVal = id;
+  itemPickerData = { id, label, cloverId, sku };
+  const el = document.getElementById('itemSearch');
+  if (el) el.value = label;
+  const list = document.getElementById('itemPickerList');
+  if (list) list.classList.remove('open');
+}
+
 function addItem() {
-  const sel = document.getElementById('itemSelect');
-  const itemId = sel.value;
-  if (!itemId) return;
-  const opt = sel.options[sel.selectedIndex];
-  const name = opt.text.split(' (')[0];
-  const sku = opt.dataset.sku;
-  const cloverId = opt.dataset.clover;
+  if (!itemPickerVal || !itemPickerData) return;
+  const { id, label, cloverId, sku } = itemPickerData;
+  if (proposalItems.find(i => i.inventory_item_id === id)) { return; }
   const _tempId = Math.random();
-  proposalItems.push({ _tempId, inventory_item_id: itemId, clover_item_id: cloverId, item_name: name, sku, discount_type: 'percent', discount_value: '' });
-  sel.value = '';
+  proposalItems.push({ _tempId, inventory_item_id: id, clover_item_id: cloverId, item_name: label, sku, discount_type: 'percent', discount_value: '' });
+  itemPickerVal = null; itemPickerData = null;
+  const el = document.getElementById('itemSearch');
+  if (el) el.value = '';
   refreshItemRows();
 }
 
@@ -280,6 +321,14 @@ function showToast(msg) {
 }
 
 init();
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.search-picker')) {
+    const list = document.getElementById('itemPickerList');
+    if (list) list.classList.remove('open');
+  }
+});
 </script>
+<script>loadNavbar();</script>
 </body>
 </html>

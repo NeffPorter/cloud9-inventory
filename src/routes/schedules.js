@@ -55,7 +55,7 @@ async function restoreCloverItems(store, storeId, appliedItemIds) {
   for (const item of items || []) {
     if (!item.price) continue;
     try {
-      await setCloverItem(store.merchant_id, store.api_token, item.clover_item_id, item.name, item.price);
+      await setCloverItem(store.merchant_id, store.api_token, item.clover_item_id, item.variant_name, item.price);
     } catch (err) {
       console.error(`Failed to restore item ${item.clover_item_id}:`, err.message);
     }

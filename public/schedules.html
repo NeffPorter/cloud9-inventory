@@ -63,6 +63,15 @@
   .chip-remove:hover { color: #dc2626; }
   .add-target-row { display: flex; gap: 8px; margin-top: 8px; }
   .add-target-row select, .add-target-row input { flex: 1; }
+  .search-picker { position: relative; flex: 1; }
+  .search-picker-input { width: 100%; padding: 9px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+  .search-picker-input:focus { outline: none; border-color: #2563eb; }
+  .search-list { display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: white; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.12); max-height: 220px; overflow-y: auto; z-index: 500; }
+  .search-list.open { display: block; }
+  .search-list-item { padding: 10px 14px; font-size: 13px; cursor: pointer; border-bottom: 1px solid #f5f5f5; }
+  .search-list-item:last-child { border-bottom: none; }
+  .search-list-item:hover { background: #eff6ff; color: #2563eb; }
+  .search-list-empty { padding: 10px 14px; font-size: 13px; color: #aaa; font-style: italic; }
 
   .conflict-banner { background: #fef9c3; border: 1px solid #fde047; border-radius: 8px; padding: 12px 14px; font-size: 13px; color: #854d0e; }
   .conflict-banner strong { display: block; margin-bottom: 4px; }
@@ -140,9 +149,11 @@
       <div class="field" id="targetPickerField">
         <label id="targetPickerLabel">Select categories</label>
         <div class="add-target-row">
-          <select id="targetSelect">
-            <option value="">Loading...</option>
-          </select>
+          <div class="search-picker">
+            <input type="text" class="search-picker-input" id="targetSearch" placeholder="Type to search..." autocomplete="off"
+              oninput="filterPicker()" onfocus="filterPicker()">
+            <div class="search-list" id="targetList"></div>
+          </div>
           <button class="btn btn-ghost btn-sm" onclick="addTarget()">Add</button>
         </div>
         <div class="target-chips" id="targetChips"></div>
@@ -270,33 +281,57 @@ function setDiscountType(type) {
   document.getElementById('fValue').placeholder = type === 'percent' ? '10' : '2.00';
 }
 
+let pickerOptions = [], pickerVal = null, pickerLabel = null;
+
 function setTargetType(type) {
   targetType = type;
   selectedTargets = [];
+  pickerVal = null; pickerLabel = null;
   document.getElementById('btnCategory').classList.toggle('active', type === 'category');
   document.getElementById('btnItemGroup').classList.toggle('active', type === 'item_group');
   document.getElementById('btnItem').classList.toggle('active', type === 'item');
-
-  const sel = document.getElementById('targetSelect');
   document.getElementById('targetPickerLabel').textContent = type === 'category' ? 'Select categories' : type === 'item_group' ? 'Select item groups' : 'Select items';
+  document.getElementById('targetSearch').value = '';
+  document.getElementById('targetSearch').placeholder = type === 'category' ? 'Search categories...' : type === 'item_group' ? 'Search item groups...' : 'Search items...';
+  document.getElementById('targetList').classList.remove('open');
 
   if (type === 'category') {
-    sel.innerHTML = '<option value="">— pick a category —</option>' + allCategories.map(c => `<option value="${c}">${c}</option>`).join('');
+    pickerOptions = allCategories.map(c => ({ value: c, label: c }));
   } else if (type === 'item_group') {
-    sel.innerHTML = '<option value="">— pick a group —</option>' + allGroups.map(g => `<option value="${g}">${g}</option>`).join('');
+    pickerOptions = allGroups.map(g => ({ value: g, label: g }));
   } else {
-    sel.innerHTML = '<option value="">— pick an item —</option>' + allItems.map(i => `<option value="${i.id}">${i.variant_name || i.group_name}${i.sku ? ' (' + i.sku + ')' : ''}</option>`).join('');
+    pickerOptions = allItems.map(i => ({ value: i.id, label: (i.group_name ? i.group_name + ' · ' : '') + (i.variant_name || '') }));
   }
   renderChips();
 }
 
+function filterPicker() {
+  const q = document.getElementById('targetSearch').value.toLowerCase().trim();
+  const list = document.getElementById('targetList');
+  const filtered = q ? pickerOptions.filter(o => o.label.toLowerCase().includes(q)) : pickerOptions.slice(0, 80);
+  if (!filtered.length) {
+    list.innerHTML = '<div class="search-list-empty">No matches found</div>';
+  } else {
+    list.innerHTML = filtered.slice(0, 80).map(o =>
+      `<div class="search-list-item" onmousedown="selectPickerItem('${o.value.replace(/'/g,"\\'")}','${o.label.replace(/'/g,"\\'")}')">${o.label}</div>`
+    ).join('');
+  }
+  list.classList.add('open');
+}
+
+function selectPickerItem(value, label) {
+  pickerVal = value; pickerLabel = label;
+  document.getElementById('targetSearch').value = label;
+  document.getElementById('targetList').classList.remove('open');
+}
+
 function addTarget() {
-  const sel = document.getElementById('targetSelect');
-  const val = sel.value, label = sel.options[sel.selectedIndex]?.text;
-  if (!val) return;
-  if (selectedTargets.find(t => t.id === val)) return;
-  selectedTargets.push({ id: val, label: targetType === 'item' ? label : val });
-  sel.value = '';
+  if (!pickerVal) return;
+  if (selectedTargets.find(t => t.id === pickerVal)) { pickerVal = null; pickerLabel = null; document.getElementById('targetSearch').value = ''; return; }
+  selectedTargets.push({ id: pickerVal, label: pickerLabel });
+  pickerVal = null; pickerLabel = null;
+  document.getElementById('targetSearch').value = '';
+  document.getElementById('targetList').classList.remove('open');
   renderChips();
 }
 
@@ -370,8 +405,10 @@ async function cancelSchedule(id, name) {
 }
 
 document.getElementById('modalOverlay').addEventListener('click', e => { if (e.target === document.getElementById('modalOverlay')) closeModal(); });
+document.addEventListener('click', e => { if (!e.target.closest('.search-picker')) document.querySelectorAll('.search-list').forEach(l => l.classList.remove('open')); });
 
 init();
 </script>
+<script>loadNavbar();</script>
 </body>
 </html>
