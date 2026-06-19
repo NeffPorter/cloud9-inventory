@@ -1,24 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const axios = require('axios');
-const { createClient } = require('@supabase/supabase-js');
 const supabase = require('../lib/supabase');
+const auth = require('../middleware/auth');
 
 const CLOVER_BASE = 'https://api.clover.com/v3/merchants/';
 
 function cloverHeaders(token) {
   return { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
-}
-
-// Auth middleware
-async function auth(req, res, next) {
-  const token = (req.headers.authorization || '').replace('Bearer ', '');
-  if (!token) return res.status(401).json({ error: 'No token' });
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) return res.status(401).json({ error: 'Invalid token' });
-  req.user = user;
-  req.token = token;
-  next();
 }
 
 // Resolve target_ids to Clover item IDs

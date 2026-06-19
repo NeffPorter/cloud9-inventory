@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const supabase = require('../lib/supabase');
+const auth = require('../middleware/auth');
 
 const CLOVER_BASE = 'https://api.clover.com/v3/merchants/';
 
@@ -9,20 +10,13 @@ function cloverHeaders(token) {
   return { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
 }
 
-async function auth(req, res, next) {
-  const token = (req.headers.authorization || '').replace('Bearer ', '');
-  if (!token) return res.status(401).json({ error: 'No token' });
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) return res.status(401).json({ error: 'Invalid token' });
-  req.user = user;
-  req.token = token;
+function requireAdmin(req, res, next) {
+  if (!req.user || req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   next();
 }
 
-async function requireAdmin(req, res, next) {
-  const { data: profile } = await supabase.from('users').select('role').eq('id', req.user.id).single();
-  if (!profile || profile.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  req.profile = profile;
+// placeholder so existing code that sets req.profile still works
+function setProfile(req, res, next) {
   next();
 }
 

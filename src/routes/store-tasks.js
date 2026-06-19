@@ -1,15 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../lib/supabase');
-
-async function auth(req, res, next) {
-  const token = (req.headers.authorization || '').replace('Bearer ', '');
-  if (!token) return res.status(401).json({ error: 'No token' });
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) return res.status(401).json({ error: 'Invalid token' });
-  req.user = user;
-  next();
-}
+const auth = require('../middleware/auth');
 
 // GET /api/store-tasks?store_id=xxx — get to-do list for a store
 router.get('/', auth, async (req, res) => {
