@@ -13,7 +13,7 @@ function cloverHeaders(token) {
 // Get target items with price + name + clover_item_id
 async function getTargetItems(storeId, targetType, targetIds) {
   let query = supabase.from('inventory_items')
-    .select('id, clover_item_id, price, name')
+    .select('id, clover_item_id, price, variant_name')
     .eq('store_id', storeId)
     .not('clover_item_id', 'is', null);
 
@@ -48,7 +48,7 @@ async function restoreCloverItems(store, storeId, appliedItemIds) {
   if (!appliedItemIds?.length) return;
   const { data: items } = await supabase
     .from('inventory_items')
-    .select('clover_item_id, price, name')
+    .select('clover_item_id, price, variant_name')
     .in('clover_item_id', appliedItemIds)
     .eq('store_id', storeId);
 
@@ -200,7 +200,7 @@ async function activateSchedule(schedule) {
     for (const item of items) {
       if (!item.price) continue;
       const discountedPrice = calcDiscountedPrice(item.price, schedule.discount_type, schedule.discount_value);
-      const saleName = `${schedule.name} (${item.name})`;
+      const saleName = `${schedule.name} (${item.variant_name})`;
       try {
         await setCloverItem(store.merchant_id, store.api_token, item.clover_item_id, saleName, discountedPrice);
         applied.push(item.clover_item_id);

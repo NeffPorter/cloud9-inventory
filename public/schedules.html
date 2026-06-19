@@ -285,7 +285,7 @@ function setTargetType(type) {
   } else if (type === 'item_group') {
     sel.innerHTML = '<option value="">— pick a group —</option>' + allGroups.map(g => `<option value="${g}">${g}</option>`).join('');
   } else {
-    sel.innerHTML = '<option value="">— pick an item —</option>' + allItems.map(i => `<option value="${i.id}">${i.name}${i.sku ? ' (' + i.sku + ')' : ''}</option>`).join('');
+    sel.innerHTML = '<option value="">— pick an item —</option>' + allItems.map(i => `<option value="${i.id}">${i.variant_name || i.group_name}${i.sku ? ' (' + i.sku + ')' : ''}</option>`).join('');
   }
   renderChips();
 }

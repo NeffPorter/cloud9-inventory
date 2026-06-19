@@ -149,7 +149,7 @@ function render() {
       <div class="add-item-bar">
         <select id="itemSelect">
           <option value="">— search and add an item —</option>
-          ${allItems.map(i => `<option value="${i.id}" data-clover="${i.clover_item_id || ''}" data-sku="${i.sku || ''}">${i.name}${i.sku ? ' ('+i.sku+')' : ''}</option>`).join('')}
+          ${allItems.map(i => `<option value="${i.id}" data-clover="${i.clover_item_id || ''}" data-sku="${i.sku || ''}">${i.variant_name || i.group_name}${i.sku ? ' ('+i.sku+')' : ''}</option>`).join('')}
         </select>
         <button class="btn btn-ghost btn-sm" onclick="addItem()">+ Add</button>
       </div>` : ''}
