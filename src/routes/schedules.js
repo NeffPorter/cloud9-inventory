@@ -47,8 +47,10 @@ async function setCloverItem(merchantId, apiToken, cloverItemId, name, priceDoll
   );
 }
 
-// Restore original name + price from our DB to Clover
-async function restoreCloverItems(store, storeId, appliedItemIds) {
+// Restore original name + price to Clover.
+// Always restore from the schedule's frozen original_prices snapshot when available —
+// inventory_items.price can no longer be trusted once Clover syncs the discounted price back into our DB.
+async function restoreCloverItems(store, storeId, appliedItemIds, originalPrices) {
   if (!appliedItemIds?.length) return;
   const { data: items } = await supabase
     .from('inventory_items')
@@ -57,11 +59,13 @@ async function restoreCloverItems(store, storeId, appliedItemIds) {
     .eq('store_id', storeId);
 
   for (const item of items || []) {
-    if (!item.price) continue;
+    const snapshotPrice = originalPrices?.[item.id];
+    const restorePrice = snapshotPrice !== undefined ? parseFloat(snapshotPrice) : (item.price ? parseFloat(item.price) : null);
+    if (restorePrice === null || isNaN(restorePrice)) continue;
     // Only restore name for ungrouped items — Clover blocks name changes on grouped items
     const restoreName = item.group_name ? null : item.variant_name;
     try {
-      await setCloverItem(store.merchant_id, store.api_token, item.id, restoreName, item.price);
+      await setCloverItem(store.merchant_id, store.api_token, item.id, restoreName, restorePrice);
       await sleep(300);
     } catch (err) {
       console.error(`Failed to restore item ${item.id}:`, err.message);
@@ -179,7 +183,7 @@ router.put('/:id/cancel', auth, async (req, res) => {
     if (schedule.status === 'active' && schedule.applied_item_ids?.length) {
       const { data: store } = await supabase.from('stores').select('merchant_id, api_token').eq('id', schedule.store_id).single();
       if (store?.merchant_id && store?.api_token) {
-        await restoreCloverItems(store, schedule.store_id, schedule.applied_item_ids);
+        await restoreCloverItems(store, schedule.store_id, schedule.applied_item_ids, schedule.original_prices);
       }
     }
 
@@ -199,7 +203,7 @@ router.delete('/:id', auth, async (req, res) => {
     if (schedule.status === 'active' && schedule.applied_item_ids?.length) {
       const { data: store } = await supabase.from('stores').select('merchant_id, api_token').eq('id', schedule.store_id).single();
       if (store?.merchant_id && store?.api_token) {
-        await restoreCloverItems(store, schedule.store_id, schedule.applied_item_ids);
+        await restoreCloverItems(store, schedule.store_id, schedule.applied_item_ids, schedule.original_prices);
       }
     }
 
@@ -231,9 +235,26 @@ async function activateSchedule(schedule) {
       return result;
     }
 
+    // Freeze each item's pre-discount price the FIRST time we ever touch it.
+    // Once Clover syncs the discounted price back into inventory_items.price, that column can no
+    // longer be trusted as "the original price" — re-applying/retrying must always discount from
+    // this frozen snapshot, never from the live (possibly already-discounted) DB price.
+    const originalPrices = { ...(schedule.original_prices || {}) };
+    let snapshotChanged = false;
     for (const item of items) {
-      if (!item.price) { result.errors.push(`Item ${item.id} (${item.variant_name}) skipped — no price set`); continue; }
-      const discountedPrice = calcDiscountedPrice(parseFloat(item.price), schedule.discount_type, schedule.discount_value);
+      if (originalPrices[item.id] === undefined && item.price) {
+        originalPrices[item.id] = parseFloat(item.price);
+        snapshotChanged = true;
+      }
+    }
+    if (snapshotChanged) {
+      await supabase.from('discount_schedules').update({ original_prices: originalPrices }).eq('id', schedule.id);
+    }
+
+    for (const item of items) {
+      const basePrice = originalPrices[item.id];
+      if (basePrice === undefined) { result.errors.push(`Item ${item.id} (${item.variant_name}) skipped — no price set`); continue; }
+      const discountedPrice = calcDiscountedPrice(basePrice, schedule.discount_type, schedule.discount_value);
       // Clover won't allow name changes on grouped items — only update price for those
       const saleName = item.group_name ? null : `${schedule.name} (${item.variant_name})`;
       try {
@@ -281,7 +302,7 @@ async function expireSchedule(schedule) {
     if (schedule.applied_item_ids?.length) {
       const { data: store } = await supabase.from('stores').select('merchant_id, api_token').eq('id', schedule.store_id).single();
       if (store?.merchant_id && store?.api_token) {
-        await restoreCloverItems(store, schedule.store_id, schedule.applied_item_ids);
+        await restoreCloverItems(store, schedule.store_id, schedule.applied_item_ids, schedule.original_prices);
       }
     }
     await supabase.from('discount_schedules').update({ status: 'expired', updated_at: new Date().toISOString() }).eq('id', schedule.id);
