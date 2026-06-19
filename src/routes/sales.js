@@ -105,6 +105,40 @@ router.get('/test-sale-diagnostic', auth, async (req, res) => {
   }
 });
 
+// POST /api/sales/test-order-only — diagnostic: create an order + line item with NO payment,
+// then check a few seconds later whether our own webhook logged it to sales_log. Tells us
+// whether a completed payment is actually required for our sale-detection to fire.
+router.post('/test-order-only', auth, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    const { store_id, item_id } = req.body;
+    const { data: store } = await supabase.from('stores').select('*').eq('id', store_id).single();
+    if (!store?.merchant_id || !store?.api_token) return res.status(400).json({ error: 'No credentials' });
+
+    const { data: item } = await supabase.from('inventory_items').select('id, variant_name, price').eq('id', item_id).single();
+    if (!item) return res.status(400).json({ error: 'Item not found' });
+
+    const headers = { Authorization: 'Bearer ' + store.api_token, 'Content-Type': 'application/json' };
+    const base = `https://api.clover.com/v3/merchants/${store.merchant_id}`;
+
+    const orderRes = await axios.post(`${base}/orders`, { state: 'open' }, { headers });
+    const orderId = orderRes.data.id;
+
+    await axios.post(`${base}/orders/${orderId}/bulk_line_items`, {
+      items: [{ item: { id: item.id }, price: Math.round(parseFloat(item.price) * 100), name: item.variant_name }]
+    }, { headers });
+
+    await new Promise(r => setTimeout(r, 6000));
+
+    const { data: loggedRows } = await supabase.from('sales_log').select('*').eq('store_id', store_id).eq('order_id', orderId);
+
+    res.json({ orderId, loggedInSalesLog: loggedRows?.length > 0, rows: loggedRows });
+  } catch (err) {
+    const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+    res.status(500).json({ error: detail });
+  }
+});
+
 // POST /api/sales/generate-test-data — ring up a batch of real, varied Clover orders (paid via
 // the merchant's Cash tender, no real money moves) so test merchants have actual sales history
 // to exercise Suggested Orders, the Sales tab, low-stock alerts, etc. Admin only.
