@@ -239,7 +239,7 @@ async function loadSchedules() {
       </div>
       <div class="schedule-actions">
         ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick="openEditSchedule('${s.id}')">Edit</button>` : ''}
-        ${s.status === 'active' && (!s.applied_item_ids || s.applied_item_ids.length === 0) ? `<button class="btn btn-primary btn-sm" onclick="applyNow('${s.id}')">⚡ Apply Now</button>` : ''}
+        ${s.status === 'active' ? `<button class="btn btn-primary btn-sm" onclick="applyNow('${s.id}')">⚡ Apply Now</button>` : ''}
         ${canCancel ? `<button class="btn btn-ghost btn-sm" style="color:#d97706;border-color:#d97706" onclick="cancelSchedule('${s.id}','${safeName}')">Cancel</button>` : ''}
         <button class="btn btn-danger btn-sm" onclick="deleteSchedule('${s.id}','${safeName}')">Delete</button>
       </div>
@@ -440,12 +440,11 @@ async function applyNow(id) {
   const data = await res.json();
   if (res.ok) {
     const count = data.applied?.length || 0;
-    if (count > 0) {
-      alert(`✅ Applied to ${count} item${count !== 1 ? 's' : ''} on Clover!`);
-    } else {
-      const errDetail = (data.errors || []).slice(0, 3).join('\n');
-      alert(`⚠️ 0 items updated.\n\nItems found: ${data.itemCount || 0}\n\n${errDetail || 'Unknown error — check Railway logs.'}`);
-    }
+    const errors = data.errors || [];
+    const total = data.itemCount || 0;
+    let msg = `✅ Applied to ${count}/${total} items on Clover.`;
+    if (errors.length) msg += `\n\nFailed (${errors.length}):\n` + errors.slice(0, 5).join('\n');
+    alert(msg);
     loadSchedules();
   } else {
     alert('Error: ' + (data.error || 'Failed'));
