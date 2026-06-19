@@ -139,9 +139,13 @@ router.post('/test-order-only', auth, async (req, res) => {
   }
 });
 
-// POST /api/sales/generate-test-data — ring up a batch of real, varied Clover orders (paid via
-// the merchant's Cash tender, no real money moves) so test merchants have actual sales history
-// to exercise Suggested Orders, the Sales tab, low-stock alerts, etc. Admin only.
+// POST /api/sales/generate-test-data — ring up a batch of real Clover orders (line items only —
+// this merchant's API token isn't scoped for Payments/tenders, and a payment isn't actually
+// needed: Clover decrements stock the moment line items are added, regardless of payment state).
+// We compute the sale figures ourselves from the known item prices/costs and insert directly into
+// sales_log, rather than depending on Clover's order.total (which lags right after creation and
+// races with the real webhook). The real webhook will also fire for these orders; our existing
+// (store_id, order_id, type) dedup constraint makes sure it can't double-log. Admin only.
 router.post('/generate-test-data', auth, async (req, res) => {
   try {
     if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
@@ -157,17 +161,18 @@ router.post('/generate-test-data', auth, async (req, res) => {
 
     const { data: items } = await supabase
       .from('inventory_items')
-      .select('id, variant_name, group_name, price')
+      .select('id, variant_name, group_name, price, cost')
       .eq('store_id', store_id)
       .gt('price', 0);
 
     if (!items?.length) return res.status(400).json({ error: 'No priced inventory items found for this store' });
 
-    const cashTenderId = await getCashTenderId(store.merchant_id, store.api_token);
-    if (!cashTenderId) return res.status(400).json({ error: 'No tender found on this merchant' });
+    const headers = { Authorization: 'Bearer ' + store.api_token, 'Content-Type': 'application/json' };
+    const base = `https://api.clover.com/v3/merchants/${store.merchant_id}`;
 
     const created = [];
     const errors = [];
+    const touchedItemIds = new Set();
 
     for (let n = 0; n < numOrders; n++) {
       try {
@@ -177,22 +182,49 @@ router.post('/generate-test-data', auth, async (req, res) => {
         for (let k = 0; k < lineItemCount; k++) {
           const item = items[Math.floor(Math.random() * items.length)];
           const qty = 1 + Math.floor(Math.random() * 2);
-          for (let q = 0; q < qty; q++) {
-            picks.push({
-              id: item.id,
-              name: (item.group_name ? item.group_name + ' ' : '') + (item.variant_name || ''),
-              price: Math.round(parseFloat(item.price) * 100)
-            });
-          }
+          const unitPrice = parseFloat(item.price) || 0;
+          const unitCost = parseFloat(item.cost) || 0;
+          picks.push({
+            id: item.id,
+            name: (item.group_name ? item.group_name + ' ' : '') + (item.variant_name || ''),
+            price: Math.round(unitPrice * 100),
+            qty,
+            cost: unitCost
+          });
+          touchedItemIds.add(item.id);
         }
 
-        const result = await createCashSale(store.merchant_id, store.api_token, picks, cashTenderId);
-        created.push({ orderId: result.orderId, items: picks.length, total: result.total / 100 });
+        const orderRes = await axios.post(`${base}/orders`, { state: 'open' }, { headers });
+        const orderId = orderRes.data.id;
+
+        await axios.post(`${base}/orders/${orderId}/bulk_line_items`, {
+          items: picks.flatMap(p => Array.from({ length: p.qty }, () => ({ item: { id: p.id }, price: p.price, name: p.name })))
+        }, { headers });
+
+        const gross = picks.reduce((sum, p) => sum + (p.price / 100) * p.qty, 0);
+        const totalCost = picks.reduce((sum, p) => sum + p.cost * p.qty, 0);
+        const itemSummary = picks.map(p => `${p.id} x${p.qty}`).join(', ');
+
+        await supabase.from('sales_log').upsert([{
+          store_id, order_id: orderId, type: 'Sale',
+          gross, net: gross, tax: 0, discounts: 0, tips: 0,
+          total_cost: totalCost, gross_profit: gross - totalCost,
+          item_summary: itemSummary, status: 'OK'
+        }], { onConflict: 'store_id,order_id,type', ignoreDuplicates: true });
+
+        created.push({ orderId, items: picks.length, total: gross });
         await sleep(400); // avoid Clover rate limit (429)
       } catch (err) {
         const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
         errors.push(detail);
       }
+    }
+
+    // Let Clover's stock decrements settle, then pull the real post-sale quantities into our DB
+    await sleep(3000);
+    for (const itemId of touchedItemIds) {
+      await updateInventoryItem(store, itemId);
+      await sleep(200);
     }
 
     res.json({
@@ -201,6 +233,7 @@ router.post('/generate-test-data', auth, async (req, res) => {
       ordersCreated: created.length,
       ordersFailed: errors.length,
       totalRevenue: created.reduce((sum, c) => sum + c.total, 0),
+      itemsRestocked: touchedItemIds.size,
       errors: errors.slice(0, 5)
     });
   } catch (err) {
