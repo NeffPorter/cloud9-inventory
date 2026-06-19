@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const { fetchFullOrder, fetchOrderRefunds, fetchItem, pushStockToClover, extractLineItems, extractRefundedItems } = require('../services/clover');
+const { fetchFullOrder, fetchOrderRefunds, fetchItem, pushStockToClover, extractLineItems, extractRefundedItems, createCashSale, getCashTenderId } = require('../services/clover');
 const { calculateSuggestedOrder } = require('../services/suggested');
 const { notify } = require('../services/notify');
 const supabase = require('../lib/supabase');
@@ -61,6 +61,75 @@ router.post('/webhook', async (req, res) => {
   } catch (err) {
     console.error('Webhook error:', err);
     res.status(500).send('ERROR');
+  }
+});
+
+// POST /api/sales/generate-test-data — ring up a batch of real, varied Clover orders (paid via
+// the merchant's Cash tender, no real money moves) so test merchants have actual sales history
+// to exercise Suggested Orders, the Sales tab, low-stock alerts, etc. Admin only.
+router.post('/generate-test-data', auth, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+
+    const { store_id, count } = req.body;
+    if (!store_id) return res.status(400).json({ error: 'store_id required' });
+    const numOrders = Math.min(Math.max(parseInt(count) || 20, 1), 50);
+
+    const { data: store } = await supabase.from('stores').select('*').eq('id', store_id).single();
+    if (!store?.merchant_id || !store?.api_token) {
+      return res.status(400).json({ error: 'Store has no Clover credentials' });
+    }
+
+    const { data: items } = await supabase
+      .from('inventory_items')
+      .select('id, variant_name, group_name, price')
+      .eq('store_id', store_id)
+      .gt('price', 0);
+
+    if (!items?.length) return res.status(400).json({ error: 'No priced inventory items found for this store' });
+
+    const cashTenderId = await getCashTenderId(store.merchant_id, store.api_token);
+    if (!cashTenderId) return res.status(400).json({ error: 'No tender found on this merchant' });
+
+    const created = [];
+    const errors = [];
+
+    for (let n = 0; n < numOrders; n++) {
+      try {
+        // 1-3 random line items, qty 1-2 each
+        const lineItemCount = 1 + Math.floor(Math.random() * 3);
+        const picks = [];
+        for (let k = 0; k < lineItemCount; k++) {
+          const item = items[Math.floor(Math.random() * items.length)];
+          const qty = 1 + Math.floor(Math.random() * 2);
+          for (let q = 0; q < qty; q++) {
+            picks.push({
+              id: item.id,
+              name: (item.group_name ? item.group_name + ' ' : '') + (item.variant_name || ''),
+              price: Math.round(parseFloat(item.price) * 100)
+            });
+          }
+        }
+
+        const result = await createCashSale(store.merchant_id, store.api_token, picks, cashTenderId);
+        created.push({ orderId: result.orderId, items: picks.length, total: result.total / 100 });
+        await sleep(400); // avoid Clover rate limit (429)
+      } catch (err) {
+        const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
+        errors.push(detail);
+      }
+    }
+
+    res.json({
+      success: true,
+      store: store.name,
+      ordersCreated: created.length,
+      ordersFailed: errors.length,
+      totalRevenue: created.reduce((sum, c) => sum + c.total, 0),
+      errors: errors.slice(0, 5)
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

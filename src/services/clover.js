@@ -134,6 +134,50 @@ function extractRefundedItems(fullOrder) {
   return itemMap;
 }
 
+// Create a real order + cash-tender payment on Clover for the given line items.
+// lineItems: [{ id: cloverItemId, name, price (cents) }]
+// Uses Clover's documented "create a payment record" endpoint with the merchant's Cash
+// tender — this is a bookkeeping entry like a register logging a cash sale, no real money moves.
+// Returns the created orderId so callers can track/report on it.
+async function createCashSale(merchantId, apiToken, lineItems, cachedCashTenderId = null) {
+  const headers = { Authorization: 'Bearer ' + apiToken, 'Content-Type': 'application/json' };
+  const base = `${CLOVER_BASE}${merchantId}`;
+
+  const orderRes = await axios.post(`${base}/orders`, { state: 'open' }, { headers });
+  const orderId = orderRes.data.id;
+
+  await axios.post(`${base}/orders/${orderId}/bulk_line_items`, {
+    items: lineItems.map(i => ({ item: { id: i.id }, price: i.price, name: i.name }))
+  }, { headers });
+
+  let cashTenderId = cachedCashTenderId;
+  if (!cashTenderId) {
+    const tendersRes = await axios.get(`${base}/tenders`, { headers });
+    const cashTender = (tendersRes.data.elements || []).find(t => t.labelKey === 'com.clover.tender.cash')
+      || (tendersRes.data.elements || [])[0];
+    if (!cashTender) throw new Error('No tender found on this merchant — cannot record a payment');
+    cashTenderId = cashTender.id;
+  }
+
+  const total = lineItems.reduce((sum, i) => sum + i.price, 0);
+  await axios.post(`${base}/orders/${orderId}/payments`, {
+    order: { id: orderId },
+    tender: { id: cashTenderId },
+    amount: total,
+    result: 'SUCCESS'
+  }, { headers });
+
+  return { orderId, total, cashTenderId };
+}
+
+async function getCashTenderId(merchantId, apiToken) {
+  const headers = { Authorization: 'Bearer ' + apiToken, 'Content-Type': 'application/json' };
+  const tendersRes = await axios.get(`${CLOVER_BASE}${merchantId}/tenders`, { headers });
+  const cashTender = (tendersRes.data.elements || []).find(t => t.labelKey === 'com.clover.tender.cash')
+    || (tendersRes.data.elements || [])[0];
+  return cashTender?.id || null;
+}
+
 module.exports = {
   cloverFetch,
   fetchFullOrder,
@@ -143,5 +187,7 @@ module.exports = {
   setStockInClover,
   updateItemPriceAndCost,
   extractLineItems,
-  extractRefundedItems
+  extractRefundedItems,
+  createCashSale,
+  getCashTenderId
 };
