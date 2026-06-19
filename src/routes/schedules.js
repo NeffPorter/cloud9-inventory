@@ -256,6 +256,23 @@ async function expireSchedule(schedule) {
   }
 }
 
+// POST /api/schedules/:id/apply — force-apply a single schedule to Clover
+router.post('/:id/apply', auth, async (req, res) => {
+  try {
+    const { data: schedule } = await supabase.from('discount_schedules').select('*').eq('id', req.params.id).single();
+    if (!schedule) return res.status(404).json({ error: 'Not found' });
+
+    // Reset to scheduled so activateSchedule will run it fresh
+    await supabase.from('discount_schedules').update({ status: 'scheduled', applied_item_ids: [] }).eq('id', req.params.id);
+    await activateSchedule({ ...schedule, status: 'scheduled', applied_item_ids: [] });
+
+    const { data: updated } = await supabase.from('discount_schedules').select('*').eq('id', req.params.id).single();
+    res.json({ success: true, schedule: updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /api/schedules/run-cron — manually trigger or called by cron
 router.post('/run-cron', async (req, res) => {
   try {
@@ -279,6 +296,20 @@ async function runCron() {
 
   for (const s of toActivate || []) {
     await activateSchedule(s);
+  }
+
+  // Retry active schedules that applied 0 items (e.g. failed on first run)
+  const { data: toRetry } = await supabase
+    .from('discount_schedules')
+    .select('*')
+    .eq('status', 'active')
+    .lte('start_date', today)
+    .gte('end_date', today);
+
+  for (const s of toRetry || []) {
+    if (!s.applied_item_ids || s.applied_item_ids.length === 0) {
+      await activateSchedule(s);
+    }
   }
 
   // Expire active ones whose end_date has passed

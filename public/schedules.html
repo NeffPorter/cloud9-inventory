@@ -239,6 +239,7 @@ async function loadSchedules() {
       </div>
       <div class="schedule-actions">
         ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick="openEditSchedule('${s.id}')">Edit</button>` : ''}
+        ${s.status === 'active' && (!s.applied_item_ids || s.applied_item_ids.length === 0) ? `<button class="btn btn-primary btn-sm" onclick="applyNow('${s.id}')">⚡ Apply Now</button>` : ''}
         ${canCancel ? `<button class="btn btn-ghost btn-sm" style="color:#d97706;border-color:#d97706" onclick="cancelSchedule('${s.id}','${safeName}')">Cancel</button>` : ''}
         <button class="btn btn-danger btn-sm" onclick="deleteSchedule('${s.id}','${safeName}')">Delete</button>
       </div>
@@ -430,6 +431,21 @@ function openEditSchedule(id) {
   });
   renderChips();
   document.getElementById('modalOverlay').classList.add('open');
+}
+
+async function applyNow(id) {
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = 'Applying...';
+  const res = await fetch(`/api/schedules/${id}/apply`, { method: 'POST', headers: { Authorization: 'Bearer ' + token } });
+  const data = await res.json();
+  if (res.ok) {
+    const count = data.schedule?.applied_item_ids?.length || 0;
+    alert(count > 0 ? `✅ Applied to ${count} items on Clover!` : '⚠️ Schedule applied but 0 items were updated. Check that the items exist in this store and have prices set.');
+    loadSchedules();
+  } else {
+    alert('Error: ' + (data.error || 'Failed'));
+    btn.disabled = false; btn.textContent = '⚡ Apply Now';
+  }
 }
 
 async function cancelSchedule(id, name) {

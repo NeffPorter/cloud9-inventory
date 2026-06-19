@@ -10,6 +10,21 @@ function cloverHeaders(token) {
   return { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' };
 }
 
+function calcDiscountedPrice(originalPrice, discountType, discountValue) {
+  let p = discountType === 'percent'
+    ? originalPrice * (1 - discountValue / 100)
+    : originalPrice - discountValue;
+  return Math.max(0, Math.round(p * 100) / 100);
+}
+
+async function setCloverItem(merchantId, apiToken, cloverItemId, name, priceDollars) {
+  await axios.post(
+    `${CLOVER_BASE}${merchantId}/items/${cloverItemId}`,
+    { name, price: Math.round(priceDollars * 100) },
+    { headers: cloverHeaders(apiToken) }
+  );
+}
+
 function requireAdmin(req, res, next) {
   if (!req.user || req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
   next();
@@ -261,6 +276,18 @@ router.post('/proposals/:proposalId/submit', auth, async (req, res) => {
     await supabase.from('store_tasks').update({ status: 'completed', updated_at: new Date().toISOString() })
       .eq('reference_id', req.params.proposalId).eq('task_type', 'sale_proposal');
 
+    // Notify all admins
+    const { data: saleEvent } = await supabase.from('sale_events').select('name').eq('id', proposal.sale_event_id).single();
+    const { data: store } = await supabase.from('stores').select('name').eq('id', proposal.store_id).single();
+    await supabase.from('notifications').insert({
+      type: 'proposal_submitted',
+      title: '📋 Proposal Needs Review',
+      message: `${store?.name || 'A store'} submitted their proposal for "${saleEvent?.name || 'a sale event'}"`,
+      link: `/sale-events`,
+      target_role: 'admin',
+      read: false
+    });
+
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -348,54 +375,43 @@ async function runSaleEventCron() {
 
 async function applyProposalToClover(proposal, store) {
   try {
-    const { data: items } = await supabase.from('sale_proposal_items').select('*').eq('proposal_id', proposal.id);
-    if (!items?.length) return;
+    const { data: propItems } = await supabase.from('sale_proposal_items').select('*').eq('proposal_id', proposal.id);
+    if (!propItems?.length) return;
 
     const { data: ev } = await supabase.from('sale_events').select('name').eq('id', proposal.sale_event_id).single();
-    const discountName = ev?.name || 'Sale';
+    const saleName = ev?.name || 'Sale';
 
-    // Group items by discount type + value to minimise Clover discount objects
-    const groups = {};
-    for (const item of items) {
-      if (!item.clover_item_id) continue;
-      const key = `${item.discount_type}|${item.discount_value}`;
-      if (!groups[key]) groups[key] = { discount_type: item.discount_type, discount_value: item.discount_value, clover_item_ids: [] };
-      groups[key].clover_item_ids.push(item.clover_item_id);
-    }
+    const applied = [];
+    for (const propItem of propItems) {
+      const itemId = propItem.inventory_item_id;
+      if (!itemId) continue;
 
-    const appliedDiscountIds = [];
-    for (const g of Object.values(groups)) {
-      const payload = { name: discountName };
-      if (g.discount_type === 'percent') payload.percentage = Math.round(g.discount_value * 10);
-      else payload.amount = Math.round(g.discount_value * 100);
+      // Get current price + variant name from our DB (id IS the Clover item ID)
+      const { data: invItem } = await supabase.from('inventory_items')
+        .select('price, variant_name')
+        .eq('id', itemId)
+        .single();
 
-      const createRes = await axios.post(
-        `${CLOVER_BASE}${store.merchant_id}/discounts`, payload,
-        { headers: cloverHeaders(store.api_token) }
-      );
-      const discountId = createRes.data.id;
-      appliedDiscountIds.push(discountId);
+      if (!invItem?.price) continue;
 
-      for (const itemId of g.clover_item_ids) {
-        try {
-          await axios.post(
-            `${CLOVER_BASE}${store.merchant_id}/items/${itemId}/discounts`,
-            { id: discountId },
-            { headers: cloverHeaders(store.api_token) }
-          );
-        } catch (e) {
-          console.error(`Failed to attach discount to item ${itemId}:`, e.message);
-        }
+      const discountedPrice = calcDiscountedPrice(invItem.price, propItem.discount_type, propItem.discount_value);
+      const newName = `${saleName} (${invItem.variant_name || propItem.item_name})`;
+
+      try {
+        await setCloverItem(store.merchant_id, store.api_token, itemId, newName, discountedPrice);
+        applied.push(itemId);
+      } catch (err) {
+        console.error(`Failed to apply sale to item ${itemId}:`, err.message);
       }
     }
 
     await supabase.from('sale_proposals').update({
       clover_applied: true,
-      him_notes: (proposal.him_notes ? proposal.him_notes + '\n' : '') + `Applied to Clover: ${new Date().toISOString()} | Discount IDs: ${appliedDiscountIds.join(', ')}`,
+      applied_item_ids: applied,
       updated_at: new Date().toISOString()
     }).eq('id', proposal.id);
 
-    console.log(`Applied sale "${discountName}" to Clover for store ${store.merchant_id}`);
+    console.log(`Applied sale "${saleName}" — ${applied.length} items price-updated on Clover for store ${store.merchant_id}`);
   } catch (err) {
     console.error(`applyProposalToClover error for proposal ${proposal.id}:`, err.message);
   }
@@ -403,35 +419,31 @@ async function applyProposalToClover(proposal, store) {
 
 async function removeProposalFromClover(proposal, store) {
   try {
-    // Extract discount IDs from him_notes (stored on apply)
-    const match = (proposal.him_notes || '').match(/Discount IDs: ([\w,\s]+)/);
-    if (!match) return;
-    const discountIds = match[1].split(',').map(s => s.trim()).filter(Boolean);
+    const appliedIds = proposal.applied_item_ids || [];
+    if (!appliedIds.length) return;
 
-    for (const discountId of discountIds) {
-      // Get items attached to this discount and remove
+    // Restore original name + price from our DB
+    const { data: items } = await supabase.from('inventory_items')
+      .select('id, price, variant_name')
+      .in('id', appliedIds)
+      .eq('store_id', proposal.store_id);
+
+    for (const item of items || []) {
+      if (!item.price) continue;
       try {
-        const itemsRes = await axios.get(
-          `${CLOVER_BASE}${store.merchant_id}/discounts/${discountId}/items`,
-          { headers: cloverHeaders(store.api_token) }
-        );
-        const cloverItems = itemsRes.data?.elements || [];
-        for (const ci of cloverItems) {
-          try {
-            await axios.delete(
-              `${CLOVER_BASE}${store.merchant_id}/items/${ci.id}/discounts/${discountId}`,
-              { headers: cloverHeaders(store.api_token) }
-            );
-          } catch (e) {}
-        }
-        await axios.delete(`${CLOVER_BASE}${store.merchant_id}/discounts/${discountId}`, { headers: cloverHeaders(store.api_token) });
-      } catch (e) {
-        console.error(`Failed to remove discount ${discountId}:`, e.message);
+        await setCloverItem(store.merchant_id, store.api_token, item.id, item.variant_name, item.price);
+      } catch (err) {
+        console.error(`Failed to restore item ${item.id}:`, err.message);
       }
     }
 
-    await supabase.from('sale_proposals').update({ clover_applied: false, updated_at: new Date().toISOString() }).eq('id', proposal.id);
-    console.log(`Removed sale discounts from Clover for proposal ${proposal.id}`);
+    await supabase.from('sale_proposals').update({
+      clover_applied: false,
+      applied_item_ids: [],
+      updated_at: new Date().toISOString()
+    }).eq('id', proposal.id);
+
+    console.log(`Restored prices on Clover for proposal ${proposal.id}`);
   } catch (err) {
     console.error(`removeProposalFromClover error:`, err.message);
   }

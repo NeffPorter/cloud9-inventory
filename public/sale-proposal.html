@@ -155,13 +155,21 @@ function render() {
           : proposalItems.map(renderItemRow).join('')}
       </div>
       ${isEditable ? `
-      <div class="add-item-bar">
-        <div class="search-picker">
-          <input type="text" class="search-picker-input" id="itemSearch" placeholder="Search items..." autocomplete="off"
-            oninput="filterItemPicker()" onfocus="filterItemPicker()">
-          <div class="search-list" id="itemPickerList"></div>
+      <div style="margin-top:14px">
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <button class="dt-btn active" id="addModeItem" onclick="setAddMode('item')">Specific Item</button>
+          <button class="dt-btn" id="addModeGroup" onclick="setAddMode('item_group')">Item Group</button>
+          <button class="dt-btn" id="addModeCategory" onclick="setAddMode('category')">Category</button>
         </div>
-        <button class="btn btn-ghost btn-sm" onclick="addItem()">+ Add</button>
+        <div class="add-item-bar">
+          <div class="search-picker">
+            <input type="text" class="search-picker-input" id="itemSearch" placeholder="Search items..." autocomplete="off"
+              oninput="filterItemPicker()" onfocus="filterItemPicker()">
+            <div class="search-list" id="itemPickerList"></div>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="addItem()">+ Add</button>
+        </div>
+        <div id="addModeHint" style="font-size:12px;color:#888;margin-top:4px">Adding individual items. All variants of a group or category will be added at once.</div>
       </div>` : ''}
     </div>
 
@@ -205,33 +213,65 @@ function renderItemRow(item) {
   </div>`;
 }
 
-let itemPickerVal = null, itemPickerData = null;
+let itemPickerVal = null, itemPickerData = null, addMode = 'item';
+
+function setAddMode(mode) {
+  addMode = mode;
+  ['item','item_group','category'].forEach(m => {
+    const btn = document.getElementById('addMode' + m.charAt(0).toUpperCase() + m.slice(1).replace('_g','G').replace('_c','C'));
+    if (btn) btn.classList.toggle('active', m === mode);
+  });
+  const hints = { item: 'Adding individual items.', item_group: 'All variants in the selected group will be added.', category: 'All items in the selected category will be added.' };
+  const hintEl = document.getElementById('addModeHint');
+  if (hintEl) hintEl.textContent = hints[mode] || '';
+  itemPickerVal = null; itemPickerData = null;
+  const el = document.getElementById('itemSearch');
+  if (el) { el.value = ''; el.placeholder = mode === 'item' ? 'Search items...' : mode === 'item_group' ? 'Search item groups...' : 'Search categories...'; }
+  const list = document.getElementById('itemPickerList');
+  if (list) list.classList.remove('open');
+}
 
 function filterItemPicker() {
   const q = (document.getElementById('itemSearch')?.value || '').toLowerCase().trim();
   const list = document.getElementById('itemPickerList');
   if (!list) return;
-  const filtered = q ? allItems.filter(i => {
-    const full = ((i.group_name || '') + ' ' + (i.variant_name || '')).toLowerCase();
-    return full.includes(q);
-  }) : allItems.slice(0, 80);
-  if (!filtered.length) {
+
+  let options = [];
+  if (addMode === 'item') {
+    const filtered = q ? allItems.filter(i => ((i.group_name||'')+' '+(i.variant_name||'')).toLowerCase().includes(q)) : allItems.slice(0, 80);
+    options = filtered.slice(0, 80).map(i => {
+      const label = (i.group_name ? i.group_name + ' · ' : '') + (i.variant_name || '');
+      return { id: i.id, label, extra: i.sku || '' };
+    });
+  } else if (addMode === 'item_group') {
+    const groups = [...new Set(allItems.filter(i => i.group_name).map(i => i.group_name))].sort();
+    const filtered = q ? groups.filter(g => g.toLowerCase().includes(q)) : groups.slice(0, 80);
+    options = filtered.map(g => {
+      const count = allItems.filter(i => i.group_name === g).length;
+      return { id: g, label: g, extra: `${count} variant${count !== 1 ? 's' : ''}` };
+    });
+  } else {
+    const cats = [...new Set(allItems.filter(i => i.category).map(i => i.category))].sort();
+    const filtered = q ? cats.filter(c => c.toLowerCase().includes(q)) : cats.slice(0, 80);
+    options = filtered.map(c => {
+      const count = allItems.filter(i => i.category === c).length;
+      return { id: c, label: c, extra: `${count} item${count !== 1 ? 's' : ''}` };
+    });
+  }
+
+  if (!options.length) {
     list.innerHTML = '<div class="search-list-empty">No matches found</div>';
   } else {
-    list.innerHTML = filtered.slice(0, 80).map(i => {
-      const label = (i.group_name ? i.group_name + ' · ' : '') + (i.variant_name || '');
-      const safeLabel = label.replace(/'/g, "\\'");
-      const safeClov = (i.clover_item_id || '').replace(/'/g, "\\'");
-      const safeSku = (i.sku || '').replace(/'/g, "\\'");
-      return `<div class="search-list-item" onmousedown="selectItemPicker('${i.id}','${safeLabel}','${safeClov}','${safeSku}')">${label}${i.sku ? ' <span style="color:#aaa;font-size:11px">' + i.sku + '</span>' : ''}</div>`;
-    }).join('');
+    list.innerHTML = options.map(o =>
+      `<div class="search-list-item" onmousedown="selectItemPicker('${o.id.replace(/'/g,"\\'")}','${o.label.replace(/'/g,"\\'")}')">${o.label}${o.extra ? ' <span style="color:#aaa;font-size:11px">'+o.extra+'</span>' : ''}</div>`
+    ).join('');
   }
   list.classList.add('open');
 }
 
-function selectItemPicker(id, label, cloverId, sku) {
+function selectItemPicker(id, label) {
   itemPickerVal = id;
-  itemPickerData = { id, label, cloverId, sku };
+  itemPickerData = { id, label };
   const el = document.getElementById('itemSearch');
   if (el) el.value = label;
   const list = document.getElementById('itemPickerList');
@@ -240,10 +280,30 @@ function selectItemPicker(id, label, cloverId, sku) {
 
 function addItem() {
   if (!itemPickerVal || !itemPickerData) return;
-  const { id, label, cloverId, sku } = itemPickerData;
-  if (proposalItems.find(i => i.inventory_item_id === id)) { return; }
-  const _tempId = Math.random();
-  proposalItems.push({ _tempId, inventory_item_id: id, clover_item_id: cloverId, item_name: label, sku, discount_type: 'percent', discount_value: '' });
+  const { id, label } = itemPickerData;
+
+  let itemsToAdd = [];
+  if (addMode === 'item') {
+    const inv = allItems.find(i => i.id === id);
+    if (!inv) return;
+    if (proposalItems.find(i => i.inventory_item_id === id)) { itemPickerVal = null; itemPickerData = null; document.getElementById('itemSearch').value = ''; return; }
+    itemsToAdd = [{ inventory_item_id: inv.id, item_name: (inv.group_name ? inv.group_name + ' · ' : '') + (inv.variant_name || ''), sku: inv.sku || '' }];
+  } else if (addMode === 'item_group') {
+    const members = allItems.filter(i => i.group_name === id);
+    itemsToAdd = members
+      .filter(i => !proposalItems.find(p => p.inventory_item_id === i.id))
+      .map(i => ({ inventory_item_id: i.id, item_name: (i.group_name ? i.group_name + ' · ' : '') + (i.variant_name || ''), sku: i.sku || '' }));
+  } else {
+    const members = allItems.filter(i => i.category === id);
+    itemsToAdd = members
+      .filter(i => !proposalItems.find(p => p.inventory_item_id === i.id))
+      .map(i => ({ inventory_item_id: i.id, item_name: (i.group_name ? i.group_name + ' · ' : '') + (i.variant_name || ''), sku: i.sku || '' }));
+  }
+
+  for (const item of itemsToAdd) {
+    proposalItems.push({ _tempId: Math.random(), ...item, discount_type: 'percent', discount_value: '' });
+  }
+
   itemPickerVal = null; itemPickerData = null;
   const el = document.getElementById('itemSearch');
   if (el) el.value = '';
