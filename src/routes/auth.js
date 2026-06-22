@@ -11,6 +11,7 @@ const CLOVER_APP_ID     = process.env.CLOVER_APP_ID;
 const CLOVER_APP_SECRET = process.env.CLOVER_APP_SECRET;
 const APP_BASE_URL      = process.env.APP_BASE_URL || 'https://cloud9-inventory-production.up.railway.app';
 const CLOVER_API_BASE   = 'https://api.clover.com';
+const CLOVER_WWW_BASE   = 'https://www.clover.com';
 
 // In-memory nonce store (nonce -> { userId, exp })
 const oauthNonces = new Map();
@@ -28,7 +29,7 @@ router.get('/clover/start', auth, async (req, res) => {
   oauthNonces.set(nonce, { userId: req.user.id, exp: Date.now() + 10 * 60 * 1000 });
 
   const redirectUri = `${APP_BASE_URL}/api/auth/clover/callback`;
-  const url = `${CLOVER_API_BASE}/oauth/v2/authorize?client_id=${CLOVER_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${nonce}`;
+  const url = `${CLOVER_WWW_BASE}/oauth/v2/authorize?client_id=${CLOVER_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${nonce}`;
   res.json({ url });
 });
 
