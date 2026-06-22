@@ -178,6 +178,58 @@ async function getCashTenderId(merchantId, apiToken) {
   return cashTender?.id || null;
 }
 
+// ── Token refresh ────────────────────────────────────────────────────────────
+// Call before any Clover API call to get a guaranteed-fresh token.
+// Returns the access token string (refreshed + saved to DB if needed).
+async function getValidApiToken(store) {
+  if (!store.token_expires_at || !store.refresh_token) {
+    // Legacy manually-entered token — no expiry info, return as-is
+    return store.api_token;
+  }
+
+  const expiresAt = new Date(store.token_expires_at).getTime();
+  const REFRESH_THRESHOLD = 5 * 60 * 1000; // refresh when <5 min remaining
+
+  if (Date.now() < expiresAt - REFRESH_THRESHOLD) {
+    return store.api_token; // still valid
+  }
+
+  const appId     = process.env.CLOVER_APP_ID;
+  const appSecret = process.env.CLOVER_APP_SECRET;
+  if (!appId || !appSecret) {
+    console.warn('CLOVER_APP_ID/SECRET not set — cannot refresh token');
+    return store.api_token;
+  }
+
+  try {
+    const res = await axios.post('https://api.clover.com/oauth/v2/token', {
+      client_id:     appId,
+      client_secret: appSecret,
+      refresh_token: store.refresh_token,
+      grant_type:    'refresh_token'
+    });
+    const { access_token, refresh_token, expires_in } = res.data;
+    const tokenExpiresAt = new Date(Date.now() + (expires_in || 3600) * 1000).toISOString();
+
+    const supabase = require('../lib/supabase');
+    await supabase.from('stores').update({
+      api_token:        access_token,
+      refresh_token:    refresh_token || store.refresh_token,
+      token_expires_at: tokenExpiresAt
+    }).eq('id', store.id);
+
+    store.api_token        = access_token;
+    store.refresh_token    = refresh_token || store.refresh_token;
+    store.token_expires_at = tokenExpiresAt;
+
+    console.log(`Refreshed Clover token for store ${store.id}`);
+    return access_token;
+  } catch (err) {
+    console.error('Token refresh failed:', err.response?.data || err.message);
+    return store.api_token;
+  }
+}
+
 module.exports = {
   cloverFetch,
   fetchFullOrder,
@@ -189,5 +241,6 @@ module.exports = {
   extractLineItems,
   extractRefundedItems,
   createCashSale,
-  getCashTenderId
+  getCashTenderId,
+  getValidApiToken
 };
