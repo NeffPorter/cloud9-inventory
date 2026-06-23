@@ -329,8 +329,9 @@
       const e = document.getElementById('endDate').value;
       if (!s || !e) return;
       document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
-      currentStart = new Date(s);
-      currentEnd = new Date(e); currentEnd.setHours(23,59,59,999);
+      // Append T00:00:00 so the browser parses as local midnight, not UTC midnight
+      currentStart = new Date(s + 'T00:00:00');
+      currentEnd = new Date(e + 'T00:00:00'); currentEnd.setHours(23,59,59,999);
       loadSales();
     }
 

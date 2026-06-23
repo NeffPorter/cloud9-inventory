@@ -302,14 +302,27 @@ async function activateSchedule(schedule) {
     for (const groupName of uniqueGroups) {
       if (!groupRenames[groupName]) {
         const sampleItem = items.find(i => i.group_name === groupName);
+        await sleep(300); // space out group ID lookups to avoid 429
+        let cloverGroupId = null;
         try {
-          const cloverGroupId = await getCloverItemGroupId(store.merchant_id, store.api_token, sampleItem.id);
-          if (cloverGroupId) {
-            groupRenames[groupName] = { cloverGroupId, originalName: groupName };
-            groupRenamesChanged = true;
-          }
+          cloverGroupId = await getCloverItemGroupId(store.merchant_id, store.api_token, sampleItem.id);
         } catch (err) {
-          console.error(`Failed to look up item group for ${groupName}:`, err.message);
+          if (err.response?.status === 429) {
+            await sleep(2500);
+            try {
+              cloverGroupId = await getCloverItemGroupId(store.merchant_id, store.api_token, sampleItem.id);
+            } catch (retryErr) {
+              result.errors.push(`Group ID lookup rate-limited for "${groupName}" — names may not update`);
+              console.error(`Group ID lookup for ${groupName} failed after 429 retry:`, retryErr.message);
+            }
+          } else {
+            result.errors.push(`Group ID lookup failed for "${groupName}": ${err.message}`);
+            console.error(`Failed to look up item group for ${groupName}:`, err.message);
+          }
+        }
+        if (cloverGroupId) {
+          groupRenames[groupName] = { cloverGroupId, originalName: groupName };
+          groupRenamesChanged = true;
         }
       }
     }
@@ -335,7 +348,8 @@ async function activateSchedule(schedule) {
       if (basePrice === undefined) { result.errors.push(`Item ${item.id} (${item.variant_name}) skipped — no price set`); continue; }
       const discountedPrice = calcDiscountedPrice(basePrice, schedule.discount_type, schedule.discount_value);
       // Clover won't allow name changes on grouped items — the group itself was renamed above instead
-      const saleName = item.group_name ? null : `${schedule.name} ${discountLabel} - ${item.variant_name}`;
+      const displayName = item.variant_name || item.id;
+      const saleName = item.group_name ? null : `${schedule.name} ${discountLabel} - ${displayName}`;
       try {
         await setCloverItem(store.merchant_id, store.api_token, item.id, saleName, discountedPrice);
         result.applied.push(item.id);

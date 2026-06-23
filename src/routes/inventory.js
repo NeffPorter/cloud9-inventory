@@ -123,21 +123,38 @@ async function triggerBackgroundSync(store) {
   }
 }
 
-// Delete a store (admin only)
+// Delete a store (admin only) — cascades through all related tables first
 router.delete('/stores/:id', auth, async (req, res) => {
   try {
     if (req.user.role !== 'admin') {
       return res.status(403).json({ error: 'Admin only' });
     }
-    const { error } = await supabase
-      .from('stores')
-      .delete()
-      .eq('id', req.params.id);
+    const storeId = req.params.id;
+
+    // Delete related records in safe order (leaves → store)
+    const related = [
+      'store_settings',
+      'discount_schedules',
+      'sale_events',
+      'store_tasks',
+      'sales_log',
+      'inventory_items',
+      'distributor_store_lead_times',
+      'purchase_orders',
+      'budgets',
+      'notifications',
+    ];
+    for (const table of related) {
+      const { error: delErr } = await supabase.from(table).delete().eq('store_id', storeId);
+      if (delErr) console.warn(`Could not delete from ${table} for store ${storeId}:`, delErr.message);
+    }
+
+    const { error } = await supabase.from('stores').delete().eq('id', storeId);
     if (error) throw error;
     res.json({ success: true });
   } catch (err) {
     console.error('Delete store error:', err);
-    res.status(500).json({ error: 'Failed to delete store' });
+    res.status(500).json({ error: err.message || 'Failed to delete store' });
   }
 });
 

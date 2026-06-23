@@ -305,15 +305,20 @@
     }
 
     async function deleteStore(id) {
-      if (!confirm('Remove this store?')) return;
+      if (!confirm('Remove this store? This will permanently delete ALL inventory, sales, and schedule data for this store.')) return;
       try {
-        await fetch(`/api/inventory/stores/${id}`, {
+        const res = await fetch(`/api/inventory/stores/${id}`, {
           method: 'DELETE',
           headers: { 'Authorization': 'Bearer ' + token }
         });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          alert('Error removing store: ' + (data.error || res.statusText));
+          return;
+        }
         loadStores();
       } catch (err) {
-        alert('Error removing store');
+        alert('Error removing store: ' + err.message);
       }
     }
 
