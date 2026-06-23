@@ -18,14 +18,15 @@ router.get('/inventory-search', auth, requireOwner, async (req, res) => {
     if (!q || q.trim().length < 2) return res.json([]);
 
     const terms = q.trim().split(/\s+/).filter(Boolean);
-
-    // Build OR filter across all relevant text fields for the first term,
-    // then post-filter JS-side for multi-word queries (Supabase doesn't support
-    // chained cross-field AND easily without raw SQL).
     const primary = terms[0];
+
+    // Fetch store names separately (avoids FK join issues)
+    const { data: storeList } = await supabase.from('stores').select('id, name');
+    const storeMap = Object.fromEntries((storeList || []).map(s => [s.id, s.name]));
+
     let query = supabase
       .from('inventory_items')
-      .select('id, store_id, name, variant_name, group_name, category, price, cost, clover_qty, status, stores(name)')
+      .select('id, store_id, name, variant_name, group_name, category, price, cost, clover_qty, status')
       .or(`name.ilike.%${primary}%,group_name.ilike.%${primary}%,variant_name.ilike.%${primary}%,category.ilike.%${primary}%`)
       .order('name');
 
@@ -51,7 +52,7 @@ router.get('/inventory-search', auth, requireOwner, async (req, res) => {
       grouped[key].variants.push({
         id: item.id,
         store_id: item.store_id,
-        store_name: item.stores?.name || '—',
+        store_name: storeMap[item.store_id] || '—',
         variant_name: item.variant_name,
         category: item.category,
         price: item.price,

@@ -6,7 +6,7 @@ const { fetchFullOrder, fetchOrderRefunds, fetchItem, pushStockToClover, extract
 const { calculateSuggestedOrder } = require('../services/suggested');
 const { notify } = require('../services/notify');
 const supabase = require('../lib/supabase');
-const { isHim } = require('../lib/roles');
+const { isHim, isOwnerLevel } = require('../lib/roles');
 
 // Per-category low stock threshold is fetched dynamically in updateInventoryItem.
 
@@ -364,16 +364,21 @@ router.get('/overview', auth, async (req, res) => {
     const dailyMap = {};
     const prevDailyMap = {};
 
+    const toISODay = (ts) => {
+      const d = new Date(ts);
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    };
+
     (current || []).forEach(row => {
       if (row.type === 'Refund') return;
-      const day = new Date(row.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const day = toISODay(row.created_at);
       if (!dailyMap[day]) dailyMap[day] = 0;
       dailyMap[day] += row.net || 0;
     });
 
     (previous || []).forEach(row => {
       if (row.type === 'Refund') return;
-      const day = new Date(row.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const day = toISODay(row.created_at);
       if (!prevDailyMap[day]) prevDailyMap[day] = 0;
       prevDailyMap[day] += row.net || 0;
     });
@@ -391,7 +396,7 @@ router.get('/overview', auth, async (req, res) => {
 
 router.get('/by-store', auth, async (req, res) => {
   try {
-    if (!isHim(req.user.role)) return res.status(403).json({ error: 'Admin only' });
+    if (!isOwnerLevel(req.user.role)) return res.status(403).json({ error: 'Admin only' });
 
     const { start, end } = req.query;
     const startDate = new Date(start || new Date().setHours(0,0,0,0));

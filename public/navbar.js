@@ -23,10 +23,13 @@ function buildNavItems(user) {
     const storeParam = storeId ? `?store=${storeId}` : '';
     return `
       <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/inventory${storeParam}'">📦 Inventory</button></div>
+      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/pos${storeParam}'">🛒 Purchase Orders</button></div>
+      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/suggested${storeParam}'">📋 Purchase Planner</button></div>
+      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/budgets${storeParam}'">📒 Budget Reports</button></div>
+      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/schedules'">🎯 Discounts</button></div>
       <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/sales'">💰 Sales</button></div>
-      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/budgets${storeParam}'">📒 Budget</button></div>
       <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/stocktake'">📋 Stock Take</button></div>
-      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/store-tasks${storeParam}'">✅ My Tasks</button></div>
+      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/store-tasks${storeParam}'">✅ To Do</button></div>
       ${role === 'gm' ? `<div class="nav-item"><button class="nav-btn" onclick="window.location.href='/gm-expenses'">💼 Expenses</button></div>` : ''}`;
   }
 

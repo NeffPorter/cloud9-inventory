@@ -86,9 +86,14 @@ async function doSearch() {
     const res = await fetch(`/api/owner/inventory-search?q=${encodeURIComponent(q)}`, {
       headers: { Authorization: 'Bearer ' + token }
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      results.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><div>Error ${res.status}: ${err.error || res.statusText}</div></div>`;
+      return;
+    }
     const data = await res.json();
 
-    if (!data.length) {
+    if (!Array.isArray(data) || !data.length) {
       results.innerHTML = `<div class="empty"><div class="empty-icon">🤷</div><div>No items found matching "<strong>${q}</strong>"</div></div>`;
       return;
     }

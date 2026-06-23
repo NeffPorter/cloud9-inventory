@@ -336,7 +336,7 @@
     }
 
     async function loadStoreFilter() {
-      if (!['admin', 'him', 'regional_manager'].includes(user.role)) return;
+      if (!['admin', 'him', 'regional_manager', 'owner'].includes(user.role)) return;
       const res = await fetch('/api/inventory/stores', {
         headers: { 'Authorization': 'Bearer ' + token }
       });
@@ -451,9 +451,11 @@
 
         const currentDays = Object.keys(data.chartData.current);
         const prevDays = Object.keys(data.chartData.previous);
-        const allLabels = [...new Set([...currentDays, ...prevDays])].sort();
-        const currentVals = allLabels.map(d => data.chartData.current[d] || 0);
-        const prevVals = allLabels.map(d => data.chartData.previous[d] || 0);
+        // Keys are ISO dates (YYYY-MM-DD) — sort chronologically, then format for display
+        const allKeys = [...new Set([...currentDays, ...prevDays])].sort();
+        const allLabels = allKeys.map(k => new Date(k + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+        const currentVals = allKeys.map(d => data.chartData.current[d] || 0);
+        const prevVals = allKeys.map(d => data.chartData.previous[d] || 0);
 
         if (chart) chart.destroy();
         const ctx = document.getElementById('salesChart').getContext('2d');
@@ -502,9 +504,10 @@
           }
         });
 
-        if (['admin','him','regional_manager'].includes(user.role) && !selectedStore) loadStoreBreakdown();
+        const isMultiStore = ['admin','him','regional_manager','owner'].includes(user.role);
+        if (isMultiStore && !selectedStore) loadStoreBreakdown();
 
-        if (!['admin','him','regional_manager'].includes(user.role) || selectedStore) {
+        if (!isMultiStore || selectedStore) {
           loadItemPerformance();
         } else {
           document.getElementById('itemPerformance').innerHTML = 'Select a store to view item performance.';
