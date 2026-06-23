@@ -187,6 +187,17 @@ router.post('/generate-test-data', auth, async (req, res) => {
     const errors = [];
     const touchedItemIds = new Set();
 
+    // Fetch cash tender ID once up front so we can close each order as a paid sale
+    let cashTenderId = null;
+    try {
+      const tendersRes = await axios.get(`${base}/tenders`, { headers });
+      const cashTender = (tendersRes.data.elements || []).find(t => t.labelKey === 'com.clover.tender.cash')
+        || (tendersRes.data.elements || [])[0];
+      cashTenderId = cashTender?.id || null;
+    } catch (err) {
+      console.warn('Could not fetch cash tender — orders will be created without payment:', err.message);
+    }
+
     for (let n = 0; n < numOrders; n++) {
       try {
         // 1-3 random line items, qty 1-2 each
@@ -215,6 +226,17 @@ router.post('/generate-test-data', auth, async (req, res) => {
         await withRetry429(() => axios.post(`${base}/orders/${orderId}/bulk_line_items`, {
           items: picks.flatMap(p => Array.from({ length: p.qty }, () => ({ item: { id: p.id }, price: p.price, name: p.name })))
         }, { headers }));
+
+        // Record a cash payment to close the order so it shows as a completed sale on Clover
+        if (cashTenderId) {
+          const totalCents = picks.reduce((sum, p) => sum + p.price * p.qty, 0);
+          await withRetry429(() => axios.post(`${base}/orders/${orderId}/payments`, {
+            order: { id: orderId },
+            tender: { id: cashTenderId },
+            amount: totalCents,
+            result: 'SUCCESS'
+          }, { headers }));
+        }
 
         const gross = picks.reduce((sum, p) => sum + (p.price / 100) * p.qty, 0);
         const totalCost = picks.reduce((sum, p) => sum + p.cost * p.qty, 0);
