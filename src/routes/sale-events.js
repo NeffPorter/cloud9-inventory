@@ -3,6 +3,7 @@ const router = express.Router();
 const axios = require('axios');
 const supabase = require('../lib/supabase');
 const auth = require('../middleware/auth');
+const { getValidApiToken } = require('../services/clover');
 
 const CLOVER_BASE = 'https://api.clover.com/v3/merchants/';
 
@@ -19,12 +20,32 @@ function calcDiscountedPrice(originalPrice, discountType, discountValue) {
   return Math.max(0, Math.round(p * 100) / 100);
 }
 
+function formatDiscountLabel(discountType, discountValue) {
+  return discountType === 'percent' ? `${discountValue}% OFF` : `$${discountValue} OFF`;
+}
+
 async function setCloverItem(merchantId, apiToken, cloverItemId, name, priceDollars) {
   const body = { price: Math.round(priceDollars * 100) };
   if (name) body.name = name;
   await axios.post(
     `${CLOVER_BASE}${merchantId}/items/${cloverItemId}`,
     body,
+    { headers: cloverHeaders(apiToken) }
+  );
+}
+
+async function getCloverItemGroupId(merchantId, apiToken, cloverItemId) {
+  const res = await axios.get(
+    `${CLOVER_BASE}${merchantId}/items/${cloverItemId}?expand=itemGroup`,
+    { headers: cloverHeaders(apiToken) }
+  );
+  return res.data?.itemGroup?.id || null;
+}
+
+async function renameCloverItemGroup(merchantId, apiToken, groupId, name) {
+  await axios.post(
+    `${CLOVER_BASE}${merchantId}/item_groups/${groupId}`,
+    { name },
     { headers: cloverHeaders(apiToken) }
   );
 }
@@ -316,10 +337,14 @@ router.post('/proposals/:proposalId/approve', auth, requireAdmin, async (req, re
   }
 });
 
-// POST /api/sale-events/proposals/:proposalId/reject — HIM rejects (sends back for revision)
+// POST /api/sale-events/proposals/:proposalId/reject — HIM sends back for revision
 router.post('/proposals/:proposalId/reject', auth, requireAdmin, async (req, res) => {
   try {
     const { him_notes } = req.body;
+
+    const { data: proposal } = await supabase.from('sale_proposals')
+      .select('store_id, sale_event_id').eq('id', req.params.proposalId).single();
+
     await supabase.from('sale_proposals').update({
       status: 'rejected',
       him_notes: him_notes || null,
@@ -328,9 +353,35 @@ router.post('/proposals/:proposalId/reject', auth, requireAdmin, async (req, res
       updated_at: new Date().toISOString()
     }).eq('id', req.params.proposalId);
 
-    // Re-open store task
-    await supabase.from('store_tasks').update({ status: 'pending', updated_at: new Date().toISOString() })
-      .eq('reference_id', req.params.proposalId).eq('task_type', 'sale_proposal');
+    // Re-open task with updated title/description so IM sees it needs revision
+    const { data: saleEvent } = await supabase.from('sale_events')
+      .select('name').eq('id', proposal.sale_event_id).single();
+    const eventName = saleEvent?.name || 'Sale Event';
+    const taskTitle = `⚠️ Sale Proposal Needs Revision: ${eventName}`;
+    const taskDesc = him_notes
+      ? `Changes requested: ${him_notes}`
+      : `Your proposal for "${eventName}" was sent back for revision. Open it to see the feedback.`;
+
+    await supabase.from('store_tasks').update({
+      status: 'pending',
+      title: taskTitle,
+      description: taskDesc,
+      updated_at: new Date().toISOString()
+    }).eq('reference_id', req.params.proposalId).eq('task_type', 'sale_proposal');
+
+    // Notify the store's users
+    if (proposal?.store_id) {
+      await supabase.from('notifications').insert({
+        type: 'proposal_revision_requested',
+        title: '⚠️ Proposal Sent Back for Revision',
+        message: him_notes
+          ? `Your proposal for "${eventName}" needs changes: ${him_notes}`
+          : `Your proposal for "${eventName}" was sent back for revision. Check your to-do list.`,
+        link: `/sale-proposal?id=${req.params.proposalId}`,
+        target_store_id: proposal.store_id,
+        read: false
+      });
+    }
 
     res.json({ success: true });
   } catch (err) {
@@ -379,38 +430,90 @@ async function runSaleEventCron() {
 
 async function applyProposalToClover(proposal, store) {
   try {
+    const apiToken = await getValidApiToken(store);
     const { data: propItems } = await supabase.from('sale_proposal_items').select('*').eq('proposal_id', proposal.id);
     if (!propItems?.length) return;
 
     const { data: ev } = await supabase.from('sale_events').select('name').eq('id', proposal.sale_event_id).single();
     const saleName = ev?.name || 'Sale';
 
+    // Snapshot original prices before touching anything (same pattern as discount_schedules)
+    const originalPrices = { ...(proposal.original_prices || {}) };
+    let snapshotChanged = false;
+
+    // Collect all inventory items we'll need
+    const itemIds = propItems.map(p => p.inventory_item_id).filter(Boolean);
+    const { data: invItems } = await supabase.from('inventory_items')
+      .select('id, price, variant_name, group_name')
+      .in('id', itemIds);
+    const invMap = Object.fromEntries((invItems || []).map(i => [i.id, i]));
+
+    for (const propItem of propItems) {
+      const itemId = propItem.inventory_item_id;
+      if (!itemId || !invMap[itemId]?.price) continue;
+      if (originalPrices[itemId] === undefined) {
+        originalPrices[itemId] = parseFloat(invMap[itemId].price);
+        snapshotChanged = true;
+      }
+    }
+    if (snapshotChanged) {
+      await supabase.from('sale_proposals').update({ original_prices: originalPrices }).eq('id', proposal.id);
+    }
+
+    // Rename item groups (same approach as discount_schedules)
+    const groupRenames = {};
+    const uniqueGroups = [...new Set(
+      propItems.map(p => invMap[p.inventory_item_id]?.group_name).filter(Boolean)
+    )];
+    for (const groupName of uniqueGroups) {
+      const sampleItem = propItems.find(p => invMap[p.inventory_item_id]?.group_name === groupName);
+      if (!sampleItem) continue;
+      await sleep(300);
+      let cloverGroupId = null;
+      try {
+        cloverGroupId = await getCloverItemGroupId(store.merchant_id, apiToken, sampleItem.inventory_item_id);
+      } catch (err) {
+        if (err.response?.status === 429) {
+          await sleep(2500);
+          try { cloverGroupId = await getCloverItemGroupId(store.merchant_id, apiToken, sampleItem.inventory_item_id); } catch {}
+        }
+      }
+      if (cloverGroupId) {
+        groupRenames[groupName] = { cloverGroupId, originalName: groupName };
+        const newGroupName = `${saleName} - ${groupName}`.slice(0, 127);
+        try {
+          await renameCloverItemGroup(store.merchant_id, apiToken, cloverGroupId, newGroupName);
+          await sleep(300);
+        } catch (err) {
+          console.error(`Failed to rename group "${groupName}" for sale event:`, err.message);
+        }
+      }
+    }
+
+    // Update item prices (and names for ungrouped items)
     const applied = [];
     for (const propItem of propItems) {
       const itemId = propItem.inventory_item_id;
       if (!itemId) continue;
-
-      // Get current price + variant name from our DB (id IS the Clover item ID)
-      const { data: invItem } = await supabase.from('inventory_items')
-        .select('price, variant_name, group_name')
-        .eq('id', itemId)
-        .single();
-
+      const invItem = invMap[itemId];
       if (!invItem?.price) continue;
 
-      const discountedPrice = calcDiscountedPrice(parseFloat(invItem.price), propItem.discount_type, propItem.discount_value);
-      // Clover won't allow name changes on grouped items
-      const newName = invItem.group_name ? null : `${saleName} (${invItem.variant_name || propItem.item_name})`;
+      const basePrice = originalPrices[itemId] ?? parseFloat(invItem.price);
+      const discountedPrice = calcDiscountedPrice(basePrice, propItem.discount_type, propItem.discount_value);
+      const discountLabel = formatDiscountLabel(propItem.discount_type, propItem.discount_value);
+      const displayName = invItem.variant_name || propItem.item_name || itemId;
+      // Clover won't allow name changes on grouped items — group was renamed above
+      const newName = invItem.group_name ? null : `${saleName} ${discountLabel} - ${displayName}`;
 
       try {
-        await setCloverItem(store.merchant_id, store.api_token, itemId, newName, discountedPrice);
+        await setCloverItem(store.merchant_id, apiToken, itemId, newName, discountedPrice);
         applied.push(itemId);
         await sleep(300);
       } catch (err) {
         if (err.response?.status === 429) {
           await sleep(2000);
           try {
-            await setCloverItem(store.merchant_id, store.api_token, itemId, newName, discountedPrice);
+            await setCloverItem(store.merchant_id, apiToken, itemId, newName, discountedPrice);
             applied.push(itemId);
             await sleep(300);
           } catch (retryErr) {
@@ -425,10 +528,11 @@ async function applyProposalToClover(proposal, store) {
     await supabase.from('sale_proposals').update({
       clover_applied: true,
       applied_item_ids: applied,
+      group_renames: groupRenames,
       updated_at: new Date().toISOString()
     }).eq('id', proposal.id);
 
-    console.log(`Applied sale "${saleName}" — ${applied.length} items price-updated on Clover for store ${store.merchant_id}`);
+    console.log(`Applied sale "${saleName}" — ${applied.length} items + ${uniqueGroups.length} groups updated on Clover for store ${store.merchant_id}`);
   } catch (err) {
     console.error(`applyProposalToClover error for proposal ${proposal.id}:`, err.message);
   }
@@ -436,33 +540,64 @@ async function applyProposalToClover(proposal, store) {
 
 async function removeProposalFromClover(proposal, store) {
   try {
+    const apiToken = await getValidApiToken(store);
     const appliedIds = proposal.applied_item_ids || [];
     if (!appliedIds.length) return;
 
-    // Restore original name + price from our DB
+    const snapshotPrices = proposal.original_prices || {};
+    const groupRenames = proposal.group_renames || {};
+
+    // Restore item group names first
+    for (const [originalName, groupInfo] of Object.entries(groupRenames)) {
+      if (!groupInfo.cloverGroupId) continue;
+      try {
+        await renameCloverItemGroup(store.merchant_id, apiToken, groupInfo.cloverGroupId, originalName);
+        await sleep(300);
+      } catch (err) {
+        console.error(`Failed to restore group "${originalName}":`, err.message);
+      }
+    }
+
+    // Restore individual item prices (and names for ungrouped items)
     const { data: items } = await supabase.from('inventory_items')
       .select('id, price, variant_name, group_name')
       .in('id', appliedIds)
       .eq('store_id', proposal.store_id);
 
     for (const item of items || []) {
-      if (!item.price) continue;
-      const restoreName = item.group_name ? null : item.variant_name;
+      // Use snapshot price if available, fall back to current DB price
+      const restorePrice = snapshotPrices[item.id] != null
+        ? parseFloat(snapshotPrices[item.id])
+        : parseFloat(item.price);
+      if (!restorePrice) continue;
+      // Restore original name for ungrouped items; grouped items had their group renamed above
+      const restoreName = item.group_name ? null : (item.variant_name || null);
       try {
-        await setCloverItem(store.merchant_id, store.api_token, item.id, restoreName, parseFloat(item.price));
+        await setCloverItem(store.merchant_id, apiToken, item.id, restoreName, restorePrice);
         await sleep(300);
       } catch (err) {
-        console.error(`Failed to restore item ${item.id}:`, err.message);
+        if (err.response?.status === 429) {
+          await sleep(2000);
+          try {
+            await setCloverItem(store.merchant_id, apiToken, item.id, restoreName, restorePrice);
+            await sleep(300);
+          } catch (retryErr) {
+            console.error(`Failed after retry restoring item ${item.id}:`, retryErr.message);
+          }
+        } else {
+          console.error(`Failed to restore item ${item.id}:`, err.message);
+        }
       }
     }
 
     await supabase.from('sale_proposals').update({
       clover_applied: false,
       applied_item_ids: [],
+      group_renames: {},
       updated_at: new Date().toISOString()
     }).eq('id', proposal.id);
 
-    console.log(`Restored prices on Clover for proposal ${proposal.id}`);
+    console.log(`Restored prices + group names on Clover for proposal ${proposal.id}`);
   } catch (err) {
     console.error(`removeProposalFromClover error:`, err.message);
   }

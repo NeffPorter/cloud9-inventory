@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const { cloverFetch, updateItemPriceAndCost, setStockInClover } = require('../services/clover');
+const { cloverFetch, updateItemPriceAndCost, setStockInClover, getValidApiToken } = require('../services/clover');
 const supabase = require('../lib/supabase');
 
 function cleanVariantName(groupName, fullName) {
@@ -67,7 +67,7 @@ router.post('/stores', auth, async (req, res) => {
 async function triggerBackgroundSync(store) {
   try {
     console.log(`🔄 Starting background sync for ${store.name}...`);
-    const { cloverFetch } = require('../services/clover');
+    const apiToken = await getValidApiToken(store);
 
     let allItems = [];
     let offset = 0;
@@ -78,7 +78,7 @@ async function triggerBackgroundSync(store) {
       const data = await cloverFetch(
         `items?expand=itemStock,categories,itemGroup&limit=${limit}&offset=${offset}`,
         store.merchant_id,
-        store.api_token
+        apiToken
       );
       const elements = data.elements || [];
       allItems = allItems.concat(elements);
@@ -90,7 +90,7 @@ async function triggerBackgroundSync(store) {
       }
     }
 
-    const groupsData = await cloverFetch('item_groups?limit=1000', store.merchant_id, store.api_token);
+    const groupsData = await cloverFetch('item_groups?limit=1000', store.merchant_id, apiToken);
     const groupMap = {};
     (groupsData.elements || []).forEach(g => {
       if (g.id && g.name) groupMap[g.id] = g.name.trim();
@@ -227,10 +227,11 @@ router.put('/items/:id', auth, async (req, res) => {
         .single();
 
       if (store) {
+        const apiToken = await getValidApiToken(store);
         if (price !== undefined || cost !== undefined) {
           await updateItemPriceAndCost(
             store.merchant_id,
-            store.api_token,
+            apiToken,
             req.params.id,
             price !== undefined ? price : data.price,
             cost !== undefined ? cost : data.cost
@@ -239,7 +240,7 @@ router.put('/items/:id', auth, async (req, res) => {
         if (clover_qty !== undefined) {
           await setStockInClover(
             store.merchant_id,
-            store.api_token,
+            apiToken,
             req.params.id,
             clover_qty
           );
@@ -687,3 +688,4 @@ router.post('/category-settings/recalculate', auth, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.triggerBackgroundSync = triggerBackgroundSync;

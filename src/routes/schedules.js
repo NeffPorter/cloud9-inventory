@@ -3,6 +3,7 @@ const router = express.Router();
 const axios = require('axios');
 const supabase = require('../lib/supabase');
 const auth = require('../middleware/auth');
+const { getValidApiToken } = require('../services/clover');
 
 const CLOVER_BASE = 'https://api.clover.com/v3/merchants/';
 
@@ -72,12 +73,13 @@ async function renameCloverItemGroup(merchantId, apiToken, groupId, name) {
 }
 
 // Restore item group names from a schedule's frozen group_renames snapshot
-async function restoreCloverGroups(store, groupRenames) {
+async function restoreCloverGroups(store, groupRenames, apiToken) {
   if (!groupRenames) return;
+  const token = apiToken || store.api_token;
   for (const [groupName, info] of Object.entries(groupRenames)) {
     if (!info?.cloverGroupId || !info?.originalName) continue;
     try {
-      await renameCloverItemGroup(store.merchant_id, store.api_token, info.cloverGroupId, info.originalName);
+      await renameCloverItemGroup(store.merchant_id, token, info.cloverGroupId, info.originalName);
       await sleep(300);
     } catch (err) {
       console.error(`Failed to restore group name for ${groupName}:`, err.message);
@@ -88,8 +90,9 @@ async function restoreCloverGroups(store, groupRenames) {
 // Restore original name + price to Clover.
 // Always restore from the schedule's frozen original_prices snapshot when available —
 // inventory_items.price can no longer be trusted once Clover syncs the discounted price back into our DB.
-async function restoreCloverItems(store, storeId, appliedItemIds, originalPrices) {
+async function restoreCloverItems(store, storeId, appliedItemIds, originalPrices, apiToken) {
   if (!appliedItemIds?.length) return;
+  const token = apiToken || store.api_token;
   const { data: items } = await supabase
     .from('inventory_items')
     .select('id, price, variant_name, group_name')
@@ -103,7 +106,7 @@ async function restoreCloverItems(store, storeId, appliedItemIds, originalPrices
     // Only restore name for ungrouped items — Clover blocks name changes on grouped items
     const restoreName = item.group_name ? null : item.variant_name;
     try {
-      await setCloverItem(store.merchant_id, store.api_token, item.id, restoreName, restorePrice);
+      await setCloverItem(store.merchant_id, token, item.id, restoreName, restorePrice);
       await sleep(300);
     } catch (err) {
       console.error(`Failed to restore item ${item.id}:`, err.message);
@@ -219,10 +222,11 @@ router.put('/:id/cancel', auth, async (req, res) => {
     if (!schedule) return res.status(404).json({ error: 'Not found' });
 
     if (schedule.status === 'active' && schedule.applied_item_ids?.length) {
-      const { data: store } = await supabase.from('stores').select('merchant_id, api_token').eq('id', schedule.store_id).single();
+      const { data: store } = await supabase.from('stores').select('merchant_id, api_token, refresh_token, token_expires_at').eq('id', schedule.store_id).single();
       if (store?.merchant_id && store?.api_token) {
-        await restoreCloverItems(store, schedule.store_id, schedule.applied_item_ids, schedule.original_prices);
-        await restoreCloverGroups(store, schedule.group_renames);
+        const apiToken = await getValidApiToken(store);
+        await restoreCloverItems(store, schedule.store_id, schedule.applied_item_ids, schedule.original_prices, apiToken);
+        await restoreCloverGroups(store, schedule.group_renames, apiToken);
       }
     }
 
@@ -240,10 +244,11 @@ router.delete('/:id', auth, async (req, res) => {
     if (!schedule) return res.status(404).json({ error: 'Not found' });
 
     if (schedule.status === 'active' && schedule.applied_item_ids?.length) {
-      const { data: store } = await supabase.from('stores').select('merchant_id, api_token').eq('id', schedule.store_id).single();
+      const { data: store } = await supabase.from('stores').select('merchant_id, api_token, refresh_token, token_expires_at').eq('id', schedule.store_id).single();
       if (store?.merchant_id && store?.api_token) {
-        await restoreCloverItems(store, schedule.store_id, schedule.applied_item_ids, schedule.original_prices);
-        await restoreCloverGroups(store, schedule.group_renames);
+        const apiToken = await getValidApiToken(store);
+        await restoreCloverItems(store, schedule.store_id, schedule.applied_item_ids, schedule.original_prices, apiToken);
+        await restoreCloverGroups(store, schedule.group_renames, apiToken);
       }
     }
 
@@ -260,11 +265,12 @@ router.delete('/:id', auth, async (req, res) => {
 async function activateSchedule(schedule) {
   const result = { applied: [], errors: [], itemCount: 0 };
   try {
-    const { data: store } = await supabase.from('stores').select('merchant_id, api_token').eq('id', schedule.store_id).single();
+    const { data: store } = await supabase.from('stores').select('merchant_id, api_token, refresh_token, token_expires_at').eq('id', schedule.store_id).single();
     if (!store?.merchant_id || !store?.api_token) {
       result.errors.push('Store has no Clover credentials (merchant_id / api_token missing)');
       return result;
     }
+    const apiToken = await getValidApiToken(store);
 
     const items = await getTargetItems(schedule.store_id, schedule.target_type, schedule.target_ids);
     result.itemCount = items.length;
@@ -305,12 +311,12 @@ async function activateSchedule(schedule) {
         await sleep(300); // space out group ID lookups to avoid 429
         let cloverGroupId = null;
         try {
-          cloverGroupId = await getCloverItemGroupId(store.merchant_id, store.api_token, sampleItem.id);
+          cloverGroupId = await getCloverItemGroupId(store.merchant_id, apiToken, sampleItem.id);
         } catch (err) {
           if (err.response?.status === 429) {
             await sleep(2500);
             try {
-              cloverGroupId = await getCloverItemGroupId(store.merchant_id, store.api_token, sampleItem.id);
+              cloverGroupId = await getCloverItemGroupId(store.merchant_id, apiToken, sampleItem.id);
             } catch (retryErr) {
               result.errors.push(`Group ID lookup rate-limited for "${groupName}" — names may not update`);
               console.error(`Group ID lookup for ${groupName} failed after 429 retry:`, retryErr.message);
@@ -334,7 +340,7 @@ async function activateSchedule(schedule) {
       if (!info?.cloverGroupId) continue;
       const newGroupName = `${schedule.name} ${discountLabel} - ${info.originalName}`.slice(0, 127);
       try {
-        await renameCloverItemGroup(store.merchant_id, store.api_token, info.cloverGroupId, newGroupName);
+        await renameCloverItemGroup(store.merchant_id, apiToken, info.cloverGroupId, newGroupName);
         await sleep(300);
       } catch (err) {
         const detail = err.response?.data ? JSON.stringify(err.response.data) : err.message;
@@ -351,7 +357,7 @@ async function activateSchedule(schedule) {
       const displayName = item.variant_name || item.id;
       const saleName = item.group_name ? null : `${schedule.name} ${discountLabel} - ${displayName}`;
       try {
-        await setCloverItem(store.merchant_id, store.api_token, item.id, saleName, discountedPrice);
+        await setCloverItem(store.merchant_id, apiToken, item.id, saleName, discountedPrice);
         result.applied.push(item.id);
         await sleep(300); // avoid Clover rate limit (429)
       } catch (err) {
@@ -359,7 +365,7 @@ async function activateSchedule(schedule) {
           // Rate limited — wait 2s and retry once
           await sleep(2000);
           try {
-            await setCloverItem(store.merchant_id, store.api_token, item.id, saleName, discountedPrice);
+            await setCloverItem(store.merchant_id, apiToken, item.id, saleName, discountedPrice);
             result.applied.push(item.id);
             await sleep(300);
           } catch (retryErr) {
@@ -393,10 +399,11 @@ async function activateSchedule(schedule) {
 async function expireSchedule(schedule) {
   try {
     if (schedule.applied_item_ids?.length) {
-      const { data: store } = await supabase.from('stores').select('merchant_id, api_token').eq('id', schedule.store_id).single();
+      const { data: store } = await supabase.from('stores').select('merchant_id, api_token, refresh_token, token_expires_at').eq('id', schedule.store_id).single();
       if (store?.merchant_id && store?.api_token) {
-        await restoreCloverItems(store, schedule.store_id, schedule.applied_item_ids, schedule.original_prices);
-        await restoreCloverGroups(store, schedule.group_renames);
+        const apiToken = await getValidApiToken(store);
+        await restoreCloverItems(store, schedule.store_id, schedule.applied_item_ids, schedule.original_prices, apiToken);
+        await restoreCloverGroups(store, schedule.group_renames, apiToken);
       }
     }
     await supabase.from('discount_schedules').update({ status: 'expired', updated_at: new Date().toISOString() }).eq('id', schedule.id);

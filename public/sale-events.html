@@ -220,7 +220,8 @@ async function loadEvents() {
               <div class="proposal-actions">
                 ${(p.status === 'submitted' || p.status === 'under_review') ? `<button class="btn btn-primary btn-sm" onclick="openReview('${p.id}')">Review</button>` : ''}
                 ${p.status === 'approved' ? `<button class="btn btn-ghost btn-sm" onclick="openReview('${p.id}')">View</button>` : ''}
-                ${p.status === 'pending' || p.status === 'rejected' ? `<span style="font-size:12px;color:#888">Awaiting submission</span>` : ''}
+                ${p.status === 'pending' ? `<span style="font-size:12px;color:#888">Awaiting submission</span>` : ''}
+                ${p.status === 'rejected' ? `<span style="font-size:12px;color:#d97706;font-weight:600">⚠️ Sent back for revision</span>` : ''}
               </div>
             </div>`;
           }).join('') || '<div style="color:#999;font-size:13px;padding:8px 0">No stores assigned yet</div>'}
@@ -234,10 +235,12 @@ function buildProposalSummary(proposals) {
   if (!proposals.length) return '📋 No proposals';
   const approved = proposals.filter(p => p.status === 'approved').length;
   const submitted = proposals.filter(p => p.status === 'submitted' || p.status === 'under_review').length;
-  const pending = proposals.filter(p => p.status === 'pending' || p.status === 'rejected').length;
+  const rejected = proposals.filter(p => p.status === 'rejected').length;
+  const pending = proposals.filter(p => p.status === 'pending').length;
   const parts = [];
   if (approved) parts.push(`✅ ${approved} approved`);
   if (submitted) parts.push(`⏳ ${submitted} awaiting review`);
+  if (rejected) parts.push(`⚠️ ${rejected} needs revision`);
   if (pending) parts.push(`📝 ${pending} pending`);
   return parts.join(' · ');
 }
@@ -348,7 +351,8 @@ async function openReview(proposalId) {
     document.getElementById('reviewStoreNotes').style.display = 'none';
   }
 
-  document.getElementById('reviewHimNotes').value = data.him_notes || '';
+  // Clear him_notes when proposal is resubmitted so the HIM starts fresh each review round
+  document.getElementById('reviewHimNotes').value = data.status === 'submitted' ? '' : (data.him_notes || '');
   const footer = document.getElementById('reviewFooter');
   if (data.status === 'approved') {
     footer.innerHTML = '<button class="btn btn-ghost" onclick="closeReviewModal()">Close</button>';

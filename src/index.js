@@ -12,7 +12,8 @@ app.use(express.json());
 
 // API Routes FIRST
 app.use('/api/auth', require('./routes/auth'));
-app.use('/api/inventory', require('./routes/inventory'));
+const inventoryRouter = require('./routes/inventory');
+app.use('/api/inventory', inventoryRouter);
 app.use('/api/pos', require('./routes/pos'));
 app.use('/api/distributors', require('./routes/distributors'));
 app.use('/api/sales', require('./routes/sales'));
@@ -74,6 +75,27 @@ saleEventsRouter.runSaleEventCron().catch(err => console.error('Sale events cron
 // Stocktake task cron — 1st of every month at 6am
 cron.schedule('0 6 1 * *', () => {
   storeTasksRouter.runStocktakeCron().catch(err => console.error('Stocktake cron error:', err.message));
+});
+
+// Nightly inventory sync — 3am daily (catches any missed webhook updates)
+cron.schedule('0 3 * * *', async () => {
+  try {
+    const supabase = require('./lib/supabase');
+    const { data: stores } = await supabase.from('stores').select('*').not('merchant_id', 'is', null);
+    if (!stores?.length) return;
+    console.log(`🌙 Nightly inventory sync — ${stores.length} store(s)`);
+    const { triggerBackgroundSync } = inventoryRouter;
+    for (const store of stores) {
+      try {
+        await triggerBackgroundSync(store);
+      } catch (err) {
+        console.error(`Nightly sync failed for store ${store.name}:`, err.message);
+      }
+    }
+    console.log('✅ Nightly inventory sync complete');
+  } catch (err) {
+    console.error('Nightly inventory sync error:', err.message);
+  }
 });
 app.get('/stocktake/new', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/stocktake-new.html'));

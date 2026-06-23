@@ -8,16 +8,26 @@ function adminOnly(req, res, next) {
   next();
 }
 
-// ─── List notifications (admin) ──────────────────────────────────────────────
-router.get('/', auth, adminOnly, async (req, res) => {
+// ─── List notifications ───────────────────────────────────────────────────────
+// Admins see target_role='admin' notifications.
+// Store users see target_store_id=their store notifications.
+router.get('/', auth, async (req, res) => {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('notifications')
       .select('*')
-      .eq('target_role', 'admin')
       .order('created_at', { ascending: false })
       .limit(50);
 
+    if (req.user.role === 'admin') {
+      query = query.eq('target_role', 'admin');
+    } else if (req.user.store_id) {
+      query = query.eq('target_store_id', req.user.store_id);
+    } else {
+      return res.json({ notifications: [], unread_count: 0 });
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
 
     const unreadCount = (data || []).filter(n => !n.read).length;
@@ -29,7 +39,7 @@ router.get('/', auth, adminOnly, async (req, res) => {
 });
 
 // ─── Mark a single notification read ─────────────────────────────────────────
-router.put('/:id/read', auth, adminOnly, async (req, res) => {
+router.put('/:id/read', auth, async (req, res) => {
   try {
     const { error } = await supabase
       .from('notifications')
@@ -44,13 +54,15 @@ router.put('/:id/read', auth, adminOnly, async (req, res) => {
 });
 
 // ─── Mark all notifications read ─────────────────────────────────────────────
-router.put('/read-all', auth, adminOnly, async (req, res) => {
+router.put('/read-all', auth, async (req, res) => {
   try {
-    const { error } = await supabase
-      .from('notifications')
-      .update({ read: true })
-      .eq('target_role', 'admin')
-      .eq('read', false);
+    let query = supabase.from('notifications').update({ read: true }).eq('read', false);
+    if (req.user.role === 'admin') {
+      query = query.eq('target_role', 'admin');
+    } else if (req.user.store_id) {
+      query = query.eq('target_store_id', req.user.store_id);
+    }
+    const { error } = await query;
 
     if (error) throw error;
     res.json({ success: true });
