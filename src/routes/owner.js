@@ -3,10 +3,10 @@ const router = express.Router();
 const auth = require('../middleware/auth');
 const supabase = require('../lib/supabase');
 
-const OWNER_ROLES = ['admin', 'owner'];
+const { isOwnerLevel } = require('../lib/roles');
 
 function requireOwner(req, res, next) {
-  if (!OWNER_ROLES.includes(req.user.role)) return res.status(403).json({ error: 'Owner access required' });
+  if (!isOwnerLevel(req.user.role)) return res.status(403).json({ error: 'Owner access required' });
   next();
 }
 

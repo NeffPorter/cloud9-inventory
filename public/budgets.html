@@ -116,7 +116,7 @@ const urlStore = urlParams.get('store');
 async function init() {
   if (!token) { window.location.href = '/'; return; }
 
-  if (user.role === 'admin') {
+  if (['admin', 'him', 'regional_manager'].includes(user.role)) {
     // Load all stores, show selector
     const res = await fetch('/api/inventory/stores', { headers: { Authorization: 'Bearer ' + token } });
     const data = await res.json();

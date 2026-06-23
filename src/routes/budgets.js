@@ -3,9 +3,10 @@ const router = express.Router();
 const auth = require('../middleware/auth');
 const { notify, logActivity } = require('../services/notify');
 const supabase = require('../lib/supabase');
+const { isHim } = require('../lib/roles');
 
 function adminOnly(req, res, next) {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  if (!isHim(req.user.role)) return res.status(403).json({ error: 'Admin only' });
   next();
 }
 

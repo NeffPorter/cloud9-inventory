@@ -112,7 +112,7 @@
   let allDists = [];
   let editingId = null;
 
-  if (user.role === 'admin') {
+  if (['admin', 'him', 'regional_manager'].includes(user.role)) {
     document.getElementById('addBtn').innerHTML = `<button class="btn btn-blue" onclick="openModal()">➕ Add Distributor</button>`;
   }
 
@@ -135,7 +135,7 @@
       container.innerHTML = `
         <div class="empty">
           <h3>No distributors yet</h3>
-          <p>${user.role === 'admin' ? 'Click "Add Distributor" to get started.' : 'An admin needs to add distributors for this store.'}</p>
+          <p>${['admin','him','regional_manager'].includes(user.role) ? 'Click "Add Distributor" to get started.' : 'An admin needs to add distributors for this store.'}</p>
         </div>`;
       return;
     }
@@ -144,7 +144,7 @@
 
   function distCard(d) {
     const updated = d.updated_at ? new Date(d.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
-    const adminBtns = user.role === 'admin' ? `
+    const adminBtns = ['admin','him','regional_manager'].includes(user.role) ? `
       <button class="btn-outline btn-sm" onclick="editDist('${d.id}')">✏️ Edit</button>
       <button class="btn-outline btn-outline-red btn-sm" onclick="deleteDist('${d.id}', '${d.name.replace(/'/g, "\\'")}')">🗑️ Delete</button>
     ` : '';

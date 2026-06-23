@@ -137,7 +137,7 @@
       document.getElementById('receiveBtn').innerHTML = '';
       document.getElementById('editItemsBtn').innerHTML = '';
       document.getElementById('addItemsBtn').innerHTML = '';
-      if (user.role === 'admin') {
+      if (['admin', 'him', 'regional_manager'].includes(user.role)) {
         document.getElementById('approveBtn').innerHTML =
           `<button class="btn btn-green" onclick="approvePO()">✅ Approve PO</button>`;
       }
@@ -264,7 +264,7 @@
           <div style="font-size:16px;font-weight:700;color:#c00">🚫 This PO needs approval</div>
           <div style="font-size:13px;color:#666;margin-top:4px">
             Placing this order would push this store's spending for the current week over the 30% budget line (into the 31%–45% range).
-            ${user.role === 'admin' ? 'Approve it below to mark it as ordered, or cancel it.' : 'An admin needs to approve it before it can be ordered.'}
+            ${['admin','him','regional_manager'].includes(user.role) ? 'Approve it below to mark it as ordered, or cancel it.' : 'An admin needs to approve it before it can be ordered.'}
           </div>
         </div>
       ` : ''}

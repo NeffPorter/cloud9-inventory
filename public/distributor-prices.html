@@ -86,7 +86,7 @@
   let allInventory = [];
   let priceMap = {};     // item_id -> unit_cost (from DB)
   let pendingChanges = {}; // groupKey -> unit_cost  (key = 'g:cat:grp' or 'i:itemId')
-  const isAdmin = user.role === 'admin';
+  const isAdmin = ['admin', 'him', 'regional_manager'].includes(user.role);
 
   let allStores = [];
   let selectedStore = params.get('store') || '';

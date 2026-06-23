@@ -6,6 +6,7 @@ const { fetchFullOrder, fetchOrderRefunds, fetchItem, pushStockToClover, extract
 const { calculateSuggestedOrder } = require('../services/suggested');
 const { notify } = require('../services/notify');
 const supabase = require('../lib/supabase');
+const { isHim } = require('../lib/roles');
 
 // Per-category low stock threshold is fetched dynamically in updateInventoryItem.
 
@@ -390,7 +391,7 @@ router.get('/overview', auth, async (req, res) => {
 
 router.get('/by-store', auth, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    if (!isHim(req.user.role)) return res.status(403).json({ error: 'Admin only' });
 
     const { start, end } = req.query;
     const startDate = new Date(start || new Date().setHours(0,0,0,0));

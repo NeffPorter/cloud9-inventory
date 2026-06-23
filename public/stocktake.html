@@ -195,7 +195,7 @@
       const btns = document.getElementById('newStockBtns');
       if (allStores.length === 1) {
         btns.innerHTML = `<button class="btn btn-blue" onclick="window.location.href='/stocktake/new?store=${allStores[0].id}'">➕ New Stock Take</button>`;
-      } else if (user.role === 'admin') {
+      } else if (['admin', 'him', 'regional_manager'].includes(user.role)) {
         btns.innerHTML = `
           <select id="newStoreSelect" style="padding:10px;border:2px solid #e0e0e0;border-radius:8px;font-size:14px;outline:none">
             <option value="">Select store...</option>
@@ -205,7 +205,7 @@
         `;
       }
 
-      if (user.role === 'admin' && allStores.length > 1) {
+      if (['admin', 'him', 'regional_manager'].includes(user.role) && allStores.length > 1) {
         const filter = document.getElementById('storeFilter');
         filter.innerHTML = `<button class="filter-btn active" onclick="filterStore('', this)">All Stores</button>` +
           allStores.map(s => `<button class="filter-btn" onclick="filterStore('${s.id}', this)">${s.name}</button>`).join('');

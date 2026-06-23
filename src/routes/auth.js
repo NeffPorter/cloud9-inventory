@@ -6,6 +6,7 @@ const axios = require('axios');
 const crypto = require('crypto');
 const auth = require('../middleware/auth');
 const supabase = require('../lib/supabase');
+const { isUserAdmin } = require('../lib/roles');
 
 const CLOVER_APP_ID     = process.env.CLOVER_APP_ID;
 const CLOVER_APP_SECRET = process.env.CLOVER_APP_SECRET;
@@ -22,7 +23,7 @@ setInterval(() => {
 
 // ── Clover OAuth: start ──────────────────────────────────────────────────────
 router.get('/clover/start', auth, async (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  if (!isUserAdmin(req.user.role)) return res.status(403).json({ error: 'Admin only' });
   if (!CLOVER_APP_ID) return res.status(500).json({ error: 'CLOVER_APP_ID not configured' });
 
   const nonce = crypto.randomBytes(16).toString('hex');
@@ -137,7 +138,7 @@ router.post('/login', async (req, res) => {
 // Get all users (admin only)
 router.get('/users', auth, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
+    if (!isUserAdmin(req.user.role)) {
       return res.status(403).json({ error: 'Admin only' });
     }
 
@@ -157,7 +158,7 @@ router.get('/users', auth, async (req, res) => {
 // Create new user (admin only)
 router.post('/users', auth, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
+    if (!isUserAdmin(req.user.role)) {
       return res.status(403).json({ error: 'Admin only' });
     }
 
@@ -186,7 +187,7 @@ router.post('/users', auth, async (req, res) => {
 // Update user (admin only)
 router.put('/users/:id', auth, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
+    if (!isUserAdmin(req.user.role)) {
       return res.status(403).json({ error: 'Admin only' });
     }
 
@@ -210,7 +211,7 @@ router.put('/users/:id', auth, async (req, res) => {
 // Delete user (admin only)
 router.delete('/users/:id', auth, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
+    if (!isUserAdmin(req.user.role)) {
       return res.status(403).json({ error: 'Admin only' });
     }
 

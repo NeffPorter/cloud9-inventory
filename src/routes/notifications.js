@@ -2,14 +2,15 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const supabase = require('../lib/supabase');
+const { isHim } = require('../lib/roles');
 
 function adminOnly(req, res, next) {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  if (!isHim(req.user.role)) return res.status(403).json({ error: 'Admin only' });
   next();
 }
 
 // ─── List notifications ───────────────────────────────────────────────────────
-// Admins see target_role='admin' notifications.
+// HIM+ see target_role='admin' notifications.
 // Store users see target_store_id=their store notifications.
 router.get('/', auth, async (req, res) => {
   try {
@@ -19,7 +20,7 @@ router.get('/', auth, async (req, res) => {
       .order('created_at', { ascending: false })
       .limit(50);
 
-    if (req.user.role === 'admin') {
+    if (isHim(req.user.role)) {
       query = query.eq('target_role', 'admin');
     } else if (req.user.store_id) {
       query = query.eq('target_store_id', req.user.store_id);
@@ -57,7 +58,7 @@ router.put('/:id/read', auth, async (req, res) => {
 router.put('/read-all', auth, async (req, res) => {
   try {
     let query = supabase.from('notifications').update({ read: true }).eq('read', false);
-    if (req.user.role === 'admin') {
+    if (isHim(req.user.role)) {
       query = query.eq('target_role', 'admin');
     } else if (req.user.store_id) {
       query = query.eq('target_store_id', req.user.store_id);
@@ -71,7 +72,7 @@ router.put('/read-all', auth, async (req, res) => {
   }
 });
 
-// ─── Activity log (admin) ─────────────────────────────────────────────────────
+// ─── Activity log (HIM+) ──────────────────────────────────────────────────────
 router.get('/activity-log', auth, adminOnly, async (req, res) => {
   try {
     const { store_id, limit } = req.query;

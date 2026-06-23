@@ -272,7 +272,7 @@
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     if (!token) window.location.href = '/';
 
-    if (user.role !== 'admin') {
+    if (!['admin', 'him', 'regional_manager'].includes(user.role)) {
       document.getElementById('storeBreakdownCard').style.display = 'none';
     }
 
@@ -336,7 +336,7 @@
     }
 
     async function loadStoreFilter() {
-      if (user.role !== 'admin') return;
+      if (!['admin', 'him', 'regional_manager'].includes(user.role)) return;
       const res = await fetch('/api/inventory/stores', {
         headers: { 'Authorization': 'Bearer ' + token }
       });
@@ -502,9 +502,9 @@
           }
         });
 
-        if (user.role === 'admin' && !selectedStore) loadStoreBreakdown();
+        if (['admin','him','regional_manager'].includes(user.role) && !selectedStore) loadStoreBreakdown();
 
-        if (user.role !== 'admin' || selectedStore) {
+        if (!['admin','him','regional_manager'].includes(user.role) || selectedStore) {
           loadItemPerformance();
         } else {
           document.getElementById('itemPerformance').innerHTML = 'Select a store to view item performance.';

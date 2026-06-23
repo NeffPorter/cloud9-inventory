@@ -333,7 +333,7 @@ function renderPage() {
   const spentPct = activeBudget > 0 ? Math.min(100, (spent / activeBudget) * 100) : 0;
   const color = spendColor(pct);
   const isComplete = budget.status === 'complete';
-  const isAdmin = user.role === 'admin';
+  const isAdmin = ['admin', 'him', 'regional_manager'].includes(user.role);
 
   const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 

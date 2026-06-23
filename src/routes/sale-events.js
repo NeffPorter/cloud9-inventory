@@ -4,6 +4,7 @@ const axios = require('axios');
 const supabase = require('../lib/supabase');
 const auth = require('../middleware/auth');
 const { getValidApiToken } = require('../services/clover');
+const { isHim, isOwnerLevel } = require('../lib/roles');
 
 const CLOVER_BASE = 'https://api.clover.com/v3/merchants/';
 
@@ -51,7 +52,7 @@ async function renameCloverItemGroup(merchantId, apiToken, groupId, name) {
 }
 
 function requireAdmin(req, res, next) {
-  if (!req.user || req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  if (!req.user || !isHim(req.user.role)) return res.status(403).json({ error: 'Admin only' });
   next();
 }
 

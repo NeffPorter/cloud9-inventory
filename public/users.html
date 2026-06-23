@@ -112,7 +112,12 @@
       font-size: 12px;
       font-weight: 600;
     }
+    .role-regional_manager { background: #1a1a2e; color: #fff; }
+    .role-him { background: #dce8f8; color: #2f5597; }
     .role-admin { background: #dce8f8; color: #2f5597; }
+    .role-owner { background: #d9ead3; color: #38761d; }
+    .role-gm { background: #fce5cd; color: #b45309; }
+    .role-store_user { background: #ead1dc; color: #880e4f; }
     .role-manager { background: #d9ead3; color: #38761d; }
     .action-btns { display: flex; gap: 8px; }
     .edit-btn {
@@ -204,7 +209,8 @@
             <option value="store_user">Inventory Manager (IM)</option>
             <option value="gm">General Manager (GM)</option>
             <option value="owner">Owner</option>
-            <option value="admin">Admin / HIM</option>
+            <option value="him">Head Inventory Manager (HIM)</option>
+            <option value="regional_manager">Regional Manager</option>
           </select>
         </div>
       </div>
@@ -240,7 +246,8 @@
           <option value="store_user">Inventory Manager (IM)</option>
           <option value="gm">General Manager (GM)</option>
           <option value="owner">Owner</option>
-          <option value="admin">Admin / HIM</option>
+          <option value="him">Head Inventory Manager (HIM)</option>
+          <option value="regional_manager">Regional Manager</option>
         </select>
       </div>
       <div class="form-group" id="editStoreGroup">
@@ -261,7 +268,7 @@
     const token = localStorage.getItem('token');
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     if (!token) window.location.href = '/';
-    if (user.role !== 'admin') window.location.href = '/dashboard';
+    if (!['admin', 'him', 'regional_manager'].includes(user.role)) window.location.href = '/dashboard';
 
     let stores = [];
     let users = [];
@@ -269,7 +276,7 @@
     function toggleStoreSelect(selectId, role) {
       const groupId = selectId === 'newStore' ? 'newStoreGroup' : 'editStoreGroup';
       // Owner and admin don't need a store assigned
-      const noStore = role === 'admin' || role === 'owner';
+      const noStore = ['admin', 'him', 'regional_manager', 'owner'].includes(role);
       document.getElementById(groupId).style.display = noStore ? 'none' : 'block';
     }
 
@@ -321,8 +328,8 @@
                 <tr>
                   <td><strong>${u.name}</strong>${isMe ? ' <span style="color:#999;font-size:11px">(you)</span>' : ''}</td>
                   <td>${u.email}</td>
-                  <td><span class="role-badge role-${u.role}">${u.role}</span></td>
-                  <td>${store ? store.name : u.role === 'admin' ? 'All Stores' : '—'}</td>
+                  <td><span class="role-badge role-${u.role}">${{regional_manager:'Regional Manager',him:'HIM',admin:'HIM (legacy)',owner:'Owner',gm:'GM',store_user:'IM'}[u.role] || u.role}</span></td>
+                  <td>${store ? store.name : ['admin','him','regional_manager','owner'].includes(u.role) ? 'All Stores' : '—'}</td>
                   <td>
                     <div class="action-btns">
                       <button class="edit-btn" onclick="openEdit('${u.id}')">Edit</button>

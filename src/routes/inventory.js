@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const { cloverFetch, updateItemPriceAndCost, setStockInClover, getValidApiToken } = require('../services/clover');
+const { isHim } = require('../lib/roles');
 const supabase = require('../lib/supabase');
 
 function cleanVariantName(groupName, fullName) {
@@ -34,7 +35,7 @@ router.get('/stores', auth, async (req, res) => {
 // Add a new store (admin only)
 router.post('/stores', auth, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
+    if (!isHim(req.user.role)) {
       return res.status(403).json({ error: 'Admin only' });
     }
     const { name, merchant_id, api_token } = req.body;
@@ -126,7 +127,7 @@ async function triggerBackgroundSync(store) {
 // Delete a store (admin only) — cascades through all related tables first
 router.delete('/stores/:id', auth, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') {
+    if (!isHim(req.user.role)) {
       return res.status(403).json({ error: 'Admin only' });
     }
     const storeId = req.params.id;
@@ -561,7 +562,7 @@ router.get('/category-stats', auth, async (req, res) => {
 // Upsert category settings (admin only) — buffer_days + low_stock_threshold; lead time comes from cheapest distributor
 router.put('/category-settings', auth, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    if (!isHim(req.user.role)) return res.status(403).json({ error: 'Admin only' });
     const { store_id, category, buffer_days, low_stock_threshold } = req.body;
     if (!store_id || !category) return res.status(400).json({ error: 'store_id and category required' });
 
@@ -588,7 +589,7 @@ router.put('/category-settings', auth, async (req, res) => {
 // Lead time comes from cheapest distributor per item; buffer_days is per category.
 router.post('/category-settings/recalculate', auth, async (req, res) => {
   try {
-    if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+    if (!isHim(req.user.role)) return res.status(403).json({ error: 'Admin only' });
     const { store_id, category, buffer_days, lookback_days } = req.body;
     if (!store_id || !category) return res.status(400).json({ error: 'store_id and category required' });
 

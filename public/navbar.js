@@ -23,7 +23,14 @@ function buildNavItems(user) {
       ${role === 'gm' ? `<div class="nav-item"><button class="nav-btn" onclick="window.location.href='/gm-expenses'">💼 Expenses</button></div>` : ''}`;
   }
 
-  // ── Admin (HIM) role — full access ──────────────────────────────────────────
+  // ── HIM / Regional Manager — full access ────────────────────────────────────
+  const isHimRole = role === 'him' || role === 'admin' || role === 'regional_manager';
+  if (!isHimRole) return '';
+  // Regional Manager gets an extra user-management shortcut in the Admin dropdown
+  const rmExtras = role === 'regional_manager' ? `
+        <div class="dropdown-header" style="margin-top:4px">Regional Manager</div>
+        <button class="dropdown-item" onclick="window.location.href='/users'">👥 Manage Users</button>
+        <button class="dropdown-item" onclick="window.location.href='/stores'">🏪 Manage Stores</button>` : '';
   return `
     <div class="nav-item" style="position:relative">
       <button class="nav-btn" onclick="toggleDropdown('inventoryDropdown', this)">📦 Inventory <span style="font-size:10px">▼</span></button>
@@ -77,6 +84,7 @@ function buildNavItems(user) {
         <button class="dropdown-item" onclick="window.location.href='/owner-pl'">📊 P&L Statements</button>
         <button class="dropdown-item" onclick="window.location.href='/owner-inventory'">🔍 Inventory Lookup</button>
         <button class="dropdown-item" onclick="window.location.href='/gm-expenses'">💼 GM Expenses</button>
+        ${rmExtras}
       </div>
     </div>`;
 }
@@ -123,7 +131,7 @@ function loadNavbar() {
           </button>
           <div class="dropdown" id="notifDropdown" style="right:0;left:auto;min-width:340px;max-width:380px;">
             <div class="dropdown-header" style="display:flex;justify-content:space-between;align-items:center;">
-              <span>${user.role === 'store_user' || user.role === 'gm' ? 'My To-Do' : 'Notifications'}</span>
+              <span>${['store_user', 'gm'].includes(user.role) ? 'My To-Do' : 'Notifications'}</span>
               <button onclick="markAllNotificationsRead(event)" style="background:none;border:none;color:#2f5597;font-size:11px;font-weight:700;cursor:pointer;text-transform:none;letter-spacing:normal;">Mark all read</button>
             </div>
             <div id="notifList" style="max-height:380px;overflow-y:auto;"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
@@ -247,9 +255,9 @@ function loadNavbar() {
   `;
   document.head.appendChild(style);
 
-  if (user.role === 'admin') loadNavbarStores();
+  if (['admin', 'him', 'regional_manager'].includes(user.role)) loadNavbarStores();
 
-  if (user.role === 'admin' || user.role === 'owner') {
+  if (['admin', 'him', 'regional_manager', 'owner'].includes(user.role)) {
     loadNotifications();
     if (window.__notifPollInterval) clearInterval(window.__notifPollInterval);
     window.__notifPollInterval = setInterval(loadNotifications, 30000);

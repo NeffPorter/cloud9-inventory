@@ -5,9 +5,10 @@ const { setStockInClover } = require('../services/clover');
 const { notify, logActivity } = require('../services/notify');
 const { getOrCreateCurrentBudget } = require('./budgets');
 const supabase = require('../lib/supabase');
+const { isHim } = require('../lib/roles');
 
 function adminOnly(req, res, next) {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
+  if (!isHim(req.user.role)) return res.status(403).json({ error: 'Admin only' });
   next();
 }
 
@@ -227,7 +228,7 @@ router.put('/:id', auth, async (req, res) => {
     if (req.user.role === 'manager' && existing.store_id !== req.user.store_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
-    if (existing.status === 'pending_approval' && status !== undefined && req.user.role !== 'admin') {
+    if (existing.status === 'pending_approval' && status !== undefined && !isHim(req.user.role)) {
       return res.status(403).json({ error: 'This PO needs admin approval before it can be updated' });
     }
 

@@ -91,7 +91,7 @@
     if (allStores.length === 1) {
       btnArea.innerHTML = `<button class="btn btn-blue" onclick="window.location.href='/pos/new?store=${allStores[0].id}'">➕ New PO</button>`;
       if (!selectedStore) selectedStore = allStores[0].id;
-    } else if (user.role === 'admin') {
+    } else if (['admin', 'him', 'regional_manager'].includes(user.role)) {
       btnArea.innerHTML = `
         <select id="newStoreSelect" style="padding:10px;border:2px solid #e0e0e0;border-radius:8px;font-size:14px;outline:none">
           <option value="">Select store...</option>
@@ -100,7 +100,7 @@
         <button class="btn btn-blue" onclick="goNewPO()">➕ New PO</button>`;
     }
 
-    if (user.role === 'admin' && allStores.length > 1) {
+    if (['admin', 'him', 'regional_manager'].includes(user.role) && allStores.length > 1) {
       const filter = document.getElementById('storeFilter');
       const activeAll = !selectedStore ? 'active' : '';
       filter.innerHTML = `<button class="filter-btn ${activeAll}" onclick="filterStore('', this)">All Stores</button>` +

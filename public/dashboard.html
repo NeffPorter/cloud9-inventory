@@ -158,7 +158,7 @@
             <div class="empty-state">
               <h3>No stores yet</h3>
               <p>Add your first store to get started</p>
-              ${user.role === 'admin' ? '<button class="add-store-btn" onclick="window.location.href=\'/stores\'">+ Add Store</button>' : ''}
+              ${['admin','him','regional_manager'].includes(user.role) ? '<button class="add-store-btn" onclick="window.location.href=\'/stores\'">+ Add Store</button>' : ''}
             </div>`;
           return;
         }
