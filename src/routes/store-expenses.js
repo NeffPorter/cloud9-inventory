@@ -4,8 +4,8 @@ const auth = require('../middleware/auth');
 const supabase = require('../lib/supabase');
 const multer = require('multer');
 
-// Multer: store in memory so we can pipe to Supabase Storage
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+// Multer 2.x: store in memory so we can pipe to Supabase Storage
+const upload = multer({ storage: multer.memoryStorage, limits: { fileSize: 10 * 1024 * 1024 } });
 
 const STORE_ROLES = ['admin', 'gm', 'store_user'];
 
