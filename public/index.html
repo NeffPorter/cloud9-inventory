@@ -107,8 +107,8 @@
       <p>Inventory Management</p>
     </div>
     <div class="form-group">
-      <label>Email</label>
-      <input type="email" id="email" placeholder="your@email.com">
+      <label>Email or Username</label>
+      <input type="text" id="email" placeholder="email or username" autocomplete="username">
     </div>
     <div class="form-group">
       <label>Password</label>
@@ -131,7 +131,7 @@
       successMsg.style.display = 'none';
 
       if (!email || !password) {
-        errorMsg.textContent = 'Please enter your email and password.';
+        errorMsg.textContent = 'Please enter your email/username and password.';
         errorMsg.style.display = 'block';
         return;
       }

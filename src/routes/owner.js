@@ -11,22 +11,37 @@ function requireOwner(req, res, next) {
 }
 
 // ── GET /api/owner/inventory-search?q=&store_id= ─────────────────────────────
-// Cross-store product search by name
+// Cross-store product search — fuzzy: matches any word across name/group_name/variant_name/category
 router.get('/inventory-search', auth, requireOwner, async (req, res) => {
   try {
     const { q, store_id } = req.query;
     if (!q || q.trim().length < 2) return res.json([]);
 
+    const terms = q.trim().split(/\s+/).filter(Boolean);
+
+    // Build OR filter across all relevant text fields for the first term,
+    // then post-filter JS-side for multi-word queries (Supabase doesn't support
+    // chained cross-field AND easily without raw SQL).
+    const primary = terms[0];
     let query = supabase
       .from('inventory_items')
       .select('id, store_id, name, variant_name, group_name, category, price, cost, clover_qty, status, stores(name)')
-      .ilike('name', `%${q.trim()}%`)
+      .or(`name.ilike.%${primary}%,group_name.ilike.%${primary}%,variant_name.ilike.%${primary}%,category.ilike.%${primary}%`)
       .order('name');
 
     if (store_id) query = query.eq('store_id', store_id);
 
-    const { data, error } = await query;
+    let { data, error } = await query;
     if (error) throw error;
+
+    // If multi-word query, JS-side filter: each remaining term must appear somewhere
+    if (terms.length > 1) {
+      data = (data || []).filter(item => {
+        const haystack = [item.name, item.group_name, item.variant_name, item.category]
+          .filter(Boolean).join(' ').toLowerCase();
+        return terms.slice(1).every(t => haystack.includes(t.toLowerCase()));
+      });
+    }
 
     // Group results by product name + variant for easy display
     const grouped = {};
@@ -230,4 +245,99 @@ router.get('/stores', auth, requireOwner, async (req, res) => {
   }
 });
 
+// ── POST /api/owner/pl-snapshots — save a P&L snapshot ───────────────────────
+router.post('/pl-snapshots', auth, requireOwner, async (req, res) => {
+  try {
+    const { period_type, period_label, start_date, end_date, store_id, data } = req.body;
+    if (!period_type || !period_label || !start_date || !end_date || !data) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    const { data: snap, error } = await supabase
+      .from('pl_snapshots')
+      .upsert({ period_type, period_label, start_date, end_date, store_id: store_id || null, data },
+               { onConflict: 'period_label,start_date,end_date' })
+      .select().single();
+    if (error) throw error;
+    res.json(snap);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/owner/pl-snapshots — list saved P&L snapshots ───────────────────
+router.get('/pl-snapshots', auth, requireOwner, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('pl_snapshots')
+      .select('id, period_type, period_label, start_date, end_date, store_id, created_at')
+      .order('start_date', { ascending: false });
+    if (error) throw error;
+    res.json(data || []);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/owner/pl-snapshots/:id — get full snapshot data ─────────────────
+router.get('/pl-snapshots/:id', auth, requireOwner, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('pl_snapshots').select('*').eq('id', req.params.id).single();
+    if (error) throw error;
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
+
+// Export for cron usage
+module.exports.autoSnapshotPL = async function autoSnapshotPL(periodType, start, end, label) {
+  try {
+    // Pull P&L data directly (same logic as /pl route)
+    const { data: salesData } = await supabase
+      .from('sales_log')
+      .select('store_id, net_amount, stores(name)')
+      .gte('sale_date', start).lte('sale_date', end);
+
+    const { data: invoices } = await supabase
+      .from('budget_invoices')
+      .select('store_id, total_cost, stores(name)')
+      .gte('created_at', start + 'T00:00:00Z').lte('created_at', end + 'T23:59:59Z');
+
+    const { data: expenses } = await supabase
+      .from('store_expenses')
+      .select('store_id, amount, stores(name)')
+      .gte('expense_date', start).lte('expense_date', end);
+
+    // Aggregate by store
+    const byStore = {};
+    const ensureStore = (sid, sname) => {
+      if (!byStore[sid]) byStore[sid] = { store_id: sid, store_name: sname || sid, revenue: 0, cogs: 0, expenses: 0 };
+    };
+    for (const r of salesData || []) { ensureStore(r.store_id, r.stores?.name); byStore[r.store_id].revenue += parseFloat(r.net_amount || 0); }
+    for (const r of invoices || []) { ensureStore(r.store_id, r.stores?.name); byStore[r.store_id].cogs += parseFloat(r.total_cost || 0); }
+    for (const r of expenses || []) { ensureStore(r.store_id, r.stores?.name); byStore[r.store_id].expenses += parseFloat(r.amount || 0); }
+
+    const payload = Object.values(byStore).map(s => ({
+      ...s,
+      gross_profit: s.revenue - s.cogs,
+      net_profit: s.revenue - s.cogs - s.expenses,
+      margin: s.revenue > 0 ? (((s.revenue - s.cogs - s.expenses) / s.revenue) * 100).toFixed(1) : null
+    }));
+
+    await supabase.from('pl_snapshots').upsert({
+      period_type: periodType,
+      period_label: label,
+      start_date: start,
+      end_date: end,
+      store_id: null,
+      data: payload
+    }, { onConflict: 'period_label,start_date,end_date' });
+
+    console.log(`[P&L snapshot] saved: ${label}`);
+  } catch (err) {
+    console.error('[P&L snapshot] error:', err.message);
+  }
+};

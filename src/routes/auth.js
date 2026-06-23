@@ -88,18 +88,22 @@ router.get('/clover/callback', async (req, res) => {
   }
 });
 
-// Login
+// Login — accepts email or username
 router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password } = req.body; // 'email' field accepts either email or username
 
   try {
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email)
-      .single();
+    // Try email first, fall back to username
+    let { data: user } = await supabase
+      .from('users').select('*').eq('email', email).maybeSingle();
 
-    if (error || !user) {
+    if (!user) {
+      const { data: byUsername } = await supabase
+        .from('users').select('*').eq('username', email).maybeSingle();
+      user = byUsername;
+    }
+
+    if (!user) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
@@ -144,7 +148,7 @@ router.get('/users', auth, async (req, res) => {
 
     const { data, error } = await supabase
       .from('users')
-      .select('id, email, name, role, store_id, created_at')
+      .select('id, email, name, role, store_id, username, created_at')
       .order('name');
 
     if (error) throw error;
@@ -162,7 +166,7 @@ router.post('/users', auth, async (req, res) => {
       return res.status(403).json({ error: 'Admin only' });
     }
 
-    const { email, password, name, role, store_id } = req.body;
+    const { email, password, name, role, store_id, username } = req.body;
     if (!email || !password || !name || !role) {
       return res.status(400).json({ error: 'All fields are required' });
     }
@@ -172,8 +176,8 @@ router.post('/users', auth, async (req, res) => {
 
     const { data, error } = await supabase
       .from('users')
-      .insert([{ email, password_hash, name, role, store_id: store_id || null }])
-      .select('id, email, name, role, store_id')
+      .insert([{ email, password_hash, name, role, store_id: store_id || null, username: username || null }])
+      .select('id, email, name, role, store_id, username')
       .single();
 
     if (error) throw error;
@@ -191,13 +195,13 @@ router.put('/users/:id', auth, async (req, res) => {
       return res.status(403).json({ error: 'Admin only' });
     }
 
-    const { name, role, store_id } = req.body;
+    const { name, role, store_id, username } = req.body;
 
     const { data, error } = await supabase
       .from('users')
-      .update({ name, role, store_id: store_id || null })
+      .update({ name, role, store_id: store_id || null, username: username || null })
       .eq('id', req.params.id)
-      .select('id, email, name, role, store_id')
+      .select('id, email, name, role, store_id, username')
       .single();
 
     if (error) throw error;

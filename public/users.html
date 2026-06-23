@@ -200,19 +200,23 @@
       </div>
       <div class="form-row">
         <div class="form-group">
+          <label>Username <span style="color:#aaa;font-weight:400;">(optional — for login)</span></label>
+          <input type="text" id="newUsername" placeholder="e.g. jane.smith">
+        </div>
+        <div class="form-group">
           <label>Password</label>
           <input type="password" id="newPassword" placeholder="••••••••">
         </div>
-        <div class="form-group">
-          <label>Role</label>
-          <select id="newRole" onchange="toggleStoreSelect('newStore', this.value)">
-            <option value="store_user">Inventory Manager (IM)</option>
-            <option value="gm">General Manager (GM)</option>
-            <option value="owner">Owner</option>
-            <option value="him">Head Inventory Manager (HIM)</option>
-            <option value="regional_manager">Regional Manager</option>
-          </select>
-        </div>
+      </div>
+      <div class="form-group">
+        <label>Role</label>
+        <select id="newRole" onchange="toggleStoreSelect('newStore', this.value)">
+          <option value="store_user">Inventory Manager (IM)</option>
+          <option value="gm">General Manager (GM)</option>
+          <option value="owner">Owner</option>
+          <option value="him">Head Inventory Manager (HIM)</option>
+          <option value="regional_manager">Regional Manager</option>
+        </select>
       </div>
       <div class="form-group" id="newStoreGroup">
         <label>Assigned Store</label>
@@ -239,6 +243,10 @@
       <div class="form-group">
         <label>Full Name</label>
         <input type="text" id="editName">
+      </div>
+      <div class="form-group">
+        <label>Username <span style="color:#aaa;font-weight:400;">(optional)</span></label>
+        <input type="text" id="editUsername" placeholder="e.g. jane.smith">
       </div>
       <div class="form-group">
         <label>Role</label>
@@ -378,7 +386,7 @@
             'Content-Type': 'application/json',
             'Authorization': 'Bearer ' + token
           },
-          body: JSON.stringify({ name, email, password, role, store_id })
+          body: JSON.stringify({ name, email, password, role, store_id, username: document.getElementById('newUsername').value.trim() || null })
         });
 
         const data = await res.json();
@@ -389,6 +397,7 @@
           document.getElementById('newName').value = '';
           document.getElementById('newEmail').value = '';
           document.getElementById('newPassword').value = '';
+          document.getElementById('newUsername').value = '';
           loadUsers();
         } else {
           errorEl.textContent = data.error || 'Failed to create user.';
@@ -408,6 +417,7 @@
       if (!u) return;
       document.getElementById('editId').value = u.id;
       document.getElementById('editName').value = u.name;
+      document.getElementById('editUsername').value = u.username || '';
       document.getElementById('editRole').value = u.role;
       document.getElementById('editStore').value = u.store_id || '';
       document.getElementById('editError').style.display = 'none';
@@ -441,7 +451,7 @@
             'Content-Type': 'application/json',
             'Authorization': 'Bearer ' + token
           },
-          body: JSON.stringify({ name, role, store_id })
+          body: JSON.stringify({ name, role, store_id, username: document.getElementById('editUsername').value.trim() || null })
         });
 
         if (res.ok) {

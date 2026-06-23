@@ -82,8 +82,8 @@ tr:last-child td { border-bottom: none; }
     <div class="control-group">
       <label>Period</label>
       <div class="period-tabs">
-        <button class="period-tab active" onclick="setPeriod('monthly',this)">Monthly</button>
-        <button class="period-tab" onclick="setPeriod('weekly',this)">Weekly</button>
+        <button class="period-tab active" onclick="setPeriod('weekly',this)">Weekly</button>
+        <button class="period-tab" onclick="setPeriod('monthly',this)">Monthly</button>
         <button class="period-tab" onclick="setPeriod('quarterly',this)">Quarterly</button>
         <button class="period-tab" onclick="setPeriod('custom',this)">Custom</button>
       </div>
@@ -108,6 +108,20 @@ tr:last-child td { border-bottom: none; }
         <option value="">All Stores</option>
       </select>
     </div>
+    <div class="control-group" style="margin-left:auto;flex-direction:row;align-items:flex-end;gap:8px;">
+      <button class="btn btn-primary" onclick="savePLSnapshot()" id="saveBtn" title="Save snapshot to history">💾 Save</button>
+      <button class="btn" style="background:#f3f4f6;color:#1a1a1a;" onclick="window.print()" title="Download / Print as PDF">🖨️ PDF</button>
+      <button class="btn" style="background:#f3f4f6;color:#1a1a1a;" onclick="toggleSnapshotPanel()">📂 History</button>
+    </div>
+  </div>
+
+  <!-- Snapshot history panel -->
+  <div id="snapshotPanel" style="display:none;background:white;border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px;margin-bottom:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <span style="font-weight:600;font-size:15px;">📂 Saved P&L Reports</span>
+      <button onclick="toggleSnapshotPanel()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#888;">✕</button>
+    </div>
+    <div id="snapshotList"><div style="color:#999;font-size:13px;">Loading...</div></div>
   </div>
 
   <!-- View tabs -->
@@ -123,7 +137,7 @@ tr:last-child td { border-bottom: none; }
 
 <script>
 const token = localStorage.getItem('token');
-let currentPeriod = 'monthly';
+let currentPeriod = 'weekly';
 let currentView = 'pl';
 let stores = [];
 let plData = [], topProductsData = [], invValueData = [];
@@ -140,9 +154,17 @@ async function init() {
   sel.innerHTML = '<option value="">All Stores</option>' +
     stores.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
 
-  // Default to current month
+  // Default to current week
   const now = new Date();
-  document.getElementById('monthPicker').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const pad = n => String(n).padStart(2, '0');
+  // Set week picker to current ISO week
+  const yr = now.getFullYear();
+  const startOfYear = new Date(yr, 0, 1);
+  const dayOfYear = Math.floor((now - startOfYear) / 86400000);
+  const weekNum = Math.ceil((dayOfYear + startOfYear.getDay() + 1) / 7);
+  document.getElementById('monthPicker').type = 'week';
+  document.getElementById('monthPicker').value = `${yr}-W${pad(weekNum)}`;
+  document.getElementById('periodPickerLabel').textContent = 'Week';
   await load();
 }
 
@@ -465,6 +487,95 @@ function renderInvValue() {
 
   document.getElementById('content').innerHTML = html;
 }
+
+// ── Snapshot save/load ────────────────────────────────────────────────────────
+async function savePLSnapshot() {
+  const range = getDateRange();
+  if (!range?.start || !range?.end) { alert('Select a date range first.'); return; }
+  if (!plData?.length) { alert('No P&L data loaded yet.'); return; }
+
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true; btn.textContent = '⏳ Saving...';
+
+  const label = buildPeriodLabel();
+  const storeId = document.getElementById('storeFilter').value || null;
+  const periodType = currentPeriod === 'weekly' ? 'monthly' : (currentPeriod === 'quarterly' ? 'quarterly' : 'monthly');
+
+  const res = await fetch('/api/owner/pl-snapshots', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ period_type: periodType, period_label: label, start_date: range.start, end_date: range.end, store_id: storeId, data: plData })
+  });
+
+  btn.disabled = false; btn.textContent = '💾 Save';
+  if (res.ok) { btn.textContent = '✅ Saved'; setTimeout(() => btn.textContent = '💾 Save', 2000); }
+  else { alert('Failed to save snapshot.'); }
+}
+
+function buildPeriodLabel() {
+  const range = getDateRange();
+  if (currentPeriod === 'weekly') {
+    const d = new Date(range.start);
+    return `Week of ${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+  }
+  if (currentPeriod === 'quarterly') {
+    return document.getElementById('monthPicker').value || range.start;
+  }
+  if (currentPeriod === 'custom') return `${range.start} to ${range.end}`;
+  // monthly
+  const [y, m] = (document.getElementById('monthPicker').value || range.start).split('-');
+  return new Date(y, m - 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+}
+
+let snapshotPanelOpen = false;
+async function toggleSnapshotPanel() {
+  const panel = document.getElementById('snapshotPanel');
+  snapshotPanelOpen = !snapshotPanelOpen;
+  panel.style.display = snapshotPanelOpen ? '' : 'none';
+  if (snapshotPanelOpen) await loadSnapshots();
+}
+
+async function loadSnapshots() {
+  const list = document.getElementById('snapshotList');
+  const snaps = await api('/api/owner/pl-snapshots');
+  if (!snaps?.length) { list.innerHTML = '<div style="color:#999;font-size:13px;">No saved reports yet.</div>'; return; }
+
+  list.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px;">
+    <thead><tr style="text-align:left;">
+      <th style="padding:6px 12px;background:#f9fafb;border-bottom:1px solid #e5e7eb;">Period</th>
+      <th style="padding:6px 12px;background:#f9fafb;border-bottom:1px solid #e5e7eb;">Type</th>
+      <th style="padding:6px 12px;background:#f9fafb;border-bottom:1px solid #e5e7eb;">Saved</th>
+      <th style="padding:6px 12px;background:#f9fafb;border-bottom:1px solid #e5e7eb;"></th>
+    </tr></thead>
+    <tbody>${snaps.map(s => `
+      <tr style="border-bottom:1px solid #f0f0f0;">
+        <td style="padding:8px 12px;font-weight:500;">${s.period_label}</td>
+        <td style="padding:8px 12px;color:#888;text-transform:capitalize;">${s.period_type}</td>
+        <td style="padding:8px 12px;color:#888;">${new Date(s.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</td>
+        <td style="padding:8px 12px;"><button onclick="loadSnapshot('${s.id}')" style="background:#2563eb;color:white;border:none;border-radius:6px;padding:4px 12px;cursor:pointer;font-size:12px;">View</button></td>
+      </tr>`).join('')}
+    </tbody></table>`;
+}
+
+async function loadSnapshot(id) {
+  const snap = await api(`/api/owner/pl-snapshots/${id}`);
+  plData = snap.data;
+  document.querySelector('.page-title').textContent = `P&L — ${snap.period_label} (saved)`;
+  toggleSnapshotPanel();
+  renderView();
+}
+
+// Print CSS
+const printStyle = document.createElement('style');
+printStyle.textContent = `
+  @media print {
+    #snapshotPanel, .controls, .view-tabs, #navbar-container { display: none !important; }
+    body { background: white; }
+    .page { max-width: 100%; padding: 0; }
+    .pl-table-wrap { break-inside: avoid; }
+    .summary-banner { grid-template-columns: repeat(4, 1fr); }
+  }`;
+document.head.appendChild(printStyle);
 
 init();
 </script>

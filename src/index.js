@@ -26,7 +26,8 @@ app.use('/api/sale-events', saleEventsRouter);
 const storeTasksRouter = require('./routes/store-tasks');
 app.use('/api/store-tasks', storeTasksRouter);
 app.use('/api/store-expenses', require('./routes/store-expenses'));
-app.use('/api/owner', require('./routes/owner'));
+const ownerRouter = require('./routes/owner');
+app.use('/api/owner', ownerRouter);
 
 // Static files
 app.use(express.static(path.join(__dirname, '../public')));
@@ -98,6 +99,33 @@ cron.schedule('0 3 * * *', async () => {
   } catch (err) {
     console.error('Nightly inventory sync error:', err.message);
   }
+});
+
+// P&L auto-snapshot — last day of every month at 11:55pm
+cron.schedule('55 23 28-31 * *', async () => {
+  const now = new Date();
+  const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
+  if (tomorrow.getDate() !== 1) return; // only fires on the actual last day of month
+  const y = now.getFullYear(), m = now.getMonth() + 1;
+  const pad = n => String(n).padStart(2, '0');
+  const lastDay = new Date(y, m, 0).getDate();
+  const label = now.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  await ownerRouter.autoSnapshotPL('monthly', `${y}-${pad(m)}-01`, `${y}-${pad(m)}-${lastDay}`, label);
+});
+
+// P&L auto-snapshot — last day of every quarter at 11:56pm
+cron.schedule('56 23 28-31 3,6,9,12 *', async () => {
+  const now = new Date();
+  const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
+  if (tomorrow.getDate() !== 1) return;
+  const y = now.getFullYear(), m = now.getMonth() + 1;
+  if (![3, 6, 9, 12].includes(m)) return;
+  const q = Math.ceil(m / 3);
+  const qStart = (q - 1) * 3 + 1;
+  const qEnd = q * 3;
+  const lastDay = new Date(y, qEnd, 0).getDate();
+  const pad = n => String(n).padStart(2, '0');
+  await ownerRouter.autoSnapshotPL('quarterly', `${y}-${pad(qStart)}-01`, `${y}-${pad(qEnd)}-${lastDay}`, `Q${q} ${y}`);
 });
 app.get('/stocktake/new', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/stocktake-new.html'));

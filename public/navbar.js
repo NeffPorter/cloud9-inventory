@@ -2,16 +2,23 @@ function buildNavItems(user) {
   const role = user.role || '';
   const storeId = user.store_id || '';
 
-  // ── Owner role — read-only reports ──────────────────────────────────────────
+  // ── Owner role ───────────────────────────────────────────────────────────────
   if (role === 'owner') {
     return `
       <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/owner-dashboard'">🏠 Dashboard</button></div>
-      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/owner-pl'">📊 P&L</button></div>
-      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/owner-inventory'">🔍 Inventory Lookup</button></div>
+      <div class="nav-item" style="position:relative">
+        <button class="nav-btn" onclick="toggleDropdown('reportsDropdown', this)">📊 Reports <span style="font-size:10px">▼</span></button>
+        <div class="dropdown" id="reportsDropdown">
+          <div class="dropdown-header">Reports</div>
+          <button class="dropdown-item" onclick="window.location.href='/owner-pl'">📊 P&L Statements</button>
+          <button class="dropdown-item" onclick="window.location.href='/owner-inventory'">🔍 Inventory Lookup</button>
+          <button class="dropdown-item" onclick="window.location.href='/gm-expenses'">💼 Store Expenses</button>
+        </div>
+      </div>
       <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/sales'">💰 Sales</button></div>`;
   }
 
-  // ── IM / GM role — store-level ──────────────────────────────────────────────
+  // ── IM / GM role ─────────────────────────────────────────────────────────────
   if (role === 'store_user' || role === 'gm') {
     const storeParam = storeId ? `?store=${storeId}` : '';
     return `
@@ -23,14 +30,10 @@ function buildNavItems(user) {
       ${role === 'gm' ? `<div class="nav-item"><button class="nav-btn" onclick="window.location.href='/gm-expenses'">💼 Expenses</button></div>` : ''}`;
   }
 
-  // ── HIM / Regional Manager — full access ────────────────────────────────────
+  // ── HIM / Regional Manager ───────────────────────────────────────────────────
   const isHimRole = role === 'him' || role === 'admin' || role === 'regional_manager';
   if (!isHimRole) return '';
-  // Regional Manager gets an extra user-management shortcut in the Admin dropdown
-  const rmExtras = role === 'regional_manager' ? `
-        <div class="dropdown-header" style="margin-top:4px">Regional Manager</div>
-        <button class="dropdown-item" onclick="window.location.href='/users'">👥 Manage Users</button>
-        <button class="dropdown-item" onclick="window.location.href='/stores'">🏪 Manage Stores</button>` : '';
+
   return `
     <div class="nav-item" style="position:relative">
       <button class="nav-btn" onclick="toggleDropdown('inventoryDropdown', this)">📦 Inventory <span style="font-size:10px">▼</span></button>
@@ -51,6 +54,9 @@ function buildNavItems(user) {
       <div class="dropdown" id="suggestedDropdown">
         <div class="dropdown-header">By Store</div>
         <div id="suggestedStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
+        <div class="dropdown-header" style="margin-top:4px">Suppliers</div>
+        <button class="dropdown-item" onclick="window.location.href='/distributors'">🏭 Distributors</button>
+        <button class="dropdown-item" onclick="window.location.href='/distributor-prices'">💲 Distributor Prices</button>
       </div>
     </div>
     <div class="nav-item" style="position:relative">
@@ -72,19 +78,22 @@ function buildNavItems(user) {
     <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/stocktake'">📋 Stock Take</button></div>
     <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/sales'">📊 Sales</button></div>
     <div class="nav-item" style="position:relative">
+      <button class="nav-btn" onclick="toggleDropdown('reportsDropdown', this)">📊 Reports <span style="font-size:10px">▼</span></button>
+      <div class="dropdown" id="reportsDropdown">
+        <div class="dropdown-header">Company Reports</div>
+        <button class="dropdown-item" onclick="window.location.href='/owner-dashboard'">🏠 Overview Dashboard</button>
+        <button class="dropdown-item" onclick="window.location.href='/owner-pl'">📊 P&L Statements</button>
+        <button class="dropdown-item" onclick="window.location.href='/owner-inventory'">🔍 Inventory Lookup</button>
+        <button class="dropdown-item" onclick="window.location.href='/gm-expenses'">💼 Store Expenses</button>
+      </div>
+    </div>
+    <div class="nav-item" style="position:relative">
       <button class="nav-btn" onclick="toggleDropdown('adminDropdown', this)">⚙️ Admin <span style="font-size:10px">▼</span></button>
       <div class="dropdown" id="adminDropdown">
         <div class="dropdown-header">Management</div>
         <button class="dropdown-item" onclick="window.location.href='/stores'">🏪 Manage Stores</button>
         <button class="dropdown-item" onclick="window.location.href='/users'">👥 Manage Users</button>
-        <button class="dropdown-item" onclick="window.location.href='/distributors'">🏭 Distributors & Prices</button>
         <button class="dropdown-item" onclick="window.location.href='/activity-log'">📜 Activity Log</button>
-        <div class="dropdown-header" style="margin-top:4px">Owner View</div>
-        <button class="dropdown-item" onclick="window.location.href='/owner-dashboard'">🏠 Owner Dashboard</button>
-        <button class="dropdown-item" onclick="window.location.href='/owner-pl'">📊 P&L Statements</button>
-        <button class="dropdown-item" onclick="window.location.href='/owner-inventory'">🔍 Inventory Lookup</button>
-        <button class="dropdown-item" onclick="window.location.href='/gm-expenses'">💼 GM Expenses</button>
-        ${rmExtras}
       </div>
     </div>`;
 }
