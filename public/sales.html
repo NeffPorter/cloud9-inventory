@@ -234,6 +234,11 @@
         <div class="stat-value" id="statRefunds">—</div>
         <div class="stat-change neutral" id="changeRefunds">vs prev period</div>
       </div>
+      <div class="stat-card">
+        <div class="stat-label">Discounts</div>
+        <div class="stat-value" id="statDiscounts">—</div>
+        <div class="stat-change neutral" id="changeDiscounts">vs prev period</div>
+      </div>
     </div>
 
     <div class="card">
@@ -263,7 +268,7 @@
 
     <div class="card" id="itemPerformanceCard">
       <div class="card-title">📦 Item Performance by Category</div>
-      <div id="itemPerformance" class="loading">Select a store to view item performance.</div>
+      <div id="itemPerformance" class="loading">Loading...</div>
     </div>
   </div>
 
@@ -272,7 +277,8 @@
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     if (!token) window.location.href = '/';
 
-    if (!['admin', 'him', 'regional_manager'].includes(user.role)) {
+    const isMultiStoreUser = ['admin', 'him', 'regional_manager', 'owner'].includes(user.role);
+    if (!isMultiStoreUser) {
       document.getElementById('storeBreakdownCard').style.display = 'none';
     }
 
@@ -442,6 +448,8 @@
         document.getElementById('statOrders').textContent = c.orders;
         document.getElementById('statAvg').textContent = fmt(c.avgTicket);
         document.getElementById('statRefunds').textContent = fmt(c.refunds);
+        document.getElementById('statDiscounts').textContent = fmt(c.discounts);
+        document.getElementById('changeDiscounts').textContent = p.discounts > 0 ? `${((c.discounts - p.discounts) / p.discounts * 100).toFixed(1)}% vs prev` : 'vs prev period';
 
         changeBadge('changeNet', c.net, p.net);
         changeBadge('changeProfit', c.grossProfit, p.grossProfit);
@@ -504,13 +512,12 @@
           }
         });
 
-        const isMultiStore = ['admin','him','regional_manager','owner'].includes(user.role);
-        if (isMultiStore && !selectedStore) loadStoreBreakdown();
+        if (isMultiStoreUser && !selectedStore) loadStoreBreakdown();
 
-        if (!isMultiStore || selectedStore) {
+        if (!isMultiStoreUser || selectedStore) {
           loadItemPerformance();
         } else {
-          document.getElementById('itemPerformance').innerHTML = 'Select a store to view item performance.';
+          document.getElementById('itemPerformance').innerHTML = 'Select a store above to view item performance.';
         }
 
       } catch (err) {

@@ -330,7 +330,7 @@ router.get('/overview', auth, async (req, res) => {
       .gte('created_at', prevStart.toISOString())
       .lte('created_at', prevEnd.toISOString());
 
-    if (req.user.role === 'manager' && req.user.store_id) {
+    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id) {
       query = query.eq('store_id', req.user.store_id);
       prevQuery = prevQuery.eq('store_id', req.user.store_id);
     } else if (store_id) {
@@ -448,7 +448,7 @@ router.get('/trends', auth, async (req, res) => {
   try {
     const { granularity = 'week', periods, store_id } = req.query;
     let storeId = store_id;
-    if (req.user.role === 'manager') storeId = req.user.store_id;
+    if (['gm', 'store_user'].includes(req.user.role)) storeId = req.user.store_id;
 
     const numPeriods = Math.min(Math.max(parseInt(periods) || 8, 2), 26);
     const now = new Date();
@@ -515,7 +515,7 @@ router.get('/item-performance', auth, async (req, res) => {
   try {
     const { start, end, store_id } = req.query;
     let storeId = store_id;
-    if (req.user.role === 'manager') storeId = req.user.store_id;
+    if (['gm', 'store_user'].includes(req.user.role)) storeId = req.user.store_id;
     if (!storeId) return res.status(400).json({ error: 'store_id required' });
 
     const startDate = new Date(start || new Date().setHours(0,0,0,0));
