@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventory Lookup</title>
+<script src="/navbar.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; }
+#navbar-container { position: sticky; top: 0; z-index: 100; }
+.page { max-width: 900px; margin: 0 auto; padding: 24px 16px; }
+.page-title { font-size: 22px; font-weight: 600; margin-bottom: 8px; }
+.page-sub { color: #666; font-size: 14px; margin-bottom: 24px; }
+
+.search-bar { display: flex; gap: 10px; margin-bottom: 8px; }
+.search-input { flex: 1; padding: 12px 16px; border: 2px solid #ddd; border-radius: 10px; font-size: 16px; transition: border-color .2s; }
+.search-input:focus { outline: none; border-color: #2563eb; }
+.btn { padding: 9px 18px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
+.btn-primary { background: #2563eb; color: white; }
+.btn:hover { opacity: .85; }
+.search-hint { font-size: 13px; color: #888; margin-bottom: 24px; }
+
+.result-group { background: white; border-radius: 12px; border: 1px solid #e5e7eb; margin-bottom: 12px; overflow: hidden; }
+.result-group-header { padding: 14px 18px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; font-weight: 600; font-size: 15px; display: flex; align-items: center; gap: 10px; }
+.result-group-header .item-count { font-size: 12px; font-weight: 500; color: #888; }
+
+table { width: 100%; border-collapse: collapse; }
+th { padding: 9px 14px; text-align: left; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; border-bottom: 1px solid #f0f0f0; }
+td { padding: 11px 14px; font-size: 14px; border-bottom: 1px solid #f9f9f9; }
+tr:last-child td { border-bottom: none; }
+
+.qty-high { color: #16a34a; font-weight: 600; }
+.qty-low { color: #d97706; font-weight: 600; }
+.qty-zero { color: #dc2626; font-weight: 600; }
+.status-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+.status-active { background: #dcfce7; color: #16a34a; }
+.status-low_stock { background: #fef3c7; color: #92400e; }
+.status-dropping { background: #fef2f2; color: #dc2626; }
+.status-on_hold { background: #f3f4f6; color: #6b7280; }
+
+.empty { text-align: center; padding: 60px 20px; color: #888; }
+.empty-icon { font-size: 48px; margin-bottom: 12px; }
+.loading { text-align: center; padding: 40px; color: #888; }
+</style>
+</head>
+<body>
+<div id="navbar-container"></div>
+<div class="page">
+  <h1 class="page-title">🔍 Inventory Lookup</h1>
+  <p class="page-sub">Search for any product to see availability across all stores.</p>
+
+  <div class="search-bar">
+    <input class="search-input" type="text" id="searchInput" placeholder="Search by product name (e.g. Geek Bar, Hyde, Elf Bar...)" onkeydown="if(event.key==='Enter') doSearch()">
+    <button class="btn btn-primary" onclick="doSearch()">Search</button>
+  </div>
+  <p class="search-hint">Type at least 2 characters to search</p>
+
+  <div id="results">
+    <div class="empty">
+      <div class="empty-icon">🔍</div>
+      <div>Search for a product above to see which stores have it in stock.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem('token');
+let searchTimer = null;
+
+document.getElementById('searchInput').addEventListener('input', function() {
+  clearTimeout(searchTimer);
+  if (this.value.trim().length >= 2) {
+    searchTimer = setTimeout(doSearch, 400);
+  }
+});
+
+async function doSearch() {
+  const q = document.getElementById('searchInput').value.trim();
+  if (q.length < 2) return;
+
+  const results = document.getElementById('results');
+  results.innerHTML = '<div class="loading">Searching...</div>';
+
+  try {
+    const res = await fetch(`/api/owner/inventory-search?q=${encodeURIComponent(q)}`, {
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    const data = await res.json();
+
+    if (!data.length) {
+      results.innerHTML = `<div class="empty"><div class="empty-icon">🤷</div><div>No items found matching "<strong>${q}</strong>"</div></div>`;
+      return;
+    }
+
+    results.innerHTML = data.map(group => {
+      const totalQty = group.variants.reduce((s, v) => s + (v.clover_qty || 0), 0);
+      const storeCount = new Set(group.variants.map(v => v.store_id)).size;
+
+      return `
+      <div class="result-group">
+        <div class="result-group-header">
+          <span>${group.name}</span>
+          <span class="item-count">${group.variants.length} variant${group.variants.length !== 1 ? 's' : ''} · ${storeCount} store${storeCount !== 1 ? 's' : ''} · ${totalQty} total units</span>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Store</th>
+              <th>Variant</th>
+              <th>Category</th>
+              <th>Price</th>
+              <th>In Stock</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${group.variants.map(v => {
+              const qty = v.clover_qty || 0;
+              const qtyClass = qty === 0 ? 'qty-zero' : qty <= 5 ? 'qty-low' : 'qty-high';
+              const statusClass = `status-${(v.status || 'active').replace(' ', '_')}`;
+              return `
+              <tr>
+                <td><strong>${v.store_name}</strong></td>
+                <td>${v.variant_name || '—'}</td>
+                <td style="color:#666">${v.category || '—'}</td>
+                <td>$${parseFloat(v.price || 0).toFixed(2)}</td>
+                <td class="${qtyClass}">${qty} units</td>
+                <td><span class="status-badge ${statusClass}">${v.status || 'active'}</span></td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`;
+    }).join('');
+  } catch (err) {
+    results.innerHTML = `<div class="empty">Error: ${err.message}</div>`;
+  }
+}
+
+if (!localStorage.getItem('token')) window.location.href = '/';
+</script>
+<script>loadNavbar();</script>
+</body>
+</html>

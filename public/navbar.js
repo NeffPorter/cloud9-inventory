@@ -1,3 +1,86 @@
+function buildNavItems(user) {
+  const role = user.role || '';
+  const storeId = user.store_id || '';
+
+  // ── Owner role — read-only reports ──────────────────────────────────────────
+  if (role === 'owner') {
+    return `
+      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/owner-dashboard'">🏠 Dashboard</button></div>
+      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/owner-pl'">📊 P&L</button></div>
+      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/owner-inventory'">🔍 Inventory Lookup</button></div>
+      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/sales'">💰 Sales</button></div>`;
+  }
+
+  // ── IM / GM role — store-level ──────────────────────────────────────────────
+  if (role === 'store_user' || role === 'gm') {
+    const storeParam = storeId ? `?store=${storeId}` : '';
+    return `
+      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/inventory${storeParam}'">📦 Inventory</button></div>
+      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/sales'">💰 Sales</button></div>
+      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/budgets${storeParam}'">📒 Budget</button></div>
+      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/stocktake'">📋 Stock Take</button></div>
+      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/store-tasks${storeParam}'">✅ My Tasks</button></div>
+      ${role === 'gm' ? `<div class="nav-item"><button class="nav-btn" onclick="window.location.href='/gm-expenses'">💼 Expenses</button></div>` : ''}`;
+  }
+
+  // ── Admin (HIM) role — full access ──────────────────────────────────────────
+  return `
+    <div class="nav-item" style="position:relative">
+      <button class="nav-btn" onclick="toggleDropdown('inventoryDropdown', this)">📦 Inventory <span style="font-size:10px">▼</span></button>
+      <div class="dropdown" id="inventoryDropdown">
+        <div class="dropdown-header">By Store</div>
+        <div id="inventoryStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
+      </div>
+    </div>
+    <div class="nav-item" style="position:relative">
+      <button class="nav-btn" onclick="toggleDropdown('poDropdown', this)">🛒 Purchase Orders <span style="font-size:10px">▼</span></button>
+      <div class="dropdown" id="poDropdown">
+        <div class="dropdown-header">By Store</div>
+        <div id="poStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
+      </div>
+    </div>
+    <div class="nav-item" style="position:relative">
+      <button class="nav-btn" onclick="toggleDropdown('suggestedDropdown', this)">📋 Purchase Planner <span style="font-size:10px">▼</span></button>
+      <div class="dropdown" id="suggestedDropdown">
+        <div class="dropdown-header">By Store</div>
+        <div id="suggestedStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
+      </div>
+    </div>
+    <div class="nav-item" style="position:relative">
+      <button class="nav-btn" onclick="toggleDropdown('budgetDropdown', this)">💰 Budget Reports <span style="font-size:10px">▼</span></button>
+      <div class="dropdown" id="budgetDropdown">
+        <div class="dropdown-header">By Store</div>
+        <div id="budgetStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
+      </div>
+    </div>
+    <div class="nav-item" style="position:relative">
+      <button class="nav-btn" onclick="toggleDropdown('salesTasksDropdown', this)">🎯 Discount Scheduler <span style="font-size:10px">▼</span></button>
+      <div class="dropdown" id="salesTasksDropdown">
+        <div class="dropdown-header">Sale Schedule</div>
+        <button class="dropdown-item" onclick="window.location.href='/sale-events'">📅 Manage Sale Events</button>
+        <div class="dropdown-header" style="margin-top:4px">Ad-hoc Discounts</div>
+        <div id="schedulesStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
+      </div>
+    </div>
+    <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/stocktake'">📋 Stock Take</button></div>
+    <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/sales'">📊 Sales</button></div>
+    <div class="nav-item" style="position:relative">
+      <button class="nav-btn" onclick="toggleDropdown('adminDropdown', this)">⚙️ Admin <span style="font-size:10px">▼</span></button>
+      <div class="dropdown" id="adminDropdown">
+        <div class="dropdown-header">Management</div>
+        <button class="dropdown-item" onclick="window.location.href='/stores'">🏪 Manage Stores</button>
+        <button class="dropdown-item" onclick="window.location.href='/users'">👥 Manage Users</button>
+        <button class="dropdown-item" onclick="window.location.href='/distributors'">🏭 Distributors & Prices</button>
+        <button class="dropdown-item" onclick="window.location.href='/activity-log'">📜 Activity Log</button>
+        <div class="dropdown-header" style="margin-top:4px">Owner View</div>
+        <button class="dropdown-item" onclick="window.location.href='/owner-dashboard'">🏠 Owner Dashboard</button>
+        <button class="dropdown-item" onclick="window.location.href='/owner-pl'">📊 P&L Statements</button>
+        <button class="dropdown-item" onclick="window.location.href='/owner-inventory'">🔍 Inventory Lookup</button>
+        <button class="dropdown-item" onclick="window.location.href='/gm-expenses'">💼 GM Expenses</button>
+      </div>
+    </div>`;
+}
+
 function loadNavbar() {
   const token = localStorage.getItem('token');
   const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -29,68 +112,7 @@ function loadNavbar() {
         <img src="/logo-wordmark.png" alt="Cloud 9 Vapor" style="height:34px;margin-right:16px;cursor:pointer" onclick="window.location.href='/dashboard'">
         <button class="nav-hamburger" id="navHamburger" onclick="toggleMobileMenu()" aria-label="Menu">☰</button>
         <div style="display:flex;align-items:center;gap:4px;" class="nav-items" id="navItems">
-
-          <div class="nav-item" style="position:relative">
-            <button class="nav-btn" onclick="toggleDropdown('inventoryDropdown', this)">📦 Inventory <span style="font-size:10px">▼</span></button>
-            <div class="dropdown" id="inventoryDropdown">
-              <div class="dropdown-header">By Store</div>
-              <div id="inventoryStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
-            </div>
-          </div>
-
-          <div class="nav-item" style="position:relative">
-            <button class="nav-btn" onclick="toggleDropdown('poDropdown', this)">🛒 Purchase Orders <span style="font-size:10px">▼</span></button>
-            <div class="dropdown" id="poDropdown">
-              <div class="dropdown-header">By Store</div>
-              <div id="poStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
-            </div>
-          </div>
-
-          <div class="nav-item" style="position:relative">
-            <button class="nav-btn" onclick="toggleDropdown('suggestedDropdown', this)">📋 Purchase Planner <span style="font-size:10px">▼</span></button>
-            <div class="dropdown" id="suggestedDropdown">
-              <div class="dropdown-header">By Store</div>
-              <div id="suggestedStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
-            </div>
-          </div>
-
-          <div class="nav-item" style="position:relative">
-            <button class="nav-btn" onclick="toggleDropdown('budgetDropdown', this)">💰 Budget Reports <span style="font-size:10px">▼</span></button>
-            <div class="dropdown" id="budgetDropdown">
-              <div class="dropdown-header">By Store</div>
-              <div id="budgetStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
-            </div>
-          </div>
-
-          <div class="nav-item" style="position:relative">
-            <button class="nav-btn" onclick="toggleDropdown('salesTasksDropdown', this)">🎯 Discount Scheduler <span style="font-size:10px">▼</span></button>
-            <div class="dropdown" id="salesTasksDropdown">
-              <div class="dropdown-header">Sale Schedule</div>
-              <button class="dropdown-item" onclick="window.location.href='/sale-events'">📅 Manage Sale Events</button>
-              <div class="dropdown-header" style="margin-top:4px">Ad-hoc Discounts</div>
-              <div id="schedulesStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
-            </div>
-          </div>
-
-          <div class="nav-item" style="position:relative">
-            <button class="nav-btn" onclick="window.location.href='/stocktake'">📋 Stock Take</button>
-          </div>
-          <div class="nav-item" style="position:relative">
-            <button class="nav-btn" onclick="window.location.href='/sales'">📊 Sales</button>
-          </div>
-          ${user.role === 'admin' ? `
-          <div class="nav-item" style="position:relative">
-            <button class="nav-btn" onclick="toggleDropdown('adminDropdown', this)">⚙️ Admin <span style="font-size:10px">▼</span></button>
-            <div class="dropdown" id="adminDropdown">
-              <div class="dropdown-header">Management</div>
-              <button class="dropdown-item" onclick="window.location.href='/stores'">🏪 Manage Stores</button>
-              <button class="dropdown-item" onclick="window.location.href='/users'">👥 Manage Users</button>
-              <button class="dropdown-item" onclick="window.location.href='/distributors'">🏭 Distributors & Prices</button>
-              <button class="dropdown-item" onclick="window.location.href='/activity-log'">📜 Activity Log</button>
-            </div>
-          </div>
-          ` : ''}
-
+          ${buildNavItems(user)}
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:12px;">
@@ -100,16 +122,11 @@ function loadNavbar() {
             <span id="notifBadge" style="display:none;position:absolute;top:2px;right:2px;background:#e74c3c;color:white;font-size:10px;font-weight:700;border-radius:10px;min-width:16px;height:16px;line-height:16px;text-align:center;padding:0 3px;"></span>
           </button>
           <div class="dropdown" id="notifDropdown" style="right:0;left:auto;min-width:340px;max-width:380px;">
-            ${user.role === 'admin' ? `
             <div class="dropdown-header" style="display:flex;justify-content:space-between;align-items:center;">
-              <span>Notifications</span>
+              <span>${user.role === 'store_user' || user.role === 'gm' ? 'My To-Do' : 'Notifications'}</span>
               <button onclick="markAllNotificationsRead(event)" style="background:none;border:none;color:#2f5597;font-size:11px;font-weight:700;cursor:pointer;text-transform:none;letter-spacing:normal;">Mark all read</button>
             </div>
-            <div id="notifList" style="max-height:360px;overflow-y:auto;"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
-            ` : `
-            <div class="dropdown-header">My To-Do</div>
-            <div id="notifList" style="max-height:400px;overflow-y:auto;"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
-            `}
+            <div id="notifList" style="max-height:380px;overflow-y:auto;"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
           </div>
         </div>
         <span style="background:#2f5597;color:white;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;">${user.name || user.email}</span>
@@ -230,16 +247,17 @@ function loadNavbar() {
   `;
   document.head.appendChild(style);
 
-  loadNavbarStores();
+  if (user.role === 'admin') loadNavbarStores();
 
-  if (user.role === 'admin') {
+  if (user.role === 'admin' || user.role === 'owner') {
     loadNotifications();
     if (window.__notifPollInterval) clearInterval(window.__notifPollInterval);
     window.__notifPollInterval = setInterval(loadNotifications, 30000);
   } else if (user.store_id) {
+    // GMs and IMs: show store tasks + their store notifications
     loadStoreTasks(user.store_id);
-    if (window.__taskspollInterval) clearInterval(window.__tasksTasksInterval);
-    window.__tasksTasksInterval = setInterval(() => loadStoreTasks(user.store_id), 60000);
+    if (window.__tasksPollInterval) clearInterval(window.__tasksPollInterval);
+    window.__tasksPollInterval = setInterval(() => loadStoreTasks(user.store_id), 60000);
   }
 
   document.addEventListener('click', (e) => {

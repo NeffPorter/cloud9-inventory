@@ -201,8 +201,10 @@
         <div class="form-group">
           <label>Role</label>
           <select id="newRole" onchange="toggleStoreSelect('newStore', this.value)">
-            <option value="manager">Manager</option>
-            <option value="admin">Admin</option>
+            <option value="store_user">Inventory Manager (IM)</option>
+            <option value="gm">General Manager (GM)</option>
+            <option value="owner">Owner</option>
+            <option value="admin">Admin / HIM</option>
           </select>
         </div>
       </div>
@@ -235,8 +237,10 @@
       <div class="form-group">
         <label>Role</label>
         <select id="editRole" onchange="toggleStoreSelect('editStore', this.value)">
-          <option value="manager">Manager</option>
-          <option value="admin">Admin</option>
+          <option value="store_user">Inventory Manager (IM)</option>
+          <option value="gm">General Manager (GM)</option>
+          <option value="owner">Owner</option>
+          <option value="admin">Admin / HIM</option>
         </select>
       </div>
       <div class="form-group" id="editStoreGroup">
@@ -264,7 +268,9 @@
 
     function toggleStoreSelect(selectId, role) {
       const groupId = selectId === 'newStore' ? 'newStoreGroup' : 'editStoreGroup';
-      document.getElementById(groupId).style.display = role === 'admin' ? 'none' : 'block';
+      // Owner and admin don't need a store assigned
+      const noStore = role === 'admin' || role === 'owner';
+      document.getElementById(groupId).style.display = noStore ? 'none' : 'block';
     }
 
     async function loadStores() {

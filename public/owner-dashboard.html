@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Owner Dashboard</title>
+<script src="/navbar.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; }
+#navbar-container { position: sticky; top: 0; z-index: 100; }
+.page { max-width: 1000px; margin: 0 auto; padding: 24px 16px; }
+.greeting { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+.sub { color: #666; font-size: 14px; margin-bottom: 28px; }
+
+/* Summary row */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 28px; }
+.kpi-card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; padding: 16px 18px; }
+.kpi-card .label { font-size: 12px; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+.kpi-card .value { font-size: 26px; font-weight: 700; }
+.kpi-card .sub { font-size: 12px; color: #888; margin-top: 3px; }
+.kpi-card.revenue .value { color: #16a34a; }
+.kpi-card.net .value { color: #2563eb; }
+.kpi-card.expenses .value { color: #dc2626; }
+
+/* Nav cards */
+.nav-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.nav-card { background: white; border-radius: 14px; border: 1px solid #e5e7eb; padding: 22px; cursor: pointer; transition: border-color .2s, box-shadow .2s; text-decoration: none; color: inherit; display: block; }
+.nav-card:hover { border-color: #93c5fd; box-shadow: 0 4px 16px rgba(37,99,235,.08); }
+.nav-card .icon { font-size: 32px; margin-bottom: 12px; }
+.nav-card .title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+.nav-card .desc { font-size: 13px; color: #666; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div id="navbar-container"></div>
+<div class="page">
+  <div class="greeting" id="greeting">Welcome back 👋</div>
+  <p class="sub" id="dateSub">Loading overview...</p>
+
+  <!-- This month KPIs -->
+  <div class="kpi-grid" id="kpiGrid">
+    <div class="kpi-card"><div class="label">This Month Revenue</div><div class="value" id="kpiRevenue">—</div></div>
+    <div class="kpi-card expenses"><div class="label">COGS + GM Expenses</div><div class="value" id="kpiExpenses">—</div></div>
+    <div class="kpi-card net"><div class="label">Net Profit</div><div class="value" id="kpiNet">—</div></div>
+    <div class="kpi-card"><div class="label">Stores</div><div class="value" id="kpiStores">—</div></div>
+  </div>
+
+  <!-- Navigation cards -->
+  <div class="nav-grid">
+    <a class="nav-card" href="/owner-pl">
+      <div class="icon">📊</div>
+      <div class="title">P&L Statements</div>
+      <div class="desc">Monthly, weekly, or quarterly profit & loss by store. Revenue, COGS, expenses, and net margin.</div>
+    </a>
+    <a class="nav-card" href="/owner-inventory">
+      <div class="icon">🔍</div>
+      <div class="title">Inventory Lookup</div>
+      <div class="desc">Search any product and see which stores have it, how much, and at what price.</div>
+    </a>
+    <a class="nav-card" href="/sales">
+      <div class="icon">💰</div>
+      <div class="title">Sales</div>
+      <div class="desc">View sales data, trends, and top-selling items across all stores.</div>
+    </a>
+    <a class="nav-card" href="/owner-pl#topproducts" onclick="localStorage.setItem('ownerView','topproducts')">
+      <div class="icon">🏆</div>
+      <div class="title">Top Products</div>
+      <div class="desc">See the best-selling items by revenue across all locations.</div>
+    </a>
+    <a class="nav-card" href="/owner-pl#invvalue" onclick="localStorage.setItem('ownerView','invvalue')">
+      <div class="icon">📦</div>
+      <div class="title">Inventory Value</div>
+      <div class="desc">Total stock value at cost per store — useful for capital tracking.</div>
+    </a>
+    <a class="nav-card" href="/owner-pl#compare" onclick="localStorage.setItem('ownerView','compare')">
+      <div class="icon">🏪</div>
+      <div class="title">Store Comparison</div>
+      <div class="desc">Side-by-side revenue, margin, and expense comparison across all stores.</div>
+    </a>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem('token');
+
+function fmt(n) {
+  return '$' + parseFloat(n||0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
+async function init() {
+  if (!token) { window.location.href = '/'; return; }
+
+  const user = JSON.parse(atob(token.split('.')[1]));
+  document.getElementById('greeting').textContent = `Welcome back${user.name ? ', ' + user.name.split(' ')[0] : ''} 👋`;
+
+  const now = new Date();
+  const y = now.getFullYear(), m = String(now.getMonth()+1).padStart(2,'0');
+  const lastDay = new Date(y, now.getMonth()+1, 0).getDate();
+  const start = `${y}-${m}-01`, end = `${y}-${m}-${String(lastDay).padStart(2,'0')}`;
+  const monthName = now.toLocaleString('default', { month: 'long', year: 'numeric' });
+  document.getElementById('dateSub').textContent = `Overview for ${monthName}`;
+
+  try {
+    const [plRes, storesRes] = await Promise.all([
+      fetch(`/api/owner/pl?start=${start}&end=${end}`, { headers: { Authorization: 'Bearer ' + token } }),
+      fetch('/api/owner/stores', { headers: { Authorization: 'Bearer ' + token } })
+    ]);
+    const pl = await plRes.json();
+    const stores = await storesRes.json();
+
+    document.getElementById('kpiStores').textContent = Array.isArray(stores) ? stores.length : '—';
+
+    if (Array.isArray(pl) && pl.length) {
+      const revenue = pl.reduce((s, r) => s + r.revenue, 0);
+      const expenses = pl.reduce((s, r) => s + r.cogs + r.gm_expenses, 0);
+      const net = pl.reduce((s, r) => s + r.net_profit, 0);
+      document.getElementById('kpiRevenue').textContent = fmt(revenue);
+      document.getElementById('kpiExpenses').textContent = fmt(expenses);
+      document.getElementById('kpiNet').textContent = fmt(net);
+      document.getElementById('kpiNet').style.color = net >= 0 ? '#16a34a' : '#dc2626';
+    }
+  } catch {}
+}
+
+init();
+</script>
+<script>loadNavbar();</script>
+</body>
+</html>

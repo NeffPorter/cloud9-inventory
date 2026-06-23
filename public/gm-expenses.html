@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Expense Log</title>
+<script src="/navbar.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; }
+#navbar-container { position: sticky; top: 0; z-index: 100; }
+.page { max-width: 960px; margin: 0 auto; padding: 24px 16px; }
+.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+.page-title { font-size: 22px; font-weight: 600; }
+.btn { padding: 9px 18px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: opacity .15s; }
+.btn:hover { opacity: .85; }
+.btn-primary { background: #2563eb; color: white; }
+.btn-danger { background: #dc2626; color: white; }
+.btn-ghost { background: transparent; border: 1px solid #ddd; color: #444; }
+.btn-sm { padding: 5px 12px; font-size: 13px; }
+
+.filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; align-items: center; }
+.filters input, .filters select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: white; }
+.filters label { font-size: 13px; color: #555; font-weight: 500; }
+
+/* Summary cards */
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 24px; }
+.summary-card { background: white; border-radius: 10px; border: 1px solid #e5e7eb; padding: 14px 16px; }
+.summary-card .label { font-size: 12px; color: #888; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+.summary-card .value { font-size: 20px; font-weight: 700; color: #1a1a1a; }
+.summary-card.total { border-color: #2563eb; }
+.summary-card.total .value { color: #2563eb; }
+
+/* Table */
+.table-wrap { background: white; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; }
+table { width: 100%; border-collapse: collapse; }
+th { background: #f9fafb; padding: 10px 14px; text-align: left; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; border-bottom: 1px solid #e5e7eb; }
+td { padding: 12px 14px; font-size: 14px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #fafafa; }
+.amount-cell { font-weight: 600; color: #dc2626; }
+
+.category-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+.cat-payroll { background: #dbeafe; color: #1d4ed8; }
+.cat-rent { background: #fce7f3; color: #9d174d; }
+.cat-utilities { background: #fef3c7; color: #92400e; }
+.cat-marketing { background: #d1fae5; color: #065f46; }
+.cat-supplies { background: #ede9fe; color: #5b21b6; }
+.cat-maintenance { background: #ffedd5; color: #9a3412; }
+.cat-misc { background: #f3f4f6; color: #374151; }
+
+.receipt-link { font-size: 12px; color: #2563eb; text-decoration: none; }
+.receipt-link:hover { text-decoration: underline; }
+.empty { text-align: center; padding: 48px 20px; color: #888; }
+
+/* Modal */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 200; align-items: center; justify-content: center; padding: 16px; }
+.modal-overlay.open { display: flex; }
+.modal { background: white; border-radius: 16px; width: 100%; max-width: 480px; }
+.modal-header { padding: 20px 24px 0; display: flex; align-items: center; justify-content: space-between; }
+.modal-header h2 { font-size: 18px; font-weight: 600; }
+.modal-close { background: none; border: none; font-size: 22px; cursor: pointer; color: #888; }
+.modal-body { padding: 20px 24px; display: grid; gap: 14px; }
+.modal-footer { padding: 0 24px 20px; display: flex; gap: 10px; justify-content: flex-end; }
+.field { display: grid; gap: 6px; }
+.field label { font-size: 13px; font-weight: 500; color: #555; }
+.field input, .field select, .field textarea { padding: 9px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; width: 100%; }
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: #2563eb; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.file-hint { font-size: 12px; color: #888; }
+</style>
+</head>
+<body>
+<div id="navbar-container"></div>
+<div class="page">
+  <div class="page-header">
+    <h1 class="page-title">💼 Expense Log</h1>
+    <button class="btn btn-primary" onclick="openAddModal()">+ Add Expense</button>
+  </div>
+
+  <div class="filters">
+    <div>
+      <label>From</label><br>
+      <input type="date" id="filterStart" onchange="load()">
+    </div>
+    <div>
+      <label>To</label><br>
+      <input type="date" id="filterEnd" onchange="load()">
+    </div>
+    <div>
+      <label>Category</label><br>
+      <select id="filterCat" onchange="render()">
+        <option value="">All categories</option>
+        <option value="payroll">Payroll</option>
+        <option value="rent">Rent</option>
+        <option value="utilities">Utilities</option>
+        <option value="marketing">Marketing</option>
+        <option value="supplies">Supplies</option>
+        <option value="maintenance">Maintenance</option>
+        <option value="misc">Misc</option>
+      </select>
+    </div>
+    <div style="align-self:flex-end">
+      <button class="btn btn-ghost btn-sm" onclick="load()">↻ Refresh</button>
+    </div>
+  </div>
+
+  <div class="summary-grid" id="summaryGrid"></div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Category</th>
+          <th>Description</th>
+          <th>Amount</th>
+          <th>Receipt</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="expenseBody">
+        <tr><td colspan="6" class="empty">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Add Expense Modal -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Add Expense</h2>
+      <button class="modal-close" onclick="closeAddModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-row">
+        <div class="field">
+          <label>Date</label>
+          <input type="date" id="fDate">
+        </div>
+        <div class="field">
+          <label>Amount ($)</label>
+          <input type="number" id="fAmount" min="0" step="0.01" placeholder="0.00">
+        </div>
+      </div>
+      <div class="field">
+        <label>Category</label>
+        <select id="fCategory">
+          <option value="">Select...</option>
+          <option value="payroll">Payroll</option>
+          <option value="rent">Rent</option>
+          <option value="utilities">Utilities</option>
+          <option value="marketing">Marketing</option>
+          <option value="supplies">Supplies</option>
+          <option value="maintenance">Maintenance</option>
+          <option value="misc">Misc</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Description <small style="color:#888">(optional)</small></label>
+        <input type="text" id="fDesc" placeholder="e.g. June payroll, electric bill...">
+      </div>
+      <div class="field">
+        <label>Receipt / Invoice <small style="color:#888">(optional — PDF or image)</small></label>
+        <input type="file" id="fReceipt" accept=".pdf,image/*">
+        <span class="file-hint">Max 10MB · PDF, JPG, PNG</span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeAddModal()">Cancel</button>
+      <button class="btn btn-primary" id="saveBtn" onclick="saveExpense()">Save Expense</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem('token');
+let expenses = [];
+
+// Set default date range to current month
+function setDefaultDates() {
+  const now = new Date();
+  const y = now.getFullYear(), m = String(now.getMonth() + 1).padStart(2, '0');
+  document.getElementById('filterStart').value = `${y}-${m}-01`;
+  const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
+  document.getElementById('filterEnd').value = `${y}-${m}-${String(lastDay).padStart(2, '0')}`;
+  document.getElementById('fDate').value = `${y}-${m}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    headers: { Authorization: 'Bearer ' + token, ...opts.headers },
+    ...opts
+  });
+  return res;
+}
+
+async function load() {
+  const start = document.getElementById('filterStart').value;
+  const end = document.getElementById('filterEnd').value;
+  let url = `/api/store-expenses?start=${start}&end=${end}`;
+
+  const res = await api(url);
+  if (!res.ok) { expenses = []; render(); return; }
+  expenses = await res.json();
+  render();
+}
+
+function catClass(cat) {
+  return `cat-${cat}`;
+}
+
+function catLabel(cat) {
+  return cat.charAt(0).toUpperCase() + cat.slice(1);
+}
+
+function fmt(n) {
+  return '$' + parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function render() {
+  const filterCat = document.getElementById('filterCat').value;
+  const filtered = filterCat ? expenses.filter(e => e.category === filterCat) : expenses;
+
+  // Summary cards
+  const totals = {};
+  let grand = 0;
+  for (const e of expenses) {
+    totals[e.category] = (totals[e.category] || 0) + parseFloat(e.amount);
+    grand += parseFloat(e.amount);
+  }
+  const CATS = ['payroll','rent','utilities','marketing','supplies','maintenance','misc'];
+  const summaryGrid = document.getElementById('summaryGrid');
+  summaryGrid.innerHTML = `
+    <div class="summary-card total">
+      <div class="label">Total Expenses</div>
+      <div class="value">${fmt(grand)}</div>
+    </div>
+    ${CATS.filter(c => totals[c]).map(c => `
+    <div class="summary-card">
+      <div class="label">${catLabel(c)}</div>
+      <div class="value">${fmt(totals[c])}</div>
+    </div>`).join('')}
+  `;
+
+  // Table
+  const tbody = document.getElementById('expenseBody');
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">No expenses found for this period.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = filtered.map(e => `
+    <tr>
+      <td>${e.expense_date}</td>
+      <td><span class="category-badge ${catClass(e.category)}">${catLabel(e.category)}</span></td>
+      <td style="color:#555">${e.description || '—'}</td>
+      <td class="amount-cell">${fmt(e.amount)}</td>
+      <td>${e.receipt_url
+        ? `<a class="receipt-link" href="${e.receipt_url}" target="_blank">📄 View</a>`
+        : '<span style="color:#ccc;font-size:13px">—</span>'
+      }</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteExpense('${e.id}')">Delete</button></td>
+    </tr>
+  `).join('');
+}
+
+function openAddModal() {
+  document.getElementById('fAmount').value = '';
+  document.getElementById('fCategory').value = '';
+  document.getElementById('fDesc').value = '';
+  document.getElementById('fReceipt').value = '';
+  document.getElementById('addModal').classList.add('open');
+}
+function closeAddModal() { document.getElementById('addModal').classList.remove('open'); }
+
+async function saveExpense() {
+  const date = document.getElementById('fDate').value;
+  const amount = document.getElementById('fAmount').value;
+  const category = document.getElementById('fCategory').value;
+  const description = document.getElementById('fDesc').value;
+  const receiptFile = document.getElementById('fReceipt').files[0];
+
+  if (!date || !amount || !category) { alert('Date, amount, and category are required.'); return; }
+
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+
+  try {
+    const formData = new FormData();
+    formData.append('expense_date', date);
+    formData.append('amount', amount);
+    formData.append('category', category);
+    if (description) formData.append('description', description);
+    if (receiptFile) formData.append('receipt', receiptFile);
+
+    const res = await fetch('/api/store-expenses', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token },
+      body: formData
+    });
+
+    if (!res.ok) {
+      const d = await res.json();
+      alert('Error: ' + (d.error || 'Failed to save'));
+      return;
+    }
+
+    closeAddModal();
+    load();
+  } catch (err) {
+    alert('Error: ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save Expense';
+  }
+}
+
+async function deleteExpense(id) {
+  if (!confirm('Delete this expense? This cannot be undone.')) return;
+  const res = await fetch(`/api/store-expenses/${id}`, {
+    method: 'DELETE', headers: { Authorization: 'Bearer ' + token }
+  });
+  if (res.ok) load();
+  else { const d = await res.json(); alert('Error: ' + d.error); }
+}
+
+document.getElementById('addModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('addModal')) closeAddModal();
+});
+
+async function init() {
+  if (!token) { window.location.href = '/'; return; }
+  setDefaultDates();
+  await load();
+}
+init();
+</script>
+<script>loadNavbar();</script>
+</body>
+</html>

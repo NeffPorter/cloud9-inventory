@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>P&L Statements</title>
+<script src="/navbar.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; }
+#navbar-container { position: sticky; top: 0; z-index: 100; }
+.page { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+.page-title { font-size: 22px; font-weight: 600; margin-bottom: 20px; }
+
+/* Controls */
+.controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 24px; background: white; padding: 16px; border-radius: 12px; border: 1px solid #e5e7eb; }
+.control-group { display: flex; flex-direction: column; gap: 5px; }
+.control-group label { font-size: 12px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: .04em; }
+.controls input, .controls select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: white; }
+.period-tabs { display: flex; gap: 2px; background: #f3f4f6; border-radius: 8px; padding: 3px; }
+.period-tab { padding: 6px 14px; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; background: transparent; color: #555; transition: all .15s; }
+.period-tab.active { background: white; color: #1a1a1a; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+.btn { padding: 9px 18px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
+.btn-primary { background: #2563eb; color: white; }
+.btn:hover { opacity: .85; }
+
+/* View tabs */
+.view-tabs { display: flex; gap: 2px; background: #f3f4f6; border-radius: 10px; padding: 4px; margin-bottom: 20px; width: fit-content; }
+.view-tab { padding: 8px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; background: transparent; color: #555; transition: all .15s; }
+.view-tab.active { background: white; color: #1a1a1a; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+
+/* Summary row across all stores */
+.summary-banner { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.metric-card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; padding: 16px 18px; }
+.metric-card .label { font-size: 12px; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+.metric-card .value { font-size: 24px; font-weight: 700; }
+.metric-card.revenue .value { color: #16a34a; }
+.metric-card.expenses .value { color: #dc2626; }
+.metric-card.net.positive .value { color: #16a34a; }
+.metric-card.net.negative .value { color: #dc2626; }
+.metric-card .sub { font-size: 12px; color: #888; margin-top: 3px; }
+
+/* P&L table */
+.pl-table-wrap { background: white; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; margin-bottom: 20px; }
+.pl-table-title { padding: 14px 18px; font-weight: 600; font-size: 15px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; }
+table { width: 100%; border-collapse: collapse; }
+th { padding: 10px 16px; text-align: left; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; background: #f9fafb; border-bottom: 1px solid #e5e7eb; }
+th.num { text-align: right; }
+td { padding: 12px 16px; font-size: 14px; border-bottom: 1px solid #f0f0f0; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr:last-child td { border-bottom: none; }
+.row-subtotal td { background: #f9fafb; font-weight: 600; }
+.row-net td { background: #f0fdf4; font-weight: 700; font-size: 15px; }
+.row-net.negative td { background: #fef2f2; color: #dc2626; }
+.profit { color: #16a34a; }
+.loss { color: #dc2626; }
+.store-name { font-weight: 600; }
+.margin-pill { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+.margin-good { background: #dcfce7; color: #16a34a; }
+.margin-ok { background: #fef9c3; color: #854d0e; }
+.margin-bad { background: #fef2f2; color: #dc2626; }
+
+/* Expense breakdown expand */
+.exp-breakdown { background: #fafafa; }
+.exp-breakdown td { padding: 6px 16px; font-size: 13px; color: #666; }
+.exp-breakdown td:first-child { padding-left: 32px; }
+
+/* Top products */
+.top-products-wrap { background: white; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; }
+
+.empty { text-align: center; padding: 60px 20px; color: #888; }
+.loading { text-align: center; padding: 40px; color: #888; }
+</style>
+</head>
+<body>
+<div id="navbar-container"></div>
+<div class="page">
+  <h1 class="page-title">📊 P&L Statements</h1>
+
+  <!-- Controls -->
+  <div class="controls">
+    <div class="control-group">
+      <label>Period</label>
+      <div class="period-tabs">
+        <button class="period-tab active" onclick="setPeriod('monthly',this)">Monthly</button>
+        <button class="period-tab" onclick="setPeriod('weekly',this)">Weekly</button>
+        <button class="period-tab" onclick="setPeriod('quarterly',this)">Quarterly</button>
+        <button class="period-tab" onclick="setPeriod('custom',this)">Custom</button>
+      </div>
+    </div>
+    <div class="control-group" id="periodPickerWrap">
+      <label id="periodPickerLabel">Month</label>
+      <input type="month" id="monthPicker" onchange="load()">
+    </div>
+    <div class="control-group" id="customDateWrap" style="display:none;flex-direction:row;gap:8px;align-items:flex-end">
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">From</label>
+        <input type="date" id="customStart" onchange="load()">
+      </div>
+      <div>
+        <label style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">To</label>
+        <input type="date" id="customEnd" onchange="load()">
+      </div>
+    </div>
+    <div class="control-group">
+      <label>Store</label>
+      <select id="storeFilter" onchange="load()">
+        <option value="">All Stores</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- View tabs -->
+  <div class="view-tabs">
+    <button class="view-tab active" onclick="setView('pl',this)">P&L Overview</button>
+    <button class="view-tab" onclick="setView('compare',this)">Store Comparison</button>
+    <button class="view-tab" onclick="setView('topproducts',this)">Top Products</button>
+    <button class="view-tab" onclick="setView('invvalue',this)">Inventory Value</button>
+  </div>
+
+  <div id="content"><div class="loading">Loading...</div></div>
+</div>
+
+<script>
+const token = localStorage.getItem('token');
+let currentPeriod = 'monthly';
+let currentView = 'pl';
+let stores = [];
+let plData = [], topProductsData = [], invValueData = [];
+
+async function api(path) {
+  const res = await fetch(path, { headers: { Authorization: 'Bearer ' + token } });
+  return res.json();
+}
+
+async function init() {
+  if (!token) { window.location.href = '/'; return; }
+  stores = await api('/api/owner/stores');
+  const sel = document.getElementById('storeFilter');
+  sel.innerHTML = '<option value="">All Stores</option>' +
+    stores.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+
+  // Default to current month
+  const now = new Date();
+  document.getElementById('monthPicker').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  await load();
+}
+
+function setPeriod(period, btn) {
+  currentPeriod = period;
+  document.querySelectorAll('.period-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  const pickerWrap = document.getElementById('periodPickerWrap');
+  const customWrap = document.getElementById('customDateWrap');
+  const picker = document.getElementById('monthPicker');
+  const label = document.getElementById('periodPickerLabel');
+
+  if (period === 'custom') {
+    pickerWrap.style.display = 'none';
+    customWrap.style.display = 'flex';
+  } else {
+    pickerWrap.style.display = '';
+    customWrap.style.display = 'none';
+    if (period === 'weekly') {
+      picker.type = 'week'; label.textContent = 'Week';
+    } else if (period === 'quarterly') {
+      picker.type = 'text'; picker.placeholder = 'e.g. 2026-Q2';
+      label.textContent = 'Quarter';
+      // Set default
+      const now = new Date();
+      const q = Math.ceil((now.getMonth()+1)/3);
+      picker.value = `${now.getFullYear()}-Q${q}`;
+    } else {
+      picker.type = 'month'; label.textContent = 'Month';
+    }
+  }
+  load();
+}
+
+function getDateRange() {
+  const now = new Date();
+  if (currentPeriod === 'custom') {
+    return { start: document.getElementById('customStart').value, end: document.getElementById('customEnd').value };
+  }
+  if (currentPeriod === 'monthly') {
+    const val = document.getElementById('monthPicker').value;
+    if (!val) return null;
+    const [y, m] = val.split('-');
+    const lastDay = new Date(y, m, 0).getDate();
+    return { start: `${y}-${m}-01`, end: `${y}-${m}-${String(lastDay).padStart(2,'0')}` };
+  }
+  if (currentPeriod === 'weekly') {
+    const val = document.getElementById('monthPicker').value;
+    if (!val) return null;
+    // val format: YYYY-Www
+    const [year, week] = val.split('-W');
+    const jan4 = new Date(year, 0, 4);
+    const weekStart = new Date(jan4);
+    weekStart.setDate(jan4.getDate() - jan4.getDay() + 1 + (parseInt(week)-1)*7);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    const fmt = d => d.toISOString().split('T')[0];
+    return { start: fmt(weekStart), end: fmt(weekEnd) };
+  }
+  if (currentPeriod === 'quarterly') {
+    const val = document.getElementById('monthPicker').value || '';
+    const match = val.match(/(\d{4})-Q(\d)/);
+    if (!match) return null;
+    const [, y, q] = match;
+    const startMonth = (parseInt(q)-1)*3 + 1;
+    const endMonth = startMonth + 2;
+    const lastDay = new Date(y, endMonth, 0).getDate();
+    return {
+      start: `${y}-${String(startMonth).padStart(2,'0')}-01`,
+      end: `${y}-${String(endMonth).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`
+    };
+  }
+  return null;
+}
+
+function fmtMoney(n) {
+  return '$' + parseFloat(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function marginPill(pct) {
+  if (pct === null) return '<span style="color:#ccc">—</span>';
+  const p = parseFloat(pct);
+  const cls = p >= 20 ? 'margin-good' : p >= 5 ? 'margin-ok' : 'margin-bad';
+  return `<span class="margin-pill ${cls}">${p}%</span>`;
+}
+
+async function load() {
+  const range = getDateRange();
+  if (!range?.start || !range?.end) return;
+  const storeId = document.getElementById('storeFilter').value;
+
+  document.getElementById('content').innerHTML = '<div class="loading">Loading...</div>';
+
+  const qs = `start=${range.start}&end=${range.end}${storeId ? '&store_id='+storeId : ''}`;
+
+  // Load data based on current view (and pre-load PL for the banner)
+  [plData, topProductsData, invValueData] = await Promise.all([
+    api(`/api/owner/pl?${qs}`),
+    api(`/api/owner/top-products?${qs}&limit=20`),
+    api('/api/owner/inventory-value' + (storeId ? '?store_id='+storeId : ''))
+  ]);
+
+  renderView();
+}
+
+function setView(view, btn) {
+  currentView = view;
+  document.querySelectorAll('.view-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderView();
+}
+
+function renderView() {
+  if (currentView === 'pl') renderPL();
+  else if (currentView === 'compare') renderCompare();
+  else if (currentView === 'topproducts') renderTopProducts();
+  else if (currentView === 'invvalue') renderInvValue();
+}
+
+function renderPL() {
+  if (!Array.isArray(plData) || !plData.length) {
+    document.getElementById('content').innerHTML = '<div class="empty">No data for this period.</div>';
+    return;
+  }
+
+  const totRevenue = plData.reduce((s, r) => s + r.revenue, 0);
+  const totCOGS = plData.reduce((s, r) => s + r.cogs, 0);
+  const totGMExp = plData.reduce((s, r) => s + r.gm_expenses, 0);
+  const totNet = plData.reduce((s, r) => s + r.net_profit, 0);
+  const totMargin = totRevenue > 0 ? ((totNet/totRevenue)*100).toFixed(1) : null;
+
+  const netClass = totNet >= 0 ? 'positive' : 'negative';
+
+  let html = `
+  <div class="summary-banner">
+    <div class="metric-card revenue">
+      <div class="label">Total Revenue</div>
+      <div class="value">${fmtMoney(totRevenue)}</div>
+      <div class="sub">All stores</div>
+    </div>
+    <div class="metric-card expenses">
+      <div class="label">Total COGS</div>
+      <div class="value">${fmtMoney(totCOGS)}</div>
+      <div class="sub">Budget invoices</div>
+    </div>
+    <div class="metric-card expenses">
+      <div class="label">GM Expenses</div>
+      <div class="value">${fmtMoney(totGMExp)}</div>
+      <div class="sub">Payroll, rent, etc.</div>
+    </div>
+    <div class="metric-card net ${netClass}">
+      <div class="label">Net Profit</div>
+      <div class="value">${fmtMoney(totNet)}</div>
+      <div class="sub">${totMargin !== null ? totMargin + '% margin' : '—'}</div>
+    </div>
+  </div>`;
+
+  // Per-store P&L tables
+  for (const store of plData) {
+    const netClass2 = store.net_profit >= 0 ? '' : 'negative';
+    const expBreakdown = Object.entries(store.expense_breakdown || {});
+    html += `
+    <div class="pl-table-wrap">
+      <div class="pl-table-title">
+        <span>🏪 ${store.store_name}</span>
+        ${marginPill(store.margin_pct)}
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Line Item</th>
+            <th class="num">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>💰 Revenue (Sales)</td><td class="num profit">${fmtMoney(store.revenue)}</td></tr>
+          <tr><td>📦 COGS (Budget Invoices)</td><td class="num loss">(${fmtMoney(store.cogs)})</td></tr>
+          <tr class="row-subtotal"><td>Gross Profit</td><td class="num ${store.gross_profit >= 0 ? 'profit' : 'loss'}">${fmtMoney(store.gross_profit)}</td></tr>
+          <tr><td>💼 GM Expenses (Total)</td><td class="num loss">(${fmtMoney(store.gm_expenses)})</td></tr>
+          ${expBreakdown.map(([cat, amt]) => `
+          <tr class="exp-breakdown"><td>— ${cat.charAt(0).toUpperCase()+cat.slice(1)}</td><td class="num" style="color:#888">(${fmtMoney(amt)})</td></tr>`).join('')}
+          <tr class="row-net ${netClass2}"><td>Net Profit / Loss</td><td class="num">${fmtMoney(store.net_profit)}</td></tr>
+        </tbody>
+      </table>
+    </div>`;
+  }
+
+  document.getElementById('content').innerHTML = html;
+}
+
+function renderCompare() {
+  if (!Array.isArray(plData) || !plData.length) {
+    document.getElementById('content').innerHTML = '<div class="empty">No data for this period.</div>';
+    return;
+  }
+
+  let html = `
+  <div class="pl-table-wrap">
+    <div class="pl-table-title">Store Comparison</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Store</th>
+          <th class="num">Revenue</th>
+          <th class="num">COGS</th>
+          <th class="num">Gross Profit</th>
+          <th class="num">GM Expenses</th>
+          <th class="num">Net Profit</th>
+          <th class="num">Margin</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${plData.map(s => `
+        <tr>
+          <td class="store-name">${s.store_name}</td>
+          <td class="num profit">${fmtMoney(s.revenue)}</td>
+          <td class="num loss">${fmtMoney(s.cogs)}</td>
+          <td class="num ${s.gross_profit >= 0 ? 'profit' : 'loss'}">${fmtMoney(s.gross_profit)}</td>
+          <td class="num loss">${fmtMoney(s.gm_expenses)}</td>
+          <td class="num ${s.net_profit >= 0 ? 'profit' : 'loss'}">${fmtMoney(s.net_profit)}</td>
+          <td class="num">${marginPill(s.margin_pct)}</td>
+        </tr>`).join('')}
+        ${plData.length > 1 ? `
+        <tr class="row-subtotal">
+          <td>All Stores Total</td>
+          <td class="num">${fmtMoney(plData.reduce((s,r)=>s+r.revenue,0))}</td>
+          <td class="num">${fmtMoney(plData.reduce((s,r)=>s+r.cogs,0))}</td>
+          <td class="num">${fmtMoney(plData.reduce((s,r)=>s+r.gross_profit,0))}</td>
+          <td class="num">${fmtMoney(plData.reduce((s,r)=>s+r.gm_expenses,0))}</td>
+          <td class="num">${fmtMoney(plData.reduce((s,r)=>s+r.net_profit,0))}</td>
+          <td class="num">${marginPill((plData.reduce((s,r)=>s+r.net_profit,0)/Math.max(1,plData.reduce((s,r)=>s+r.revenue,0))*100).toFixed(1))}</td>
+        </tr>` : ''}
+      </tbody>
+    </table>
+  </div>`;
+
+  document.getElementById('content').innerHTML = html;
+}
+
+function renderTopProducts() {
+  if (!Array.isArray(topProductsData) || !topProductsData.length) {
+    document.getElementById('content').innerHTML = '<div class="empty">No sales data for this period.</div>';
+    return;
+  }
+
+  const html = `
+  <div class="top-products-wrap">
+    <div class="pl-table-title">Top Products by Revenue</div>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Product</th>
+          <th class="num">Revenue</th>
+          <th class="num">Units Sold</th>
+          <th>Stores</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${topProductsData.map((p, i) => `
+        <tr>
+          <td style="color:#888;font-weight:600">${i+1}</td>
+          <td class="store-name">${p.item_name}</td>
+          <td class="num profit">${fmtMoney(p.total_revenue)}</td>
+          <td class="num">${p.total_qty.toLocaleString()}</td>
+          <td style="font-size:13px;color:#666">${p.stores.join(', ')}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+
+  document.getElementById('content').innerHTML = html;
+}
+
+function renderInvValue() {
+  if (!Array.isArray(invValueData) || !invValueData.length) {
+    document.getElementById('content').innerHTML = '<div class="empty">No inventory data found.</div>';
+    return;
+  }
+
+  const totalValue = invValueData.reduce((s, r) => s + r.total_cost_value, 0);
+  const totalUnits = invValueData.reduce((s, r) => s + r.total_units, 0);
+
+  const html = `
+  <div class="summary-banner" style="margin-bottom:16px">
+    <div class="metric-card">
+      <div class="label">Total Inventory Value</div>
+      <div class="value" style="color:#2563eb">${fmtMoney(totalValue)}</div>
+      <div class="sub">At cost, all stores</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">Total Units on Hand</div>
+      <div class="value">${totalUnits.toLocaleString()}</div>
+      <div class="sub">Across all stores</div>
+    </div>
+  </div>
+  <div class="pl-table-wrap">
+    <div class="pl-table-title">Inventory Value by Store</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Store</th>
+          <th class="num">Value at Cost</th>
+          <th class="num">Units on Hand</th>
+          <th class="num">SKUs</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${invValueData.map(s => `
+        <tr>
+          <td class="store-name">${s.store_name}</td>
+          <td class="num" style="color:#2563eb;font-weight:600">${fmtMoney(s.total_cost_value)}</td>
+          <td class="num">${s.total_units.toLocaleString()}</td>
+          <td class="num" style="color:#888">${s.item_count.toLocaleString()}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+
+  document.getElementById('content').innerHTML = html;
+}
+
+init();
+</script>
+<script>loadNavbar();</script>
+</body>
+</html>

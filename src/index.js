@@ -25,6 +25,8 @@ const saleEventsRouter = require('./routes/sale-events');
 app.use('/api/sale-events', saleEventsRouter);
 const storeTasksRouter = require('./routes/store-tasks');
 app.use('/api/store-tasks', storeTasksRouter);
+app.use('/api/store-expenses', require('./routes/store-expenses'));
+app.use('/api/owner', require('./routes/owner'));
 
 // Static files
 app.use(express.static(path.join(__dirname, '../public')));
@@ -141,6 +143,18 @@ app.get('/sale-proposal', (req, res) => {
 });
 app.get('/store-tasks', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/store-tasks.html'));
+});
+app.get('/gm-expenses', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/gm-expenses.html'));
+});
+app.get('/owner-dashboard', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/owner-dashboard.html'));
+});
+app.get('/owner-inventory', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/owner-inventory.html'));
+});
+app.get('/owner-pl', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/owner-pl.html'));
 });
 
 module.exports = app;
