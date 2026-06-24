@@ -5,23 +5,20 @@
 
 const nodemailer = require('nodemailer');
 
-const GMAIL_USER = process.env.GMAIL_USER;
-const GMAIL_PASS = process.env.GMAIL_PASS;
-
 function getTransporter() {
+  const GMAIL_USER = process.env.GMAIL_USER;
+  const GMAIL_PASS = process.env.GMAIL_PASS;
   if (!GMAIL_USER || !GMAIL_PASS) return null;
-  return nodemailer.createTransport({
-    service: 'gmail',
-    auth: { user: GMAIL_USER, pass: GMAIL_PASS }
-  });
+  return { transporter: nodemailer.createTransport({ service: 'gmail', auth: { user: GMAIL_USER, pass: GMAIL_PASS } }), GMAIL_USER };
 }
 
 async function sendEmail({ to, subject, html, text }) {
-  const transporter = getTransporter();
-  if (!transporter) {
+  const result = getTransporter();
+  if (!result) {
     console.warn('[Email] Not configured — GMAIL_USER or GMAIL_PASS missing, skipping send.');
     return;
   }
+  const { transporter, GMAIL_USER } = result;
 
   const recipient = Array.isArray(to) ? to.join(', ') : to;
   console.log(`[Email] Sending "${subject}" to ${recipient}`);
