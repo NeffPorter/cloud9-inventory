@@ -121,8 +121,9 @@ async function init() {
 function render() {
   if (!proposal) return;
   const ev = proposal.sale_events || {};
-  const isEditable = (proposal.status === 'pending' || proposal.status === 'rejected') && userRole !== 'admin' || userRole === 'admin';
-  const isAdmin = userRole === 'admin';
+  const adminRoles = ['admin', 'him', 'regional_manager'];
+  const isAdmin = adminRoles.includes(userRole);
+  const isEditable = (proposal.status === 'pending' || proposal.status === 'rejected') && !isAdmin || isAdmin;
 
   const today = new Date().toISOString().split('T')[0];
   const dueDate = ev.proposal_due_date;

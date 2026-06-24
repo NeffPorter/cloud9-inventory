@@ -370,8 +370,8 @@
         return;
       }
 
-      if (role === 'manager' && !store_id) {
-        errorEl.textContent = 'Please assign a store to this manager.';
+      if (['gm', 'store_user'].includes(role) && !store_id) {
+        errorEl.textContent = 'Please assign a store to this user.';
         errorEl.style.display = 'block';
         return;
       }
@@ -438,8 +438,8 @@
 
       errorEl.style.display = 'none';
 
-      if (role === 'manager' && !store_id) {
-        errorEl.textContent = 'Please assign a store to this manager.';
+      if (['gm', 'store_user'].includes(role) && !store_id) {
+        errorEl.textContent = 'Please assign a store to this user.';
         errorEl.style.display = 'block';
         return;
       }

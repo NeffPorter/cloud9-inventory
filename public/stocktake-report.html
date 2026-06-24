@@ -321,7 +321,7 @@
     const himRoles = ['admin', 'him', 'regional_manager'];
     if (report.status === 'pending' && himRoles.includes(user.role)) {
       container.innerHTML = `<button class="btn btn-blue" onclick="updateStatus('reviewed')">👁️ Mark Reviewed</button>`;
-    } else if (report.status === 'reviewed' && (himRoles.includes(user.role) || user.role === 'manager')) {
+    } else if (report.status === 'reviewed' && (himRoles.includes(user.role) || ['gm', 'store_user'].includes(user.role))) {
       container.innerHTML = `<button class="btn btn-green" onclick="updateStatus('resolved')">✅ Mark Resolved</button>`;
     } else {
       container.innerHTML = `<span class="status-badge status-${report.status}" style="padding:10px 16px;font-size:13px">${report.status.charAt(0).toUpperCase() + report.status.slice(1)}</span>`;
