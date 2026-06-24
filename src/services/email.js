@@ -54,11 +54,12 @@ async function sendEmail({ to, subject, html, text }) {
 
   const accessToken = await getAccessToken();
 
-  // Build RFC 2822 message
+  // Build RFC 2822 message (encode subject for non-ASCII/emoji support)
+  const encodedSubject = `=?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`;
   const message = [
     `From: Cloud 9 Vapor <${gmailUser}>`,
     `To: ${recipient}`,
-    `Subject: ${subject}`,
+    `Subject: ${encodedSubject}`,
     'MIME-Version: 1.0',
     'Content-Type: text/html; charset=utf-8',
     '',
