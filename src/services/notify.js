@@ -3,7 +3,7 @@ const { sendNotificationEmail } = require('./email');
 const { HIM_ROLES } = require('../lib/roles');
 
 // Create a notification and optionally email the relevant users.
-async function notify({ type, title, message, link = null, store_id = null, target_role = 'admin', target_store_id = null }) {
+async function notify({ type, title, message, link = null, store_id = null, target_role = null, target_store_id = null }) {
   try {
     await supabase.from('notifications').insert([{
       type, title, message, link, store_id,
@@ -16,7 +16,7 @@ async function notify({ type, title, message, link = null, store_id = null, targ
     // Determine who should receive the email
     let recipientEmails = [];
 
-    if (HIM_ROLES.includes(target_role) || target_role === 'admin') {
+    if (target_role && (HIM_ROLES.includes(target_role) || target_role === 'admin')) {
       // Send to all HIM / Regional Manager accounts
       const { data: users } = await supabase
         .from('users')
