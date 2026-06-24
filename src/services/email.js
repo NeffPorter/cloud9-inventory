@@ -19,20 +19,24 @@ function getTransporter() {
 async function sendEmail({ to, subject, html, text }) {
   const transporter = getTransporter();
   if (!transporter) {
-    // Not configured — silently skip (don't crash the app)
+    console.warn('[Email] Not configured — GMAIL_USER or GMAIL_PASS missing, skipping send.');
     return;
   }
 
+  const recipient = Array.isArray(to) ? to.join(', ') : to;
+  console.log(`[Email] Sending "${subject}" to ${recipient}`);
   try {
     await transporter.sendMail({
       from: `Cloud 9 Vapor <${GMAIL_USER}>`,
-      to: Array.isArray(to) ? to.join(', ') : to,
+      to: recipient,
       subject,
       html,
       text
     });
+    console.log(`[Email] Sent OK to ${recipient}`);
   } catch (err) {
     console.error('[Email] sendEmail error:', err.message);
+    throw err;
   }
 }
 
