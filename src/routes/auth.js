@@ -236,4 +236,4 @@ router.delete('/users/:id', auth, async (req, res) => {
   }
 });
 
-module.ex
+module.exports = router;
