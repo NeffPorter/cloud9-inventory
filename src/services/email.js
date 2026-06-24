@@ -8,6 +8,7 @@ const nodemailer = require('nodemailer');
 function getTransporter() {
   const GMAIL_USER = process.env.GMAIL_USER;
   const GMAIL_PASS = process.env.GMAIL_PASS;
+  console.log(`[Email] getTransporter: GMAIL_USER=${GMAIL_USER ? GMAIL_USER : 'MISSING'} GMAIL_PASS=${GMAIL_PASS ? '***set***' : 'MISSING'}`);
   if (!GMAIL_USER || !GMAIL_PASS) return null;
   return { transporter: nodemailer.createTransport({ service: 'gmail', auth: { user: GMAIL_USER, pass: GMAIL_PASS } }), GMAIL_USER };
 }
