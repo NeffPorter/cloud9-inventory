@@ -50,3 +50,16 @@ async function logActivity({ actor, action, description, store_id = null, metada
   try {
     await supabase.from('activity_log').insert([{
       actor_name: actor?.name || actor?.email || 'System',
+      actor_email: actor?.email || null,
+      actor_role: actor?.role || null,
+      action,
+      description,
+      store_id,
+      metadata
+    }]);
+  } catch (err) {
+    console.error('logActivity() error:', err.message);
+  }
+}
+
+module.exports = { notify, logActivity };
