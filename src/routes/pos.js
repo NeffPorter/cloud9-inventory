@@ -190,7 +190,7 @@ router.post('/', auth, async (req, res) => {
 
     if (needsApproval) {
       const { data: store } = await supabase.from('stores').select('name').eq('id', store_id).single();
-      await notify({
+      notify({
         type: 'po_pending_approval',
         title: 'PO needs approval',
         message: `PO ${po.po_number} (${distributor}) for ${store?.name || 'a store'} — $${po.total_cost.toFixed(2)} would put this week's spending over the ${budget.budget_30 > 0 ? '30%' : 'budget'} line and needs approval.`,
@@ -435,7 +435,7 @@ router.put('/:id/items/:itemId', auth, async (req, res) => {
       if (needsApproval && po.status !== 'pending_approval') {
         poUpdates.status = 'pending_approval';
         const { data: store } = await supabase.from('stores').select('name').eq('id', po.store_id).single();
-        await notify({
+        notify({
           type: 'po_pending_approval',
           title: 'PO needs approval',
           message: `PO ${po.po_number} (${po.distributor}) for ${store?.name || 'a store'} — qty change brought total to $${(Math.round(newTotal * 100) / 100).toFixed(2)}, pushing this week's spend over budget.`,
@@ -554,7 +554,7 @@ router.post('/:id/items', auth, async (req, res) => {
       if (needsApproval && po.status !== 'pending_approval') {
         updates.status = 'pending_approval';
         const { data: store } = await supabase.from('stores').select('name').eq('id', po.store_id).single();
-        await notify({
+        notify({
           type: 'po_pending_approval',
           title: 'PO needs approval',
           message: `PO ${po.po_number} (${po.distributor}) for ${store?.name || 'a store'} — now $${newTotalCost.toFixed(2)} after items were added, putting this week's spending over budget.`,

@@ -10,7 +10,7 @@ function getTransporter() {
   const GMAIL_PASS = process.env.GMAIL_PASS;
   console.log(`[Email] getTransporter: GMAIL_USER=${GMAIL_USER ? GMAIL_USER : 'MISSING'} GMAIL_PASS=${GMAIL_PASS ? '***set***' : 'MISSING'}`);
   if (!GMAIL_USER || !GMAIL_PASS) return null;
-  return { transporter: nodemailer.createTransport({ service: 'gmail', auth: { user: GMAIL_USER, pass: GMAIL_PASS } }), GMAIL_USER };
+  return { transporter: nodemailer.createTransport({ service: 'gmail', auth: { user: GMAIL_USER, pass: GMAIL_PASS }, connectionTimeout: 5000, greetingTimeout: 5000, socketTimeout: 10000 }), GMAIL_USER };
 }
 
 async function sendEmail({ to, subject, html, text }) {

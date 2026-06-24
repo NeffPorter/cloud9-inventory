@@ -306,7 +306,7 @@ router.post('/proposals/:proposalId/submit', auth, async (req, res) => {
     // Notify all HIM/RM via in-app + email
     const { data: saleEvent } = await supabase.from('sale_events').select('name').eq('id', proposal.sale_event_id).single();
     const { data: store } = await supabase.from('stores').select('name').eq('id', proposal.store_id).single();
-    await notify({
+    notify({
       type: 'proposal_submitted',
       title: '📋 Sale Proposal Needs Review',
       message: `${store?.name || 'A store'} submitted their proposal for "${saleEvent?.name || 'a sale event'}". Review and approve or send back for revision.`,
@@ -372,7 +372,7 @@ router.post('/proposals/:proposalId/reject', auth, requireAdmin, async (req, res
 
     // Notify the store's GM/IM via in-app + email
     if (proposal?.store_id) {
-      await notify({
+      notify({
         type: 'proposal_revision_requested',
         title: '⚠️ Sale Proposal Needs Revision',
         message: him_notes
@@ -619,17 +619,5 @@ async function assignStoresToEvent(ev, storeIds) {
           due_date: ev.proposal_due_date,
           status: 'pending'
         });
-        await notify({
-          type: 'sale_proposal_assigned',
-          title: `📋 Sale Proposal Due: ${ev.name}`,
-          message: ev.description || `Complete your discount proposal for the "${ev.name}" sale.${ev.proposal_due_date ? ` Due by ${ev.proposal_due_date}.` : ''}`,
-          link: `/sale-proposal?id=${proposalId}`,
-          target_store_id: storeId
-        });
-      }
-    }
-  }
-}
-
-module.exports = router;
-module.exports.runSaleEventCron = runSaleEventCron;
+        notify({
+          type: 'sale_proposal_assigned'

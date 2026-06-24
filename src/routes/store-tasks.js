@@ -107,18 +107,6 @@ async function runStocktakeCron() {
 
     // Email the store's GM/IM about new stocktake tasks
     if (newCategories.length > 0) {
-      await notify({
+      notify({
         type: 'stocktake_due',
         title: '📋 Monthly Stock Takes Due',
-        message: `${newCategories.length} stock take(s) are due this month for ${store.name}: ${newCategories.join(', ')}. Due by ${monthEnd}.`,
-        link: `/stocktake`,
-        target_store_id: store.id
-      });
-    }
-  }
-
-  console.log('Stocktake task cron complete');
-}
-
-module.exports = router;
-module.exports.runStocktakeCron = runStocktakeCron;
