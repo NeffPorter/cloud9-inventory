@@ -62,4 +62,38 @@ async function notify({ type, title, message, link = null, store_id = null, targ
     const recipientEmails = users
       .filter(u => {
         if (isMandatory) return true; // mandatory — always send
-        if (!prefKey) return true;    // unknown type — defau
+        if (!prefKey) return true;    // unknown type — default send
+        const prefs = u.notification_prefs || {};
+        return prefs[prefKey] !== false; // default true if key missing
+      })
+      .map(u => u.email)
+      .filter(Boolean);
+
+    if (recipientEmails.length) {
+      await sendNotificationEmail({ recipients: recipientEmails, title, message, link });
+    } else {
+      console.log(`[notify] No recipients found for type=${type} target_role=${target_role} target_store_id=${target_store_id}`);
+    }
+  } catch (err) {
+    console.error('notify() error:', err.message);
+  }
+}
+
+// Record an entry in the admin activity log.
+async function logActivity({ actor, action, description, store_id = null, metadata = null }) {
+  try {
+    await supabase.from('activity_log').insert([{
+      actor_name: actor?.name || actor?.email || 'System',
+      actor_email: actor?.email || null,
+      actor_role: actor?.role || null,
+      action,
+      description,
+      store_id,
+      metadata
+    }]);
+  } catch (err) {
+    console.error('logActivity() error:', err.message);
+  }
+}
+
+module.exports = { notify, logActivity };

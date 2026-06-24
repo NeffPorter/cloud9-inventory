@@ -21,4 +21,6 @@
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.0.0",
     "node-cron": "^4.2.1",
-   
+    "nodemailer": "^9.0.1"
+  }
+}

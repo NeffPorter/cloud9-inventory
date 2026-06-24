@@ -493,4 +493,15 @@ async function loadNavbarStores() {
       document.getElementById('poStoreList').innerHTML = poLinks;
       document.getElementById('suggestedStoreList').innerHTML = suggestedLinks;
       document.getElementById('budgetStoreList').innerHTML = budgetLinks;
-      document.getElementById('schedulesStoreList').innerHTML = schedulesLin
+      document.getElementById('schedulesStoreList').innerHTML = schedulesLinks;
+    }
+  } catch (err) {
+    console.error('Navbar stores error:', err);
+  }
+}
+
+function logout() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  window.location.href = '/';
+}

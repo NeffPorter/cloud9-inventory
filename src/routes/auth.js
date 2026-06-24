@@ -236,4 +236,65 @@ router.delete('/users/:id', auth, async (req, res) => {
   }
 });
 
-// Get own profile + noti
+
+// Get own profile + notification prefs
+router.get('/me', auth, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, email, name, role, store_id, username, notification_prefs')
+      .eq('id', req.user.id)
+      .single();
+    if (error) throw error;
+    res.json({ user: data });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Update own password and/or notification prefs
+router.put('/me', auth, async (req, res) => {
+  try {
+    const { current_password, new_password, notification_prefs } = req.body;
+    const updates = {};
+
+    if (new_password) {
+      const { data: user } = await supabase.from('users').select('password_hash').eq('id', req.user.id).single();
+      const valid = await bcrypt.compare(current_password || '', user.password_hash);
+      if (!valid) return res.status(400).json({ error: 'Current password is incorrect' });
+      updates.password_hash = await bcrypt.hash(new_password, 10);
+    }
+
+    if (notification_prefs !== undefined) {
+      updates.notification_prefs = notification_prefs;
+    }
+
+    if (!Object.keys(updates).length) return res.json({ success: true });
+
+    const { error } = await supabase.from('users').update(updates).eq('id', req.user.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Test email (admin only) — hit GET /api/auth/test-email?to=you@example.com
+router.get('/test-email', auth, async (req, res) => {
+  if (!isUserAdmin(req.user.role)) return res.status(403).json({ error: 'Admin only' });
+  try {
+    const { sendEmail } = require('../services/email');
+    const to = req.query.to || req.user.email;
+    await sendEmail({
+      to,
+      subject: 'Cloud 9 Vapor — Email Test',
+      html: '<p>This is a test email from Cloud 9 Vapor. If you received this, email is working correctly.</p>',
+      text: 'This is a test email from Cloud 9 Vapor.'
+    });
+    res.json({ success: true, message: `Test email sent to ${to}` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+module.exports = router;
