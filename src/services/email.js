@@ -10,7 +10,7 @@ function getTransporter() {
   const GMAIL_PASS = process.env.GMAIL_PASS;
   console.log(`[Email] getTransporter: GMAIL_USER=${GMAIL_USER ? GMAIL_USER : 'MISSING'} GMAIL_PASS=${GMAIL_PASS ? '***set***' : 'MISSING'}`);
   if (!GMAIL_USER || !GMAIL_PASS) return null;
-  return { transporter: nodemailer.createTransport({ host: 'smtp.gmail.com', port: 587, secure: false, auth: { user: GMAIL_USER, pass: GMAIL_PASS }, family: 4, connectionTimeout: 5000, greetingTimeout: 5000, socketTimeout: 10000 }), GMAIL_USER };
+  return { transporter: nodemailer.createTransport({ host: 'smtp.gmail.com', port: 465, secure: true, auth: { user: GMAIL_USER, pass: GMAIL_PASS }, family: 4, connectionTimeout: 5000, greetingTimeout: 5000, socketTimeout: 10000 }), GMAIL_USER };
 }
 
 async function sendEmail({ to, subject, html, text }) {
