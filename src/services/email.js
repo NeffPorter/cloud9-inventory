@@ -1,62 +1,86 @@
 /**
- * Email service via Brevo (formerly Sendinblue) HTTP API.
- * Set BREVO_API_KEY and GMAIL_USER in Railway environment variables.
+ * Email service via Gmail REST API (OAuth2).
+ * Uses HTTPS port 443 — no SMTP ports needed.
+ * Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN, GMAIL_USER in Railway.
  */
 
 const https = require('https');
 
-async function sendEmail({ to, subject, html, text }) {
-  const apiKey = process.env.BREVO_API_KEY;
-  const sender = process.env.GMAIL_USER || 'noreplycloud9systems@gmail.com';
-
-  if (!apiKey) {
-    console.warn('[Email] Not configured — BREVO_API_KEY missing, skipping send.');
-    return;
-  }
-
-  const recipient = Array.isArray(to) ? to : [to];
-  console.log(`[Email] Sending "${subject}" to ${recipient.join(', ')}`);
-
-  const body = JSON.stringify({
-    sender: { name: 'Cloud 9 Vapor', email: sender },
-    to: recipient.map(email => ({ email })),
-    subject,
-    htmlContent: html,
-    textContent: text
-  });
-
-  await new Promise((resolve, reject) => {
-    const req = https.request({
-      hostname: 'api.brevo.com',
-      path: '/v3/smtp/email',
-      method: 'POST',
-      headers: {
-        'api-key': apiKey,
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(body)
-      }
-    }, (res) => {
+async function httpsPost(hostname, path, headers, body) {
+  return new Promise((resolve, reject) => {
+    const req = https.request({ hostname, path, method: 'POST', headers }, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          console.log(`[Email] Sent OK to ${recipient.join(', ')}`);
-          resolve();
-        } else {
-          reject(new Error(`Brevo API error ${res.statusCode}: ${data}`));
-        }
-      });
+      res.on('end', () => resolve({ status: res.statusCode, body: data }));
     });
     req.on('error', reject);
-    req.setTimeout(10000, () => { req.destroy(); reject(new Error('Brevo request timeout')); });
+    req.setTimeout(10000, () => { req.destroy(); reject(new Error('Request timeout')); });
     req.write(body);
     req.end();
   });
 }
 
-/**
- * Send a notification email to a list of recipient email addresses.
- */
+async function getAccessToken() {
+  const body = new URLSearchParams({
+    client_id: process.env.GOOGLE_CLIENT_ID,
+    client_secret: process.env.GOOGLE_CLIENT_SECRET,
+    refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+    grant_type: 'refresh_token'
+  }).toString();
+
+  const res = await httpsPost('oauth2.googleapis.com', '/token', {
+    'Content-Type': 'application/x-www-form-urlencoded',
+    'Content-Length': Buffer.byteLength(body)
+  }, body);
+
+  const json = JSON.parse(res.body);
+  if (!json.access_token) throw new Error(`Failed to get access token: ${res.body}`);
+  return json.access_token;
+}
+
+async function sendEmail({ to, subject, html, text }) {
+  const clientId = process.env.GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
+  const gmailUser = process.env.GMAIL_USER || 'noreplycloud9systems@gmail.com';
+
+  if (!clientId || !clientSecret || !refreshToken) {
+    console.warn('[Email] Not configured — GOOGLE_CLIENT_ID/SECRET/REFRESH_TOKEN missing.');
+    return;
+  }
+
+  const recipient = Array.isArray(to) ? to.join(', ') : to;
+  console.log(`[Email] Sending "${subject}" to ${recipient}`);
+
+  const accessToken = await getAccessToken();
+
+  // Build RFC 2822 message
+  const message = [
+    `From: Cloud 9 Vapor <${gmailUser}>`,
+    `To: ${recipient}`,
+    `Subject: ${subject}`,
+    'MIME-Version: 1.0',
+    'Content-Type: text/html; charset=utf-8',
+    '',
+    html || text || ''
+  ].join('\r\n');
+
+  const encoded = Buffer.from(message).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const body = JSON.stringify({ raw: encoded });
+
+  const res = await httpsPost('gmail.googleapis.com', '/gmail/v1/users/me/messages/send', {
+    'Authorization': `Bearer ${accessToken}`,
+    'Content-Type': 'application/json',
+    'Content-Length': Buffer.byteLength(body)
+  }, body);
+
+  if (res.status >= 200 && res.status < 300) {
+    console.log(`[Email] Sent OK to ${recipient}`);
+  } else {
+    throw new Error(`Gmail API error ${res.status}: ${res.body}`);
+  }
+}
+
 async function sendNotificationEmail({ recipients, title, message, link }) {
   if (!recipients?.length) return;
 
