@@ -620,4 +620,16 @@ async function assignStoresToEvent(ev, storeIds) {
           status: 'pending'
         });
         notify({
-          type: 'sale_proposal_assigned'
+          type: 'sale_proposal_assigned',
+          title: `\u{1F4CB} Sale Proposal Due: ${ev.name}`,
+          message: ev.description || `Complete your discount proposal for the "${ev.name}" sale.${ev.proposal_due_date ? ` Due by ${ev.proposal_due_date}.` : ''}`,
+          link: `/sale-proposal?id=${proposalId}`,
+          target_store_id: storeId
+        });
+      }
+    }
+  }
+}
+
+module.exports = router;
+module.exports.runSaleEventCron = runSaleEventCron;
