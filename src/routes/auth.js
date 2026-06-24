@@ -184,7 +184,7 @@ router.post('/users', auth, async (req, res) => {
     res.json({ user: data });
   } catch (err) {
     console.error('Create user error:', err);
-    res.status(500).json({ error: 'Failed to create user' });
+    res.status(500).json({ error: err.message || 'Failed to create user' });
   }
 });
 
@@ -236,4 +236,4 @@ router.delete('/users/:id', auth, async (req, res) => {
   }
 });
 
-module.exports = router;
+module.ex
