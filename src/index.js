@@ -32,7 +32,8 @@ const saleEventsRouter = require('./routes/sale-events');
 app.use('/api/sale-events', saleEventsRouter);
 const storeTasksRouter = require('./routes/store-tasks');
 app.use('/api/store-tasks', storeTasksRouter);
-app.use('/api/store-expenses', require('./routes/store-expenses'));
+const storeExpensesRouter = require('./routes/store-expenses');
+app.use('/api/store-expenses', storeExpensesRouter);
 const ownerRouter = require('./routes/owner');
 app.use('/api/owner', ownerRouter);
 
@@ -106,6 +107,11 @@ cron.schedule('0 3 * * *', async () => {
   } catch (err) {
     console.error('Nightly inventory sync error:', err.message);
   }
+});
+
+// Recurring expenses cron — daily at 6:05am
+cron.schedule('5 6 * * *', () => {
+  storeExpensesRouter.runRecurringExpenseCron().catch(err => console.error('Recurring expenses cron error:', err.message));
 });
 
 // P&L auto-snapshot — last day of every month at 11:55pm

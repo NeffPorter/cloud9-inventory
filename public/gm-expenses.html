@@ -68,6 +68,17 @@ tr:hover td { background: #fafafa; }
 .field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: #2563eb; }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .file-hint { font-size: 12px; color: #888; }
+.recurring-toggle-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+.recurring-options { background: #f8faff; border: 1px solid #dbeafe; border-radius: 10px; padding: 12px 14px; display: grid; gap: 10px; margin-top: 4px; }
+.recurring-badge { display: inline-block; font-size: 11px; background: #ede9fe; color: #5b21b6; padding: 2px 7px; border-radius: 20px; font-weight: 600; margin-left: 4px; }
+.auto-badge { display: inline-block; font-size: 11px; background: #f0fdf4; color: #15803d; padding: 2px 7px; border-radius: 20px; font-weight: 600; margin-left: 4px; }
+/* Toggle switch (reuse from settings) */
+.sw { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
+.sw input { opacity: 0; width: 0; height: 0; }
+.sw-slider { position: absolute; cursor: pointer; inset: 0; background: #ddd; border-radius: 22px; transition: .2s; }
+.sw-slider:before { position: absolute; content: ""; height: 16px; width: 16px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: .2s; }
+input:checked + .sw-slider { background: #2563eb; }
+input:checked + .sw-slider:before { transform: translateX(18px); }
 </style>
 </head>
 <body>
@@ -166,6 +177,30 @@ tr:hover td { background: #fafafa; }
         <input type="file" id="fReceipt" accept=".pdf,image/*">
         <span class="file-hint">Max 10MB · PDF, JPG, PNG</span>
       </div>
+      <div class="field">
+        <div class="recurring-toggle-row">
+          <label class="sw">
+            <input type="checkbox" id="fRecurring" onchange="toggleRecurring()">
+            <span class="sw-slider"></span>
+          </label>
+          <span style="font-size:14px;font-weight:500;color:#333">Recurring expense</span>
+        </div>
+        <div class="recurring-options" id="recurringOptions" style="display:none">
+          <div class="field">
+            <label>Frequency</label>
+            <select id="fRecurFreq" onchange="updateDayOptions()">
+              <option value="monthly">Monthly</option>
+              <option value="weekly">Weekly</option>
+              <option value="yearly">Yearly</option>
+            </select>
+          </div>
+          <div class="field">
+            <label id="recurDayLabel">Day of month</label>
+            <select id="fRecurDay"></select>
+          </div>
+          <div style="font-size:12px;color:#6b7280">🔄 This expense will be automatically added on the selected schedule.</div>
+        </div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeAddModal()">Cancel</button>
@@ -253,7 +288,11 @@ function render() {
   tbody.innerHTML = filtered.map(e => `
     <tr>
       <td>${e.expense_date}</td>
-      <td><span class="category-badge ${catClass(e.category)}">${catLabel(e.category)}</span></td>
+      <td>
+        <span class="category-badge ${catClass(e.category)}">${catLabel(e.category)}</span>
+        ${e.is_recurring ? `<span class="recurring-badge">🔄 Recurring</span>` : ''}
+        ${e.recur_source_id ? `<span class="auto-badge">auto</span>` : ''}
+      </td>
       <td style="color:#555">${e.description || '—'}</td>
       <td class="amount-cell">${fmt(e.amount)}</td>
       <td>${e.receipt_url
@@ -265,11 +304,38 @@ function render() {
   `).join('');
 }
 
+function toggleRecurring() {
+  const on = document.getElementById('fRecurring').checked;
+  document.getElementById('recurringOptions').style.display = on ? 'grid' : 'none';
+  if (on) updateDayOptions();
+}
+
+function updateDayOptions() {
+  const freq = document.getElementById('fRecurFreq').value;
+  const sel = document.getElementById('fRecurDay');
+  const label = document.getElementById('recurDayLabel');
+
+  if (freq === 'monthly' || freq === 'yearly') {
+    label.textContent = 'Day of month';
+    sel.innerHTML = Array.from({length: 28}, (_, i) =>
+      `<option value="${i+1}">${i+1}${['st','nd','rd'][i] || 'th'}</option>`
+    ).join('');
+  } else if (freq === 'weekly') {
+    label.textContent = 'Day of week';
+    sel.innerHTML = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']
+      .map((d, i) => `<option value="${i}">${d}</option>`).join('');
+  }
+}
+
 function openAddModal() {
   document.getElementById('fAmount').value = '';
   document.getElementById('fCategory').value = '';
   document.getElementById('fDesc').value = '';
   document.getElementById('fReceipt').value = '';
+  document.getElementById('fRecurring').checked = false;
+  document.getElementById('recurringOptions').style.display = 'none';
+  document.getElementById('fRecurFreq').value = 'monthly';
+  updateDayOptions();
   document.getElementById('addModal').classList.add('open');
 }
 function closeAddModal() { document.getElementById('addModal').classList.remove('open'); }
@@ -293,6 +359,13 @@ async function saveExpense() {
     formData.append('category', category);
     if (description) formData.append('description', description);
     if (receiptFile) formData.append('receipt', receiptFile);
+
+    const isRecurring = document.getElementById('fRecurring').checked;
+    if (isRecurring) {
+      formData.append('is_recurring', 'true');
+      formData.append('recur_frequency', document.getElementById('fRecurFreq').value);
+      formData.append('recur_day', document.getElementById('fRecurDay').value);
+    }
 
     const res = await fetch('/api/store-expenses', {
       method: 'POST',

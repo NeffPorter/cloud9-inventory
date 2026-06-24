@@ -47,10 +47,34 @@ router.get('/', auth, requireStoreAccess, async (req, res) => {
   }
 });
 
+// Compute next occurrence date for a recurring expense
+function computeNextDate(frequency, day, fromDate) {
+  const d = fromDate ? new Date(fromDate) : new Date();
+  if (frequency === 'monthly') {
+    // Next month, same day
+    const next = new Date(d.getFullYear(), d.getMonth() + 1, Math.min(day, 28));
+    return next.toISOString().slice(0, 10);
+  }
+  if (frequency === 'weekly') {
+    // Next occurrence of weekday (0=Sun, 6=Sat)
+    const next = new Date(d);
+    const diff = (day - d.getDay() + 7) % 7 || 7;
+    next.setDate(d.getDate() + diff);
+    return next.toISOString().slice(0, 10);
+  }
+  if (frequency === 'yearly') {
+    // Same month/day next year
+    const next = new Date(d.getFullYear() + 1, d.getMonth(), Math.min(day, 28));
+    return next.toISOString().slice(0, 10);
+  }
+  return null;
+}
+
 // ── POST /api/store-expenses — create expense (with optional receipt upload) ──
 router.post('/', auth, requireGmOrAdmin, upload.single('receipt'), async (req, res) => {
   try {
-    const { store_id, category, description, amount, expense_date } = req.body;
+    const { store_id, category, description, amount, expense_date,
+            is_recurring, recur_frequency, recur_day } = req.body;
 
     const effectiveStoreId = isHim(req.user.role) ? store_id : req.user.store_id;
     if (!effectiveStoreId) return res.status(400).json({ error: 'store_id required' });
@@ -61,19 +85,14 @@ router.post('/', auth, requireGmOrAdmin, upload.single('receipt'), async (req, r
 
     // Upload receipt to Supabase Storage if provided
     if (req.file) {
-      const ext = req.file.originalname.split('.').pop().toLowerCase();
       const filename = `${effectiveStoreId}/${Date.now()}_${req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
 
-      const { data: uploadData, error: uploadErr } = await supabase.storage
+      const { error: uploadErr } = await supabase.storage
         .from('expense-receipts')
-        .upload(filename, req.file.buffer, {
-          contentType: req.file.mimetype,
-          upsert: false
-        });
+        .upload(filename, req.file.buffer, { contentType: req.file.mimetype, upsert: false });
 
       if (uploadErr) throw uploadErr;
 
-      // Get a signed URL valid for 10 years (owner/GM views)
       const { data: signedData } = await supabase.storage
         .from('expense-receipts')
         .createSignedUrl(filename, 60 * 60 * 24 * 365 * 10);
@@ -81,6 +100,12 @@ router.post('/', auth, requireGmOrAdmin, upload.single('receipt'), async (req, r
       receipt_url = signedData?.signedUrl || null;
       receipt_filename = req.file.originalname;
     }
+
+    const recurring = is_recurring === 'true' || is_recurring === true;
+    const dayNum = recur_day ? parseInt(recur_day) : null;
+    const recur_next_date = recurring && recur_frequency && dayNum
+      ? computeNextDate(recur_frequency, dayNum, expense_date)
+      : null;
 
     const { data, error } = await supabase.from('store_expenses').insert({
       store_id: effectiveStoreId,
@@ -90,7 +115,11 @@ router.post('/', auth, requireGmOrAdmin, upload.single('receipt'), async (req, r
       expense_date,
       receipt_url,
       receipt_filename,
-      created_by: req.user.id
+      created_by: req.user.id,
+      is_recurring: recurring,
+      recur_frequency: recurring ? recur_frequency : null,
+      recur_day: recurring ? dayNum : null,
+      recur_next_date
     }).select().single();
 
     if (error) throw error;
@@ -168,4 +197,52 @@ router.get('/summary', auth, requireStoreAccess, async (req, res) => {
   }
 });
 
+// ── Recurring expense cron — run daily, auto-create entries ──────────────────
+async function runRecurringExpenseCron() {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+
+    // Find all recurring templates where next date is today or overdue
+    const { data: templates, error } = await supabase
+      .from('store_expenses')
+      .select('*')
+      .eq('is_recurring', true)
+      .lte('recur_next_date', today);
+
+    if (error) throw error;
+    if (!templates?.length) return;
+
+    console.log(`[RecurringExpenses] Processing ${templates.length} template(s)`);
+
+    for (const tmpl of templates) {
+      try {
+        // Create the new expense entry for this period
+        await supabase.from('store_expenses').insert({
+          store_id: tmpl.store_id,
+          category: tmpl.category,
+          description: tmpl.description,
+          amount: tmpl.amount,
+          expense_date: tmpl.recur_next_date,
+          created_by: tmpl.created_by,
+          recur_source_id: tmpl.id,
+          is_recurring: false
+        });
+
+        // Advance the next date on the template
+        const nextDate = computeNextDate(tmpl.recur_frequency, tmpl.recur_day, tmpl.recur_next_date);
+        await supabase.from('store_expenses')
+          .update({ recur_next_date: nextDate })
+          .eq('id', tmpl.id);
+
+        console.log(`[RecurringExpenses] Created ${tmpl.category} $${tmpl.amount} for store ${tmpl.store_id} on ${tmpl.recur_next_date}`);
+      } catch (err) {
+        console.error(`[RecurringExpenses] Failed for template ${tmpl.id}:`, err.message);
+      }
+    }
+  } catch (err) {
+    console.error('[RecurringExpenses] Cron error:', err.message);
+  }
+}
+
+router.runRecurringExpenseCron = runRecurringExpenseCron;
 module.exports = router;
