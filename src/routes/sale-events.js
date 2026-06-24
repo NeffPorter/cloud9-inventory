@@ -499,4 +499,131 @@ async function applyProposalToClover(proposal, store) {
       const invItem = invMap[itemId];
       if (!invItem?.price) continue;
 
-      const basePrice = originalPr
+      const basePrice = originalPrices[itemId] ?? parseFloat(invItem.price);
+      const discountedPrice = calcDiscountedPrice(basePrice, propItem.discount_type, propItem.discount_value);
+      const discountLabel = formatDiscountLabel(propItem.discount_type, propItem.discount_value);
+      const displayName = invItem.variant_name || propItem.item_name || itemId;
+      const newName = invItem.group_name ? null : `${saleName} ${discountLabel} - ${displayName}`;
+
+      try {
+        await setCloverItem(store.merchant_id, apiToken, itemId, newName, discountedPrice);
+        applied.push(itemId);
+        await sleep(300);
+      } catch (err) {
+        if (err.response?.status === 429) {
+          await sleep(2000);
+          try {
+            await setCloverItem(store.merchant_id, apiToken, itemId, newName, discountedPrice);
+            applied.push(itemId);
+            await sleep(300);
+          } catch (retryErr) {
+            console.error(`Failed after retry for item ${itemId}:`, retryErr.message);
+          }
+        } else {
+          console.error(`Failed to apply sale to item ${itemId}:`, err.message);
+        }
+      }
+    }
+
+    await supabase.from('sale_proposals').update({
+      clover_applied: true,
+      applied_item_ids: applied,
+      group_renames: groupRenames,
+      updated_at: new Date().toISOString()
+    }).eq('id', proposal.id);
+
+    console.log(`Applied sale "${saleName}" — ${applied.length} items + ${uniqueGroups.length} groups updated on Clover for store ${store.merchant_id}`);
+  } catch (err) {
+    console.error(`applyProposalToClover error for proposal ${proposal.id}:`, err.message);
+  }
+}
+
+async function removeProposalFromClover(proposal, store) {
+  try {
+    const apiToken = await getValidApiToken(store);
+    const appliedIds = proposal.applied_item_ids || [];
+    if (!appliedIds.length) return;
+
+    const snapshotPrices = proposal.original_prices || {};
+    const groupRenames = proposal.group_renames || {};
+
+    for (const [originalName, groupInfo] of Object.entries(groupRenames)) {
+      if (!groupInfo.cloverGroupId) continue;
+      try {
+        await renameCloverItemGroup(store.merchant_id, apiToken, groupInfo.cloverGroupId, originalName);
+        await sleep(300);
+      } catch (err) {
+        console.error(`Failed to restore group "${originalName}":`, err.message);
+      }
+    }
+
+    const { data: items } = await supabase.from('inventory_items')
+      .select('id, price, variant_name, group_name')
+      .in('id', appliedIds)
+      .eq('store_id', proposal.store_id);
+
+    for (const item of items || []) {
+      const restorePrice = snapshotPrices[item.id] != null
+        ? parseFloat(snapshotPrices[item.id])
+        : parseFloat(item.price);
+      if (!restorePrice) continue;
+      const restoreName = item.group_name ? null : (item.variant_name || null);
+      try {
+        await setCloverItem(store.merchant_id, apiToken, item.id, restoreName, restorePrice);
+        await sleep(300);
+      } catch (err) {
+        if (err.response?.status === 429) {
+          await sleep(2000);
+          try {
+            await setCloverItem(store.merchant_id, apiToken, item.id, restoreName, restorePrice);
+            await sleep(300);
+          } catch (retryErr) {
+            console.error(`Failed after retry restoring item ${item.id}:`, retryErr.message);
+          }
+        } else {
+          console.error(`Failed to restore item ${item.id}:`, err.message);
+        }
+      }
+    }
+
+    await supabase.from('sale_proposals').update({
+      clover_applied: false,
+      applied_item_ids: [],
+      group_renames: {},
+      updated_at: new Date().toISOString()
+    }).eq('id', proposal.id);
+
+    console.log(`Restored prices + group names on Clover for proposal ${proposal.id}`);
+  } catch (err) {
+    console.error(`removeProposalFromClover error:`, err.message);
+  }
+}
+
+async function assignStoresToEvent(ev, storeIds) {
+  for (const storeId of storeIds) {
+    await supabase.from('sale_event_stores').upsert({ sale_event_id: ev.id, store_id: storeId }, { onConflict: 'sale_event_id,store_id' });
+    const { data: existing } = await supabase.from('sale_proposals').select('id').eq('sale_event_id', ev.id).eq('store_id', storeId).single();
+    let proposalId = existing?.id;
+    if (!proposalId) {
+      const { data: proposal } = await supabase.from('sale_proposals').insert({ sale_event_id: ev.id, store_id: storeId, status: 'pending' }).select().single();
+      proposalId = proposal?.id;
+    }
+    if (proposalId) {
+      const { data: existingTask } = await supabase.from('store_tasks').select('id').eq('reference_id', proposalId).eq('task_type', 'sale_proposal').single();
+      if (!existingTask) {
+        await supabase.from('store_tasks').insert({
+          store_id: storeId,
+          task_type: 'sale_proposal',
+          reference_id: proposalId,
+          title: `Sale Proposal: ${ev.name}`,
+          description: ev.description || `Complete your discount proposal for the "${ev.name}" sale.`,
+          due_date: ev.proposal_due_date,
+          status: 'pending'
+        });
+      }
+    }
+  }
+}
+
+module.exports = router;
+module.exports.runSaleEventCron = runSaleEventCron;

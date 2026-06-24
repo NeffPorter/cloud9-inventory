@@ -665,4 +665,27 @@ router.post('/category-settings/recalculate', auth, async (req, res) => {
       const unitsSold = Math.max(0, soldMap[item.id] || 0);
       const dailyRate = unitsSold / lookback;
 
-      // Lead time = cheapest distributor's lead t
+      // Lead time = cheapest distributor's lead time at this store, default 7
+      const cheapest = cheapestDistMap[item.id];
+      const leadTime = cheapest && leadTimeMap[cheapest.distributor_id] != null
+        ? leadTimeMap[cheapest.distributor_id]
+        : 7;
+
+      const suggestedQty = Math.max(0, Math.ceil((dailyRate * (leadTime + buffer)) - (item.clover_qty || 0)));
+
+      await supabase
+        .from('inventory_items')
+        .update({ suggested_order: suggestedQty })
+        .eq('id', item.id)
+        .eq('store_id', store_id);
+      updated++;
+    }
+
+    res.json({ success: true, updated, category });
+  } catch (err) {
+    console.error('Recalculate error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+module.exports = router;

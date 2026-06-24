@@ -280,4 +280,8 @@ router.delete('/:id', auth, adminOnly, async (req, res) => {
     if (error) throw error;
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message
+    res.status(500).json({ error: err.message });
+  }
+});
+
+module.exports = router;

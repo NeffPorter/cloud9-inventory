@@ -643,3 +643,7 @@ router.delete('/:id', auth, async (req, res) => {
   } catch (err) {
     console.error('Delete PO error:', err);
     res.status(500).json({ error: 'Failed to delete purchase order' });
+  }
+});
+
+module.exports = router;
