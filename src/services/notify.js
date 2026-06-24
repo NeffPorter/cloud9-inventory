@@ -32,10 +32,13 @@ async function notify({ type, title, message, link = null, store_id = null, targ
         .eq('store_id', target_store_id)
         .in('role', ['store_user', 'gm']);
       recipientEmails = (users || []).map(u => u.email).filter(Boolean);
+      console.log(`[notify] store=${target_store_id} found ${recipientEmails.length} recipient(s):`, recipientEmails);
     }
 
     if (recipientEmails.length) {
       await sendNotificationEmail({ recipients: recipientEmails, title, message, link });
+    } else {
+      console.log(`[notify] No recipients found for type=${type} target_role=${target_role} target_store_id=${target_store_id}`);
     }
   } catch (err) {
     console.error('notify() error:', err.message);
@@ -47,16 +50,3 @@ async function logActivity({ actor, action, description, store_id = null, metada
   try {
     await supabase.from('activity_log').insert([{
       actor_name: actor?.name || actor?.email || 'System',
-      actor_email: actor?.email || null,
-      actor_role: actor?.role || null,
-      action,
-      description,
-      store_id,
-      metadata
-    }]);
-  } catch (err) {
-    console.error('logActivity() error:', err.message);
-  }
-}
-
-module.exports = { notify, logActivity };
