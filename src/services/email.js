@@ -1,41 +1,57 @@
 /**
- * Email service via Gmail SMTP (nodemailer).
- * Set GMAIL_USER and GMAIL_PASS (Google App Password) in Railway environment variables.
+ * Email service via Brevo (formerly Sendinblue) HTTP API.
+ * Set BREVO_API_KEY and GMAIL_USER in Railway environment variables.
  */
 
-const nodemailer = require('nodemailer');
-
-function getTransporter() {
-  const GMAIL_USER = process.env.GMAIL_USER;
-  const GMAIL_PASS = process.env.GMAIL_PASS;
-  console.log(`[Email] getTransporter: GMAIL_USER=${GMAIL_USER ? GMAIL_USER : 'MISSING'} GMAIL_PASS=${GMAIL_PASS ? '***set***' : 'MISSING'}`);
-  if (!GMAIL_USER || !GMAIL_PASS) return null;
-  return { transporter: nodemailer.createTransport({ host: 'smtp.gmail.com', port: 465, secure: true, auth: { user: GMAIL_USER, pass: GMAIL_PASS }, family: 4, connectionTimeout: 5000, greetingTimeout: 5000, socketTimeout: 10000 }), GMAIL_USER };
-}
+const https = require('https');
 
 async function sendEmail({ to, subject, html, text }) {
-  const result = getTransporter();
-  if (!result) {
-    console.warn('[Email] Not configured — GMAIL_USER or GMAIL_PASS missing, skipping send.');
+  const apiKey = process.env.BREVO_API_KEY;
+  const sender = process.env.GMAIL_USER || 'noreplycloud9systems@gmail.com';
+
+  if (!apiKey) {
+    console.warn('[Email] Not configured — BREVO_API_KEY missing, skipping send.');
     return;
   }
-  const { transporter, GMAIL_USER } = result;
 
-  const recipient = Array.isArray(to) ? to.join(', ') : to;
-  console.log(`[Email] Sending "${subject}" to ${recipient}`);
-  try {
-    await transporter.sendMail({
-      from: `Cloud 9 Vapor <${GMAIL_USER}>`,
-      to: recipient,
-      subject,
-      html,
-      text
+  const recipient = Array.isArray(to) ? to : [to];
+  console.log(`[Email] Sending "${subject}" to ${recipient.join(', ')}`);
+
+  const body = JSON.stringify({
+    sender: { name: 'Cloud 9 Vapor', email: sender },
+    to: recipient.map(email => ({ email })),
+    subject,
+    htmlContent: html,
+    textContent: text
+  });
+
+  await new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: 'api.brevo.com',
+      path: '/v3/smtp/email',
+      method: 'POST',
+      headers: {
+        'api-key': apiKey,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body)
+      }
+    }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          console.log(`[Email] Sent OK to ${recipient.join(', ')}`);
+          resolve();
+        } else {
+          reject(new Error(`Brevo API error ${res.statusCode}: ${data}`));
+        }
+      });
     });
-    console.log(`[Email] Sent OK to ${recipient}`);
-  } catch (err) {
-    console.error('[Email] sendEmail error:', err.message);
-    throw err;
-  }
+    req.on('error', reject);
+    req.setTimeout(10000, () => { req.destroy(); reject(new Error('Brevo request timeout')); });
+    req.write(body);
+    req.end();
+  });
 }
 
 /**
