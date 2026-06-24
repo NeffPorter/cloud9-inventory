@@ -69,11 +69,11 @@ router.get('/', auth, async (req, res) => {
       .order('created_at', { ascending: false });
 
     if (store_id) {
-      if (req.user.role === 'manager' && req.user.store_id !== store_id) {
+      if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== store_id) {
         return res.status(403).json({ error: 'Access denied' });
       }
       query = query.eq('store_id', store_id);
-    } else if (req.user.role === 'manager') {
+    } else if (['gm', 'store_user'].includes(req.user.role)) {
       query = query.eq('store_id', req.user.store_id);
     }
 
@@ -97,7 +97,7 @@ router.get('/:id', auth, async (req, res) => {
 
     if (poError || !po) return res.status(404).json({ error: 'PO not found' });
 
-    if (req.user.role === 'manager' && po.store_id !== req.user.store_id) {
+    if (['gm', 'store_user'].includes(req.user.role) && po.store_id !== req.user.store_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -126,7 +126,7 @@ router.post('/', auth, async (req, res) => {
       return res.status(400).json({ error: 'store_id, distributor, and items are required' });
     }
 
-    if (req.user.role === 'manager' && req.user.store_id !== store_id) {
+    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== store_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -225,7 +225,7 @@ router.put('/:id', auth, async (req, res) => {
       .single();
 
     if (!existing) return res.status(404).json({ error: 'PO not found' });
-    if (req.user.role === 'manager' && existing.store_id !== req.user.store_id) {
+    if (['gm', 'store_user'].includes(req.user.role) && existing.store_id !== req.user.store_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
     if (existing.status === 'pending_approval' && status !== undefined && !isHim(req.user.role)) {
@@ -307,7 +307,7 @@ router.post('/:id/receive', auth, async (req, res) => {
       .single();
 
     if (!po) return res.status(404).json({ error: 'PO not found' });
-    if (req.user.role === 'manager' && po.store_id !== req.user.store_id) {
+    if (['gm', 'store_user'].includes(req.user.role) && po.store_id !== req.user.store_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -397,7 +397,7 @@ router.put('/:id/items/:itemId', auth, async (req, res) => {
 
     const { data: po } = await supabase.from('purchase_orders').select('*').eq('id', req.params.id).single();
     if (!po) return res.status(404).json({ error: 'PO not found' });
-    if (req.user.role === 'manager' && po.store_id !== req.user.store_id) return res.status(403).json({ error: 'Access denied' });
+    if (['gm', 'store_user'].includes(req.user.role) && po.store_id !== req.user.store_id) return res.status(403).json({ error: 'Access denied' });
 
     const { data: poItem } = await supabase
       .from('purchase_order_items').select('*')
@@ -461,7 +461,7 @@ router.delete('/:id/items/:itemId', auth, async (req, res) => {
   try {
     const { data: po } = await supabase.from('purchase_orders').select('*').eq('id', req.params.id).single();
     if (!po) return res.status(404).json({ error: 'PO not found' });
-    if (req.user.role === 'manager' && po.store_id !== req.user.store_id) return res.status(403).json({ error: 'Access denied' });
+    if (['gm', 'store_user'].includes(req.user.role) && po.store_id !== req.user.store_id) return res.status(403).json({ error: 'Access denied' });
 
     const { data: poItem } = await supabase
       .from('purchase_order_items').select('*')
@@ -512,7 +512,7 @@ router.post('/:id/items', auth, async (req, res) => {
       .single();
 
     if (!po) return res.status(404).json({ error: 'PO not found' });
-    if (req.user.role === 'manager' && po.store_id !== req.user.store_id) {
+    if (['gm', 'store_user'].includes(req.user.role) && po.store_id !== req.user.store_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
     if (po.status === 'received') {
@@ -595,7 +595,7 @@ router.delete('/:id', auth, async (req, res) => {
       .single();
 
     if (!po) return res.status(404).json({ error: 'PO not found' });
-    if (req.user.role === 'manager' && po.store_id !== req.user.store_id) {
+    if (['gm', 'store_user'].includes(req.user.role) && po.store_id !== req.user.store_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -643,7 +643,3 @@ router.delete('/:id', auth, async (req, res) => {
   } catch (err) {
     console.error('Delete PO error:', err);
     res.status(500).json({ error: 'Failed to delete purchase order' });
-  }
-});
-
-module.exports = router;

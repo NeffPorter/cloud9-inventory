@@ -93,13 +93,13 @@ router.post('/login', async (req, res) => {
   const { email, password } = req.body; // 'email' field accepts either email or username
 
   try {
-    // Try email first, fall back to username
+    // Try email first (case-insensitive), fall back to username
     let { data: user } = await supabase
-      .from('users').select('*').eq('email', email).maybeSingle();
+      .from('users').select('*').ilike('email', email).maybeSingle();
 
     if (!user) {
       const { data: byUsername } = await supabase
-        .from('users').select('*').eq('username', email).maybeSingle();
+        .from('users').select('*').ilike('username', email).maybeSingle();
       user = byUsername;
     }
 

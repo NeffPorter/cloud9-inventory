@@ -82,7 +82,7 @@ router.get('/', auth, async (req, res) => {
       .select('*')
       .order('week_start', { ascending: false });
 
-    if (req.user.role === 'manager') {
+    if (['gm', 'store_user'].includes(req.user.role)) {
       query = query.eq('store_id', req.user.store_id);
     } else if (store_id) {
       query = query.eq('store_id', store_id);
@@ -167,7 +167,7 @@ async function getOrCreateCurrentBudget(store_id) {
 router.get('/current/:store_id', auth, async (req, res) => {
   try {
     const { store_id } = req.params;
-    if (req.user.role === 'manager' && req.user.store_id !== store_id) {
+    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== store_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -197,7 +197,7 @@ router.get('/:id', auth, async (req, res) => {
       .single();
 
     if (error || !budget) return res.status(404).json({ error: 'Budget not found' });
-    if (req.user.role === 'manager' && req.user.store_id !== budget.store_id) {
+    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== budget.store_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -243,11 +243,11 @@ router.put('/:id', auth, async (req, res) => {
       .from('weekly_budgets').select('store_id, status').eq('id', req.params.id).single();
 
     if (!budget) return res.status(404).json({ error: 'Budget not found' });
-    if (req.user.role === 'manager' && req.user.store_id !== budget.store_id) {
+    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== budget.store_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
     // Managers can only mark complete; admins can set any status
-    if (req.user.role === 'manager' && status && status !== 'complete') {
+    if (['gm', 'store_user'].includes(req.user.role) && status && status !== 'complete') {
       return res.status(403).json({ error: 'Managers can only mark budgets as complete' });
     }
 
@@ -326,7 +326,7 @@ router.post('/:id/invoices', auth, async (req, res) => {
       .from('weekly_budgets').select('store_id, status, budget_30, budget_45').eq('id', req.params.id).single();
 
     if (!budget) return res.status(404).json({ error: 'Budget not found' });
-    if (req.user.role === 'manager' && req.user.store_id !== budget.store_id) {
+    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== budget.store_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
     if (budget.status === 'complete') {
@@ -371,7 +371,7 @@ router.put('/:id/invoices/:invoiceId', auth, async (req, res) => {
       .from('weekly_budgets').select('store_id').eq('id', req.params.id).single();
 
     if (!budget) return res.status(404).json({ error: 'Budget not found' });
-    if (req.user.role === 'manager' && req.user.store_id !== budget.store_id) {
+    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== budget.store_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -406,7 +406,7 @@ router.delete('/:id/invoices/:invoiceId', auth, async (req, res) => {
       .from('weekly_budgets').select('store_id').eq('id', req.params.id).single();
 
     if (!budget) return res.status(404).json({ error: 'Budget not found' });
-    if (req.user.role === 'manager' && req.user.store_id !== budget.store_id) {
+    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== budget.store_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -430,7 +430,7 @@ router.post('/:id/upload-pdf', auth, async (req, res) => {
       .from('weekly_budgets').select('store_id').eq('id', req.params.id).single();
 
     if (!budget) return res.status(404).json({ error: 'Budget not found' });
-    if (req.user.role === 'manager' && req.user.store_id !== budget.store_id) {
+    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== budget.store_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -457,4 +457,4 @@ router.post('/:id/upload-pdf', auth, async (req, res) => {
 });
 
 module.exports = router;
-module.exports.getOrCreateCurrentBudget = getOrCreateCurrentBudget;
+module.exports.getOrCreateCur

@@ -165,7 +165,7 @@ router.get('/items', auth, async (req, res) => {
     const { store_id } = req.query;
     if (!store_id) return res.status(400).json({ error: 'store_id required' });
 
-    if (req.user.role === 'manager' && req.user.store_id !== store_id) {
+    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== store_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -365,7 +365,7 @@ router.put('/stocktake/reports/:id', auth, async (req, res) => {
     const { status, notes, applied_to_clover } = req.body;
 
     // Managers can only update reports for their own store, and only set status to 'resolved'
-    if (req.user.role === 'manager') {
+    if (['gm', 'store_user'].includes(req.user.role)) {
       const { data: report } = await supabase
         .from('stock_take_reports')
         .select('store_id')
@@ -411,7 +411,7 @@ router.get('/stocktake/reports', auth, async (req, res) => {
       .order('created_at', { ascending: false });
 
     if (store_id) query = query.eq('store_id', store_id);
-    else if (req.user.role === 'manager' && req.user.store_id) {
+    else if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id) {
       query = query.eq('store_id', req.user.store_id);
     }
 
@@ -480,7 +480,7 @@ router.get('/stocktake/drafts', auth, async (req, res) => {
       .order('updated_at', { ascending: false });
 
     if (store_id) query = query.eq('store_id', store_id);
-    else if (req.user.role === 'manager' && req.user.store_id) {
+    else if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id) {
       query = query.eq('store_id', req.user.store_id);
     }
 
@@ -515,7 +515,7 @@ router.get('/category-settings', auth, async (req, res) => {
   try {
     const { store_id } = req.query;
     if (!store_id) return res.status(400).json({ error: 'store_id required' });
-    if (req.user.role === 'manager' && req.user.store_id !== store_id) {
+    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== store_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
     const { data, error } = await supabase
@@ -534,7 +534,7 @@ router.get('/category-stats', auth, async (req, res) => {
   try {
     const { store_id } = req.query;
     if (!store_id) return res.status(400).json({ error: 'store_id required' });
-    if (req.user.role === 'manager' && req.user.store_id !== store_id) {
+    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== store_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
     const { data: items, error } = await supabase
@@ -665,28 +665,4 @@ router.post('/category-settings/recalculate', auth, async (req, res) => {
       const unitsSold = Math.max(0, soldMap[item.id] || 0);
       const dailyRate = unitsSold / lookback;
 
-      // Lead time = cheapest distributor's lead time at this store, default 7
-      const cheapest = cheapestDistMap[item.id];
-      const leadTime = cheapest && leadTimeMap[cheapest.distributor_id] != null
-        ? leadTimeMap[cheapest.distributor_id]
-        : 7;
-
-      const suggestedQty = Math.max(0, Math.ceil((dailyRate * (leadTime + buffer)) - (item.clover_qty || 0)));
-
-      await supabase
-        .from('inventory_items')
-        .update({ suggested_order: suggestedQty })
-        .eq('id', item.id)
-        .eq('store_id', store_id);
-      updated++;
-    }
-
-    res.json({ success: true, updated, category });
-  } catch (err) {
-    console.error('Recalculate error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-module.exports = router;
-module.exports.triggerBackgroundSync = triggerBackgroundSync;
+      // Lead time = cheapest distributor's lead t

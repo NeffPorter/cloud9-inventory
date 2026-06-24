@@ -26,9 +26,9 @@ router.get('/inventory-search', auth, requireOwner, async (req, res) => {
 
     let query = supabase
       .from('inventory_items')
-      .select('id, store_id, name, variant_name, group_name, category, price, cost, clover_qty, status')
-      .or(`name.ilike.%${primary}%,group_name.ilike.%${primary}%,variant_name.ilike.%${primary}%,category.ilike.%${primary}%`)
-      .order('name');
+      .select('id, store_id, variant_name, group_name, category, price, cost, clover_qty, status')
+      .or(`group_name.ilike.%${primary}%,variant_name.ilike.%${primary}%,category.ilike.%${primary}%`)
+      .order('group_name');
 
     if (store_id) query = query.eq('store_id', store_id);
 
@@ -38,7 +38,7 @@ router.get('/inventory-search', auth, requireOwner, async (req, res) => {
     // If multi-word query, JS-side filter: each remaining term must appear somewhere
     if (terms.length > 1) {
       data = (data || []).filter(item => {
-        const haystack = [item.name, item.group_name, item.variant_name, item.category]
+        const haystack = [item.group_name, item.variant_name, item.category]
           .filter(Boolean).join(' ').toLowerCase();
         return terms.slice(1).every(t => haystack.includes(t.toLowerCase()));
       });
@@ -47,7 +47,7 @@ router.get('/inventory-search', auth, requireOwner, async (req, res) => {
     // Group results by product name + variant for easy display
     const grouped = {};
     for (const item of data || []) {
-      const key = item.group_name || item.name;
+      const key = item.group_name || item.variant_name || item.id;
       if (!grouped[key]) grouped[key] = { name: key, variants: [] };
       grouped[key].variants.push({
         id: item.id,

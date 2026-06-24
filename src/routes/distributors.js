@@ -17,7 +17,7 @@ router.get('/best-prices', auth, async (req, res) => {
     const { store_id } = req.query;
     if (!store_id) return res.status(400).json({ error: 'store_id required' });
 
-    if (req.user.role === 'manager' && req.user.store_id !== store_id) {
+    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== store_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -54,7 +54,7 @@ router.get('/lead-times', auth, async (req, res) => {
   try {
     const { store_id } = req.query;
     if (!store_id) return res.status(400).json({ error: 'store_id required' });
-    if (req.user.role === 'manager' && req.user.store_id !== store_id) {
+    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== store_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
     const { data, error } = await supabase
@@ -95,7 +95,7 @@ router.get('/:id/prices', auth, async (req, res) => {
       .single();
 
     if (distError || !dist) return res.status(404).json({ error: 'Distributor not found' });
-    if (req.user.role === 'manager' && store_id && req.user.store_id !== store_id) {
+    if (['gm', 'store_user'].includes(req.user.role) && store_id && req.user.store_id !== store_id) {
       return res.status(403).json({ error: 'Access denied' });
     }
 
@@ -280,8 +280,4 @@ router.delete('/:id', auth, adminOnly, async (req, res) => {
     if (error) throw error;
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-module.exports = router;
+    res.status(500).json({ error: err.message
