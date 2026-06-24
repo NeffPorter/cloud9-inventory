@@ -183,13 +183,4 @@ app.get('/gm-expenses', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/gm-expenses.html'));
 });
 app.get('/owner-dashboard', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/owner-dashboard.html'));
-});
-app.get('/owner-inventory', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/owner-inventory.html'));
-});
-app.get('/owner-pl', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/owner-pl.html'));
-});
-
-module.exports = app;
+  res.sendFile(p

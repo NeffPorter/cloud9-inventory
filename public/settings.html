@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings — Cloud 9 Vapor</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; color: #1a1a1a; padding-top: 70px; }
+    .page { max-width: 720px; margin: 32px auto; padding: 0 16px 60px; }
+    h1 { font-size: 22px; font-weight: 700; margin-bottom: 24px; }
+    .card { background: white; border-radius: 14px; padding: 28px; margin-bottom: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+    .card-title { font-size: 16px; font-weight: 700; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #f0f0f0; }
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-size: 13px; font-weight: 600; color: #555; margin-bottom: 6px; }
+    input[type="password"] { width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; outline: none; }
+    input[type="password"]:focus { border-color: #2563eb; }
+    .btn { padding: 10px 22px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .success { color: #16a34a; font-size: 13px; margin-top: 10px; display: none; }
+    .error { color: #dc2626; font-size: 13px; margin-top: 10px; display: none; }
+
+    /* Notification toggles */
+    .notif-section { margin-bottom: 20px; }
+    .notif-section-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #999; margin-bottom: 10px; }
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f5f5f5; }
+    .toggle-row:last-child { border-bottom: none; }
+    .toggle-label { font-size: 14px; font-weight: 500; }
+    .toggle-desc { font-size: 12px; color: #888; margin-top: 2px; }
+    .mandatory-badge { font-size: 11px; background: #f0f4ff; color: #2563eb; padding: 2px 8px; border-radius: 20px; font-weight: 600; }
+
+    /* Toggle switch */
+    .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #ddd; border-radius: 24px; transition: .2s; }
+    .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: .2s; }
+    input:checked + .slider { background: #2563eb; }
+    input:checked + .slider:before { transform: translateX(20px); }
+    input:disabled + .slider { opacity: 0.5; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+<script src="/navbar.js?v=2"></script>
+
+<div class="page">
+  <h1>⚙️ Settings</h1>
+
+  <!-- Change Password -->
+  <div class="card">
+    <div class="card-title">🔒 Change Password</div>
+    <div class="form-group">
+      <label>Current Password</label>
+      <input type="password" id="currentPw" placeholder="••••••••">
+    </div>
+    <div class="form-group">
+      <label>New Password</label>
+      <input type="password" id="newPw" placeholder="••••••••">
+    </div>
+    <div class="form-group">
+      <label>Confirm New Password</label>
+      <input type="password" id="confirmPw" placeholder="••••••••">
+    </div>
+    <button class="btn btn-primary" onclick="changePassword()" id="pwBtn">Update Password</button>
+    <div class="success" id="pwSuccess">✅ Password updated successfully.</div>
+    <div class="error" id="pwError"></div>
+  </div>
+
+  <!-- Notification Preferences -->
+  <div class="card">
+    <div class="card-title">🔔 Notification Preferences</div>
+    <p style="font-size:13px;color:#666;margin-bottom:20px;">Choose which email notifications you receive. Mandatory notifications cannot be turned off.</p>
+
+    <!-- Mandatory -->
+    <div class="notif-section" id="mandatorySection">
+      <div class="notif-section-title">Mandatory</div>
+      <div id="mandatoryToggles"></div>
+    </div>
+
+    <!-- Optional -->
+    <div class="notif-section" id="optionalSection">
+      <div class="notif-section-title">Optional</div>
+      <div id="optionalToggles"></div>
+    </div>
+
+    <button class="btn btn-primary" onclick="savePrefs()" id="prefsBtn" style="margin-top:16px">Save Preferences</button>
+    <div class="success" id="prefsSuccess">✅ Preferences saved.</div>
+    <div class="error" id="prefsError"></div>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem('token');
+if (!token) window.location.href = '/';
+
+let currentPrefs = {};
+
+const MANDATORY = {
+  proposal_assigned:  { label: 'Sale Proposal Assigned',       desc: 'When your store is assigned a new sale proposal task',        roles: ['store_user', 'gm'] },
+  proposal_revision:  { label: 'Sale Proposal Needs Revision', desc: 'When your proposal is sent back with revision notes',          roles: ['store_user', 'gm'] },
+  proposal_submitted: { label: 'Sale Proposal Submitted',      desc: 'When a store submits their proposal for review',              roles: ['him', 'admin', 'regional_manager'] },
+  po_approval:        { label: 'PO Approval Needed',           desc: 'When a purchase order requires your approval',                roles: ['him', 'admin', 'regional_manager'] },
+};
+
+const OPTIONAL = {
+  low_stock:           { label: 'Low Stock Alert',          desc: 'When items fall below their reorder threshold' },
+  po_approved:         { label: 'PO Approved',              desc: 'When a purchase order you submitted gets approved' },
+  budget_warning:      { label: 'Budget Warning',           desc: 'When a store is approaching their budget limit' },
+  sale_event_starting: { label: 'Sale Event Starting',      desc: 'When a sale event goes live' },
+  stocktake_due:       { label: 'Stocktake Due Reminder',   desc: 'Monthly reminder to complete stock takes' },
+  stocktake_complete:  { label: 'Stocktake Complete',       desc: 'When a stocktake is marked as complete' },
+  budget_complete:     { label: 'Budget Complete',          desc: 'When a store budget period is marked complete' },
+  pl_monthly:          { label: 'Monthly P&L Ready',        desc: 'When the monthly P&L snapshot is generated' },
+  pl_quarterly:        { label: 'Quarterly P&L Ready',      desc: 'When the quarterly P&L snapshot is generated' },
+  weekly_digest:       { label: 'Weekly Digest',            desc: 'A Monday morning summary of sales, inventory, and open tasks' },
+};
+
+async function loadProfile() {
+  const res = await fetch('/api/auth/me', { headers: { Authorization: 'Bearer ' + token } });
+  const data = await res.json();
+  if (!res.ok) { window.location.href = '/'; return; }
+  const user = data.user;
+  currentPrefs = user.notification_prefs || {};
+  renderToggles(user.role);
+}
+
+function renderToggles(role) {
+  // Mandatory — only show ones relevant to this role
+  const mandatoryDiv = document.getElementById('mandatoryToggles');
+  const relevantMandatory = Object.entries(MANDATORY).filter(([, cfg]) => !cfg.roles || cfg.roles.includes(role));
+
+  if (relevantMandatory.length === 0) {
+    document.getElementById('mandatorySection').style.display = 'none';
+  } else {
+    mandatoryDiv.innerHTML = relevantMandatory.map(([key, cfg]) => `
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-label">${cfg.label} <span class="mandatory-badge">Mandatory</span></div>
+          <div class="toggle-desc">${cfg.desc}</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" checked disabled>
+          <span class="slider"></span>
+        </label>
+      </div>`).join('');
+  }
+
+  // Optional — show all
+  const optionalDiv = document.getElementById('optionalToggles');
+  optionalDiv.innerHTML = Object.entries(OPTIONAL).map(([key, cfg]) => {
+    const checked = currentPrefs[key] !== false;
+    return `
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-label">${cfg.label}</div>
+          <div class="toggle-desc">${cfg.desc}</div>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="pref_${key}" ${checked ? 'checked' : ''} onchange="markDirty()">
+          <span class="slider"></span>
+        </label>
+      </div>`;
+  }).join('');
+}
+
+function markDirty() {
+  document.getElementById('prefsSuccess').style.display = 'none';
+}
+
+async function changePassword() {
+  const currentPw = document.getElementById('currentPw').value;
+  const newPw = document.getElementById('newPw').value;
+  const confirmPw = document.getElementById('confirmPw').value;
+  const errEl = document.getElementById('pwError');
+  const succEl = document.getElementById('pwSuccess');
+  errEl.style.display = 'none';
+  succEl.style.display = 'none';
+
+  if (!currentPw || !newPw) { errEl.textContent = 'Please fill in all fields.'; errEl.style.display = 'block'; return; }
+  if (newPw !== confirmPw) { errEl.textContent = 'New passwords do not match.'; errEl.style.display = 'block'; return; }
+  if (newPw.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; errEl.style.display = 'block'; return; }
+
+  const btn = document.getElementById('pwBtn');
+  btn.disabled = true; btn.textContent = 'Updating...';
+
+  const res = await fetch('/api/auth/me', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+    body: JSON.stringify({ current_password: currentPw, new_password: newPw })
+  });
+  const data = await res.json();
+  btn.disabled = false; btn.textContent = 'Update Password';
+
+  if (res.ok) {
+    succEl.style.display = 'block';
+    document.getElementById('currentPw').value = '';
+    document.getElementById('newPw').value = '';
+    document.getElementById('confirmPw').value = '';
+  } else {
+    errEl.textContent = data.error || 'Failed to update password.';
+    errEl.style.display = 'block';
+  }
+}
+
+async function savePrefs() {
+  const prefs = {};
+  Object.keys(OPTIONAL).forEach(key => {
+    prefs[key] = document.getElementById('pref_' + key)?.checked ?? true;
+  });
+
+  const btn = document.getElementById('prefsBtn');
+  const errEl = document.getElementById('prefsError');
+  const succEl = document.getElementById('prefsSuccess');
+  errEl.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Saving...';
+
+  const res = await fetch('/api/auth/me', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+    body: JSON.stringify({ notification_prefs: prefs })
+  });
+  const data = await res.json();
+  btn.disabled = false; btn.textContent = 'Save Preferences';
+
+  if (res.ok) { succEl.style.display = 'block'; currentPrefs = prefs; }
+  else { errEl.textContent = data.error || 'Failed to save.'; errEl.style.display = 'block'; }
+}
+
+loadProfile();
+</script>
+</body>
+</html>

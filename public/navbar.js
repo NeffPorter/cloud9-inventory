@@ -150,6 +150,7 @@ function loadNavbar() {
           </div>
         </div>
         <span style="background:#2f5597;color:white;padding:6px 14px;border-radius:20px;font-size:13px;font-weight:600;">${user.name || user.email}</span>
+        <button onclick="window.location.href='/settings'" style="background:transparent;color:#aaa;border:1px solid #444;padding:6px 14px;border-radius:20px;font-size:13px;cursor:pointer;">⚙️ Settings</button>
         <button onclick="logout()" style="background:transparent;color:#aaa;border:1px solid #444;padding:6px 14px;border-radius:20px;font-size:13px;cursor:pointer;">Logout</button>
       </div>
     </nav>
@@ -492,15 +493,4 @@ async function loadNavbarStores() {
       document.getElementById('poStoreList').innerHTML = poLinks;
       document.getElementById('suggestedStoreList').innerHTML = suggestedLinks;
       document.getElementById('budgetStoreList').innerHTML = budgetLinks;
-      document.getElementById('schedulesStoreList').innerHTML = schedulesLinks;
-    }
-  } catch (err) {
-    console.error('Navbar stores error:', err);
-  }
-}
-
-function logout() {
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
-  window.location.href = '/';
-}
+      document.getElementById('schedulesStoreList').innerHTML = schedulesLin

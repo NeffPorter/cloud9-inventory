@@ -236,22 +236,4 @@ router.delete('/users/:id', auth, async (req, res) => {
   }
 });
 
-// Test email (admin only) — hit GET /api/auth/test-email?to=you@example.com
-router.get('/test-email', auth, async (req, res) => {
-  if (!isUserAdmin(req.user.role)) return res.status(403).json({ error: 'Admin only' });
-  const { sendEmail } = require('../services/email');
-  const to = req.query.to || req.user.email;
-  try {
-    await sendEmail({
-      to,
-      subject: 'Cloud 9 Vapor — Email Test',
-      html: '<p>If you can read this, Gmail SMTP is working correctly.</p>',
-      text: 'If you can read this, Gmail SMTP is working correctly.'
-    });
-    res.json({ success: true, message: `Test email sent to ${to}` });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-module.exports = router;
+// Get own profile + noti
