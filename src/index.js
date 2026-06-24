@@ -8,6 +8,7 @@ dotenv.config();
 
 console.log('[Startup] GMAIL_USER:', process.env.GMAIL_USER || 'MISSING');
 console.log('[Startup] GMAIL_PASS:', process.env.GMAIL_PASS ? '***set***' : 'MISSING');
+console.log('[Startup] All env keys:', Object.keys(process.env).join(', '));
 
 const app = express();
 app.use(cors());
