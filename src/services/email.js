@@ -1,32 +1,36 @@
 /**
- * Email service via Resend.
- * Set RESEND_API_KEY and EMAIL_FROM in your Railway environment variables.
- * EMAIL_FROM defaults to "Cloud 9 <noreply@cloud9vapor.com>"
+ * Email service via Gmail SMTP (nodemailer).
+ * Set GMAIL_USER and GMAIL_PASS (Google App Password) in Railway environment variables.
  */
 
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const EMAIL_FROM = process.env.EMAIL_FROM || 'Cloud 9 Vapor <noreply@cloud9vapor.com>';
+const nodemailer = require('nodemailer');
+
+const GMAIL_USER = process.env.GMAIL_USER;
+const GMAIL_PASS = process.env.GMAIL_PASS;
+
+function getTransporter() {
+  if (!GMAIL_USER || !GMAIL_PASS) return null;
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user: GMAIL_USER, pass: GMAIL_PASS }
+  });
+}
 
 async function sendEmail({ to, subject, html, text }) {
-  if (!RESEND_API_KEY) {
+  const transporter = getTransporter();
+  if (!transporter) {
     // Not configured — silently skip (don't crash the app)
     return;
   }
 
   try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ from: EMAIL_FROM, to: Array.isArray(to) ? to : [to], subject, html, text })
+    await transporter.sendMail({
+      from: `Cloud 9 Vapor <${GMAIL_USER}>`,
+      to: Array.isArray(to) ? to.join(', ') : to,
+      subject,
+      html,
+      text
     });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      console.error('[Email] Resend error:', err.message || res.status);
-    }
   } catch (err) {
     console.error('[Email] sendEmail error:', err.message);
   }
@@ -38,8 +42,9 @@ async function sendEmail({ to, subject, html, text }) {
 async function sendNotificationEmail({ recipients, title, message, link }) {
   if (!recipients?.length) return;
 
+  const appUrl = process.env.APP_BASE_URL || 'https://cloud9systems.up.railway.app';
   const linkHtml = link
-    ? `<p style="margin-top:16px"><a href="${link}" style="background:#2563eb;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;">View Details</a></p>`
+    ? `<p style="margin-top:16px"><a href="${appUrl}${link}" style="background:#2563eb;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;">View Details</a></p>`
     : '';
 
   const html = `
@@ -57,7 +62,12 @@ async function sendNotificationEmail({ recipients, title, message, link }) {
     </div>`;
 
   for (const email of recipients) {
-    await sendEmail({ to: email, subject: title, html, text: `${title}\n\n${message}${link ? '\n\n' + link : ''}` });
+    await sendEmail({
+      to: email,
+      subject: title,
+      html,
+      text: `${title}\n\n${message}${link ? '\n\n' + appUrl + link : ''}`
+    });
   }
 }
 

@@ -5,6 +5,7 @@ const supabase = require('../lib/supabase');
 const auth = require('../middleware/auth');
 const { getValidApiToken } = require('../services/clover');
 const { isHim, isOwnerLevel } = require('../lib/roles');
+const { notify } = require('../services/notify');
 
 const CLOVER_BASE = 'https://api.clover.com/v3/merchants/';
 
@@ -302,16 +303,15 @@ router.post('/proposals/:proposalId/submit', auth, async (req, res) => {
     await supabase.from('store_tasks').update({ status: 'completed', updated_at: new Date().toISOString() })
       .eq('reference_id', req.params.proposalId).eq('task_type', 'sale_proposal');
 
-    // Notify all admins
+    // Notify all HIM/RM via in-app + email
     const { data: saleEvent } = await supabase.from('sale_events').select('name').eq('id', proposal.sale_event_id).single();
     const { data: store } = await supabase.from('stores').select('name').eq('id', proposal.store_id).single();
-    await supabase.from('notifications').insert({
+    await notify({
       type: 'proposal_submitted',
-      title: '📋 Proposal Needs Review',
-      message: `${store?.name || 'A store'} submitted their proposal for "${saleEvent?.name || 'a sale event'}"`,
+      title: '📋 Sale Proposal Needs Review',
+      message: `${store?.name || 'A store'} submitted their proposal for "${saleEvent?.name || 'a sale event'}". Review and approve or send back for revision.`,
       link: `/sale-events`,
-      target_role: 'admin',
-      read: false
+      target_role: 'admin'
     });
 
     res.json({ success: true });
@@ -370,17 +370,16 @@ router.post('/proposals/:proposalId/reject', auth, requireAdmin, async (req, res
       updated_at: new Date().toISOString()
     }).eq('reference_id', req.params.proposalId).eq('task_type', 'sale_proposal');
 
-    // Notify the store's users
+    // Notify the store's GM/IM via in-app + email
     if (proposal?.store_id) {
-      await supabase.from('notifications').insert({
+      await notify({
         type: 'proposal_revision_requested',
-        title: '⚠️ Proposal Sent Back for Revision',
+        title: '⚠️ Sale Proposal Needs Revision',
         message: him_notes
           ? `Your proposal for "${eventName}" needs changes: ${him_notes}`
           : `Your proposal for "${eventName}" was sent back for revision. Check your to-do list.`,
         link: `/sale-proposal?id=${req.params.proposalId}`,
-        target_store_id: proposal.store_id,
-        read: false
+        target_store_id: proposal.store_id
       });
     }
 

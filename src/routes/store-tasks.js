@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../lib/supabase');
 const auth = require('../middleware/auth');
+const { notify } = require('../services/notify');
 
 // GET /api/store-tasks?store_id=xxx — get to-do list for a store
 router.get('/', auth, async (req, res) => {
@@ -63,7 +64,7 @@ async function runStocktakeCron() {
     const categories = [...new Set((items || []).map(i => i.category).filter(Boolean))];
     if (!categories.length) continue;
 
-    // Get stocktake reports done this month for this store (check categories array)
+    // Get stocktake reports done this month for this store
     const { data: reports } = await supabase
       .from('stock_take_reports')
       .select('categories')
@@ -71,16 +72,15 @@ async function runStocktakeCron() {
       .gte('created_at', monthStart)
       .in('status', ['completed', 'approved']);
 
-    // Flatten all categories covered by reports this month
     const coveredThisMonth = new Set();
     for (const r of (reports || [])) {
       (r.categories || []).forEach(c => coveredThisMonth.add(c));
     }
 
+    const newCategories = [];
     for (const category of categories) {
       if (coveredThisMonth.has(category)) continue;
 
-      // Check if a task already exists for this store + category + month
       const taskTitle = `Monthly Stocktake: ${category}`;
       const { data: existingTask } = await supabase
         .from('store_tasks')
@@ -91,7 +91,7 @@ async function runStocktakeCron() {
         .gte('created_at', monthStart)
         .single();
 
-      if (existingTask) continue; // already exists
+      if (existingTask) continue;
 
       await supabase.from('store_tasks').insert({
         store_id: store.id,
@@ -100,6 +100,19 @@ async function runStocktakeCron() {
         description: `Perform a stock take for the "${category}" category. Required monthly.`,
         due_date: monthEnd,
         status: 'pending'
+      });
+
+      newCategories.push(category);
+    }
+
+    // Email the store's GM/IM about new stocktake tasks
+    if (newCategories.length > 0) {
+      await notify({
+        type: 'stocktake_due',
+        title: '📋 Monthly Stock Takes Due',
+        message: `${newCategories.length} stock take(s) are due this month for ${store.name}: ${newCategories.join(', ')}. Due by ${monthEnd}.`,
+        link: `/stocktake`,
+        target_store_id: store.id
       });
     }
   }
