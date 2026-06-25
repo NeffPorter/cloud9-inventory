@@ -192,23 +192,28 @@ router.get('/top-products', auth, requireOwner, async (req, res) => {
 
     let query = supabase
       .from('sales_log')
-      .select('item_name, item_id, store_id, net_amount, quantity, stores(name)')
-      .gte('sale_date', start)
-      .lte('sale_date', end);
+      .select('item_summary, store_id, net')
+      .gte('created_at', start + 'T00:00:00')
+      .lte('created_at', end + 'T23:59:59');
 
     if (store_id) query = query.eq('store_id', store_id);
 
     const { data, error } = await query;
     if (error) throw error;
 
-    // Aggregate by item name
+    // Fetch store names
+    const { data: storeList2 } = await supabase.from('stores').select('id, name');
+    const storeMap2 = Object.fromEntries((storeList2 || []).map(s => [s.id, s.name]));
+
+    // Aggregate by item_summary
     const agg = {};
     for (const row of data || []) {
-      const key = row.item_name || row.item_id || 'Unknown';
+      const key = row.item_summary || 'Unknown';
       if (!agg[key]) agg[key] = { item_name: key, total_revenue: 0, total_qty: 0, stores: new Set() };
-      agg[key].total_revenue += parseFloat(row.net_amount || 0);
-      agg[key].total_qty += parseInt(row.quantity || 1);
-      if (row.stores?.name) agg[key].stores.add(row.stores.name);
+      agg[key].total_revenue += parseFloat(row.net || 0);
+      agg[key].total_qty += 1;
+      const sname = storeMap2[row.store_id];
+      if (sname) agg[key].stores.add(sname);
     }
 
     const sorted = Object.values(agg)
@@ -339,8 +344,8 @@ module.exports.autoSnapshotPL = async function autoSnapshotPL(periodType, start,
     // Pull P&L data directly (same logic as /pl route)
     const { data: salesData } = await supabase
       .from('sales_log')
-      .select('store_id, net_amount, stores(name)')
-      .gte('sale_date', start).lte('sale_date', end);
+      .select('store_id, net')
+      .gte('created_at', start + 'T00:00:00').lte('created_at', end + 'T23:59:59');
 
     const { data: invoices } = await supabase
       .from('budget_invoices')
@@ -357,7 +362,7 @@ module.exports.autoSnapshotPL = async function autoSnapshotPL(periodType, start,
     const ensureStore = (sid, sname) => {
       if (!byStore[sid]) byStore[sid] = { store_id: sid, store_name: sname || sid, revenue: 0, cogs: 0, expenses: 0 };
     };
-    for (const r of salesData || []) { ensureStore(r.store_id, r.stores?.name); byStore[r.store_id].revenue += parseFloat(r.net_amount || 0); }
+    for (const r of salesData || []) { ensureStore(r.store_id, null); byStore[r.store_id].revenue += parseFloat(r.net || 0); }
     for (const r of invoices || []) { ensureStore(r.store_id, r.stores?.name); byStore[r.store_id].cogs += parseFloat(r.total_cost || 0); }
     for (const r of expenses || []) { ensureStore(r.store_id, r.stores?.name); byStore[r.store_id].expenses += parseFloat(r.amount || 0); }
 
