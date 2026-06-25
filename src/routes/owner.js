@@ -237,7 +237,7 @@ router.get('/inventory-value', auth, requireOwner, async (req, res) => {
   try {
     const { store_id } = req.query;
 
-    // Fetch store name map explicitly (avoids FK join failures for cross-store queries)
+    // Fetch store names explicitly to avoid FK join failures
     const { data: storeList } = await supabase.from('stores').select('id, name');
     const storeNameMap = Object.fromEntries((storeList || []).map(s => [s.id, s.name]));
 
