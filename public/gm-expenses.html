@@ -120,9 +120,10 @@ input:checked + .sw-slider:before { transform: translateX(18px); }
 
   <div class="table-wrap">
     <table>
-      <thead>
+      <thead id="expenseHead">
         <tr>
           <th>Date</th>
+          ${isElevated ? '<th>Store</th>' : ''}
           <th>Category</th>
           <th>Description</th>
           <th>Amount</th>
@@ -131,7 +132,7 @@ input:checked + .sw-slider:before { transform: translateX(18px); }
         </tr>
       </thead>
       <tbody id="expenseBody">
-        <tr><td colspan="6" class="empty">Loading...</td></tr>
+        <tr><td colspan="7" class="empty">Loading...</td></tr>
       </tbody>
     </table>
   </div>
@@ -211,6 +212,8 @@ input:checked + .sw-slider:before { transform: translateX(18px); }
 
 <script>
 const token = localStorage.getItem('token');
+const user = JSON.parse(localStorage.getItem('user') || '{}');
+const isElevated = ['him', 'regional_manager', 'admin', 'owner'].includes(user.role);
 let expenses = [];
 
 // Set default date range to current month
@@ -282,12 +285,13 @@ function render() {
   // Table
   const tbody = document.getElementById('expenseBody');
   if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="empty">No expenses found for this period.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${isElevated ? 7 : 6}" class="empty">No expenses found for this period.</td></tr>`;
     return;
   }
   tbody.innerHTML = filtered.map(e => `
     <tr>
       <td>${e.expense_date}</td>
+      ${isElevated ? `<td style="font-size:13px;color:#555;font-weight:500">${e.store_name || '—'}</td>` : ''}
       <td>
         <span class="category-badge ${catClass(e.category)}">${catLabel(e.category)}</span>
         ${e.is_recurring ? `<span class="recurring-badge">🔄 Recurring</span>` : ''}

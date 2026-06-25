@@ -37,12 +37,17 @@ router.get('/', auth, requireStoreAccess, async (req, res) => {
 
     if (effectiveStoreId) query = query.eq('store_id', effectiveStoreId);
 
+    // Fetch store names separately to avoid FK join issues
+    const { data: storeList } = await supabase.from('stores').select('id, name');
+    const storeNameMap = Object.fromEntries((storeList || []).map(s => [s.id, s.name]));
+
     if (start) query = query.gte('expense_date', start);
     if (end) query = query.lte('expense_date', end);
 
     const { data, error } = await query;
     if (error) throw error;
-    res.json(data || []);
+    const result = (data || []).map(e => ({ ...e, store_name: storeNameMap[e.store_id] || null }));
+    res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
