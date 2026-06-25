@@ -33,6 +33,7 @@ tr:last-child td { border-bottom: none; }
 .qty-high { color: #16a34a; font-weight: 600; }
 .qty-low { color: #d97706; font-weight: 600; }
 .qty-zero { color: #dc2626; font-weight: 600; }
+.store-stock-badge { display: inline-flex; align-items: center; gap: 4px; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 6px; padding: 3px 8px; margin: 2px 4px 2px 0; font-size: 12px; white-space: nowrap; }
 .status-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; }
 .status-active { background: #dcfce7; color: #16a34a; }
 .status-low_stock { background: #fef3c7; color: #92400e; }
@@ -102,38 +103,50 @@ async function doSearch() {
       const totalQty = group.variants.reduce((s, v) => s + (v.clover_qty || 0), 0);
       const storeCount = new Set(group.variants.map(v => v.store_id)).size;
 
+      // Group variants by normalized variant name, merging store stock per row
+      const variantMap = {};
+      for (const v of group.variants) {
+        const key = (v.variant_name || '').toLowerCase().trim();
+        if (!variantMap[key]) variantMap[key] = {
+          variant_name: v.variant_name || '—',
+          category: v.category || '—',
+          price: v.price,
+          status: v.status,
+          stores: []
+        };
+        variantMap[key].stores.push({ name: v.store_name, qty: v.clover_qty || 0 });
+      }
+      const variantRows = Object.values(variantMap);
+      const uniqueVariants = variantRows.length;
+
       return `
       <div class="result-group">
         <div class="result-group-header">
           <span>${group.name}</span>
-          <span class="item-count">${group.variants.length} variant${group.variants.length !== 1 ? 's' : ''} · ${storeCount} store${storeCount !== 1 ? 's' : ''} · ${totalQty} total units</span>
+          <span class="item-count">${uniqueVariants} variant${uniqueVariants !== 1 ? 's' : ''} · ${storeCount} store${storeCount !== 1 ? 's' : ''} · ${totalQty} total units</span>
         </div>
         <table>
           <thead>
             <tr>
-              <th>Store</th>
               <th>Variant</th>
               <th>Category</th>
               <th>Price</th>
-              <th>In Stock</th>
+              <th>Stock by Store</th>
               <th>Status</th>
             </tr>
           </thead>
           <tbody>
-            ${group.variants.map(v => {
-              const qty = v.clover_qty || 0;
-              const qtyClass = qty === 0 ? 'qty-zero' : qty <= 5 ? 'qty-low' : 'qty-high';
-              const statusClass = `status-${(v.status || 'active').replace(' ', '_')}`;
-              return `
-              <tr>
-                <td><strong>${v.store_name}</strong></td>
-                <td>${v.variant_name || '—'}</td>
-                <td style="color:#666">${v.category || '—'}</td>
-                <td>$${parseFloat(v.price || 0).toFixed(2)}</td>
-                <td class="${qtyClass}">${qty} units</td>
-                <td><span class="status-badge ${statusClass}">${v.status || 'active'}</span></td>
-              </tr>`;
-            }).join('')}
+            ${variantRows.map(v => `
+            <tr>
+              <td>${v.variant_name}</td>
+              <td style="color:#666">${v.category}</td>
+              <td>$${parseFloat(v.price || 0).toFixed(2)}</td>
+              <td>${v.stores.map(s => {
+                const qc = s.qty === 0 ? 'qty-zero' : s.qty <= 5 ? 'qty-low' : 'qty-high';
+                return `<span class="store-stock-badge"><strong>${s.name}</strong>: <span class="${qc}">${s.qty}</span></span>`;
+              }).join('')}</td>
+              <td><span class="status-badge status-${(v.status||'active').replace(' ','_')}">${v.status||'Active'}</span></td>
+            </tr>`).join('')}
           </tbody>
         </table>
       </div>`;
