@@ -26,15 +26,16 @@ router.get('/', auth, requireStoreAccess, async (req, res) => {
   try {
     const { store_id, start, end } = req.query;
 
-    // Non-admins can only see their own store
+    // Non-admins can only see their own store; HIM/RM/admin can see all or filter by store_id
     const effectiveStoreId = isHim(req.user.role) ? (store_id || null) : req.user.store_id;
-    if (!effectiveStoreId) return res.status(400).json({ error: 'store_id required' });
+    if (!effectiveStoreId && !isHim(req.user.role)) return res.status(400).json({ error: 'store_id required' });
 
     let query = supabase
       .from('store_expenses')
       .select('*, users(name)')
-      .eq('store_id', effectiveStoreId)
       .order('expense_date', { ascending: false });
+
+    if (effectiveStoreId) query = query.eq('store_id', effectiveStoreId);
 
     if (start) query = query.gte('expense_date', start);
     if (end) query = query.lte('expense_date', end);
