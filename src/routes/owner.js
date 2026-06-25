@@ -205,15 +205,51 @@ router.get('/top-products', auth, requireOwner, async (req, res) => {
     const { data: storeList2 } = await supabase.from('stores').select('id, name');
     const storeMap2 = Object.fromEntries((storeList2 || []).map(s => [s.id, s.name]));
 
-    // Aggregate by item_summary
+    // Collect all unique item IDs from item_summary fields
+    const allItemIds = new Set();
+    for (const row of data || []) {
+      const matches = (row.item_summary || '').matchAll(/([A-Z0-9]{5,})\s+x\d+/g);
+      for (const m of matches) allItemIds.add(m[1]);
+    }
+
+    // Fetch names for those items
+    const itemNameMap = {};
+    if (allItemIds.size > 0) {
+      const { data: itemRows } = await supabase
+        .from('inventory_items')
+        .select('id, group_name, variant_name')
+        .in('id', [...allItemIds]);
+      for (const item of itemRows || []) {
+        itemNameMap[item.id] = item.group_name || item.variant_name || item.id;
+      }
+    }
+
+    // Aggregate by item name, splitting order revenue across items
     const agg = {};
     for (const row of data || []) {
-      const key = row.item_summary || 'Unknown';
-      if (!agg[key]) agg[key] = { item_name: key, total_revenue: 0, total_qty: 0, stores: new Set() };
-      agg[key].total_revenue += parseFloat(row.net || 0);
-      agg[key].total_qty += 1;
+      const summary = row.item_summary || '';
+      const matches = [...summary.matchAll(/([A-Z0-9]{5,})\s+x(\d+)/g)];
+      const orderRevenue = parseFloat(row.net || 0);
       const sname = storeMap2[row.store_id];
-      if (sname) agg[key].stores.add(sname);
+
+      if (matches.length === 0) {
+        const key = 'Other';
+        if (!agg[key]) agg[key] = { item_name: key, total_revenue: 0, total_qty: 0, stores: new Set() };
+        agg[key].total_revenue += orderRevenue;
+        agg[key].total_qty += 1;
+        if (sname) agg[key].stores.add(sname);
+      } else {
+        const revenueEach = orderRevenue / matches.length;
+        for (const m of matches) {
+          const itemId = m[1];
+          const qty = parseInt(m[2]) || 1;
+          const key = itemNameMap[itemId] || itemId;
+          if (!agg[key]) agg[key] = { item_name: key, total_revenue: 0, total_qty: 0, stores: new Set() };
+          agg[key].total_revenue += revenueEach;
+          agg[key].total_qty += qty;
+          if (sname) agg[key].stores.add(sname);
+        }
+      }
     }
 
     const sorted = Object.values(agg)

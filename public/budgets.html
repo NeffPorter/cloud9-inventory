@@ -295,6 +295,7 @@ function renderPage(current, history, storeId) {
         <th>Prev Sales</th>
         <th>Budget</th>
         <th>Spent</th>
+        <th>% of Sales</th>
         <th>Remaining</th>
         <th>Status</th>
       </tr></thead><tbody>`;
@@ -305,6 +306,8 @@ function renderPage(current, history, storeId) {
         const remaining = Math.max(0, budget - spent);
         const pct = budget > 0 ? Math.min(100, (spent / budget) * 100) : 0;
         const color = spendColor(pct);
+        const salesPct = b.prev_week_net_sales > 0 ? ((spent / b.prev_week_net_sales) * 100).toFixed(1) : null;
+        const salesPctColor = salesPct === null ? '#888' : salesPct > 45 ? '#e53e3e' : salesPct > 30 ? '#e65100' : '#2e7d32';
 
         html += `<tr class="clickable" onclick="window.location.href='/budget-view?id=${b.id}'">
           <td style="font-weight:600">${formatDate(b.week_start)} – ${formatDate(b.week_end)}</td>
@@ -314,6 +317,7 @@ function renderPage(current, history, storeId) {
             ${formatMoney(spent)}
             <span class="progress-mini"><span class="progress-mini-fill" style="width:${pct}%;background:${color}"></span></span>
           </td>
+          <td style="font-weight:600;color:${salesPctColor}">${salesPct !== null ? salesPct + '%' : '—'}</td>
           <td>${formatMoney(remaining)}</td>
           <td>${getStatusBadge(b.status)}</td>
         </tr>`;
