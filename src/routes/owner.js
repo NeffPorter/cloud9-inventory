@@ -237,7 +237,7 @@ router.get('/inventory-value', auth, requireOwner, async (req, res) => {
   try {
     const { store_id } = req.query;
 
-    // Fetch store name map explicitly (don't rely on join which can be unreliable)
+    // Fetch store name map explicitly (avoids FK join failures for cross-store queries)
     const { data: storeList } = await supabase.from('stores').select('id, name');
     const storeNameMap = Object.fromEntries((storeList || []).map(s => [s.id, s.name]));
 
@@ -349,4 +349,36 @@ module.exports.autoSnapshotPL = async function autoSnapshotPL(periodType, start,
 
     const { data: expenses } = await supabase
       .from('store_expenses')
-      .select('store_
+      .select('store_id, amount, stores(name)')
+      .gte('expense_date', start).lte('expense_date', end);
+
+    // Aggregate by store
+    const byStore = {};
+    const ensureStore = (sid, sname) => {
+      if (!byStore[sid]) byStore[sid] = { store_id: sid, store_name: sname || sid, revenue: 0, cogs: 0, expenses: 0 };
+    };
+    for (const r of salesData || []) { ensureStore(r.store_id, r.stores?.name); byStore[r.store_id].revenue += parseFloat(r.net_amount || 0); }
+    for (const r of invoices || []) { ensureStore(r.store_id, r.stores?.name); byStore[r.store_id].cogs += parseFloat(r.total_cost || 0); }
+    for (const r of expenses || []) { ensureStore(r.store_id, r.stores?.name); byStore[r.store_id].expenses += parseFloat(r.amount || 0); }
+
+    const payload = Object.values(byStore).map(s => ({
+      ...s,
+      gross_profit: s.revenue - s.cogs,
+      net_profit: s.revenue - s.cogs - s.expenses,
+      margin: s.revenue > 0 ? (((s.revenue - s.cogs - s.expenses) / s.revenue) * 100).toFixed(1) : null
+    }));
+
+    await supabase.from('pl_snapshots').upsert({
+      period_type: periodType,
+      period_label: label,
+      start_date: start,
+      end_date: end,
+      store_id: null,
+      data: payload
+    }, { onConflict: 'period_label,start_date,end_date' });
+
+    console.log(`[P&L snapshot] saved: ${label}`);
+  } catch (err) {
+    console.error('[P&L snapshot] error:', err.message);
+  }
+};
