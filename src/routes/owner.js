@@ -241,16 +241,24 @@ router.get('/inventory-value', auth, requireOwner, async (req, res) => {
     const { data: storeList } = await supabase.from('stores').select('id, name');
     const storeNameMap = Object.fromEntries((storeList || []).map(s => [s.id, s.name]));
 
-    let query = supabase
-      .from('inventory_items')
-      .select('store_id, cost, clover_qty, status')
-      .neq('status', 'discontinued')
-      .limit(50000); // Supabase default is 1000 — raise to cover all stores
-
-    if (store_id) query = query.eq('store_id', store_id);
-
-    const { data, error } = await query;
-    if (error) throw error;
+    // Paginate to bypass Supabase PostgREST server-side row cap (default 1000)
+    let data = [];
+    let from = 0;
+    const PAGE = 1000;
+    while (true) {
+      let q = supabase
+        .from('inventory_items')
+        .select('store_id, cost, clover_qty, status')
+        .neq('status', 'discontinued')
+        .range(from, from + PAGE - 1);
+      if (store_id) q = q.eq('store_id', store_id);
+      const { data: page, error } = await q;
+      if (error) throw error;
+      if (!page || page.length === 0) break;
+      data = data.concat(page);
+      if (page.length < PAGE) break;
+      from += PAGE;
+    }
 
     const byStore = {};
     for (const item of data || []) {
