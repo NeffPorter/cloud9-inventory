@@ -48,6 +48,8 @@ tr:hover td { background: #fafafa; }
 .cat-supplies { background: #ede9fe; color: #5b21b6; }
 .cat-maintenance { background: #ffedd5; color: #9a3412; }
 .cat-misc { background: #f3f4f6; color: #374151; }
+.store-btn { border-radius: 20px !important; font-size: 13px !important; padding: 5px 14px !important; }
+.store-btn.active { background: #2563eb !important; color: white !important; border-color: #2563eb !important; }
 
 .receipt-link { font-size: 12px; color: #2563eb; text-decoration: none; }
 .receipt-link:hover { text-decoration: underline; }
@@ -89,6 +91,8 @@ input:checked + .sw-slider:before { transform: translateX(18px); }
     <button class="btn btn-primary" onclick="openAddModal()">+ Add Expense</button>
   </div>
 
+  <div id="storeButtonsWrap" style="display:none;margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap"></div>
+
   <div class="filters">
     <div>
       <label>From</label><br>
@@ -120,17 +124,7 @@ input:checked + .sw-slider:before { transform: translateX(18px); }
 
   <div class="table-wrap">
     <table>
-      <thead id="expenseHead">
-        <tr>
-          <th>Date</th>
-          ${isElevated ? '<th>Store</th>' : ''}
-          <th>Category</th>
-          <th>Description</th>
-          <th>Amount</th>
-          <th>Receipt</th>
-          <th></th>
-        </tr>
-      </thead>
+      <thead id="expenseHead"></thead>
       <tbody id="expenseBody">
         <tr><td colspan="7" class="empty">Loading...</td></tr>
       </tbody>
@@ -215,6 +209,40 @@ const token = localStorage.getItem('token');
 const user = JSON.parse(localStorage.getItem('user') || '{}');
 const isElevated = ['him', 'regional_manager', 'admin', 'owner'].includes(user.role);
 let expenses = [];
+let currentStoreId = '';  // '' = all stores
+
+// Build thead dynamically so isElevated JS var can control columns
+function buildHead() {
+  document.getElementById('expenseHead').innerHTML = `<tr>
+    <th>Date</th>
+    ${isElevated ? '<th>Store</th>' : ''}
+    <th>Category</th>
+    <th>Description</th>
+    <th>Amount</th>
+    <th>Receipt</th>
+    <th></th>
+  </tr>`;
+}
+
+async function initStoreButtons() {
+  if (!isElevated) return;
+  const res = await fetch('/api/owner/stores', { headers: { Authorization: 'Bearer ' + token } });
+  if (!res.ok) return;
+  const stores = await res.json();
+  const wrap = document.getElementById('storeButtonsWrap');
+  wrap.style.display = 'flex';
+  wrap.innerHTML = `
+    <button class="btn btn-primary btn-sm store-btn active" onclick="setStore('', this)">All Stores</button>
+    ${stores.map(s => `<button class="btn btn-ghost btn-sm store-btn" onclick="setStore('${s.id}', this)">${s.name}</button>`).join('')}
+  `;
+}
+
+function setStore(storeId, btn) {
+  currentStoreId = storeId;
+  document.querySelectorAll('.store-btn').forEach(b => { b.classList.remove('active', 'btn-primary'); b.classList.add('btn-ghost'); });
+  btn.classList.add('active', 'btn-primary'); btn.classList.remove('btn-ghost');
+  load();
+}
 
 // Set default date range to current month
 function setDefaultDates() {
@@ -238,6 +266,7 @@ async function load() {
   const start = document.getElementById('filterStart').value;
   const end = document.getElementById('filterEnd').value;
   let url = `/api/store-expenses?start=${start}&end=${end}`;
+  if (currentStoreId) url += `&store_id=${currentStoreId}`;
 
   const res = await api(url);
   if (!res.ok) { expenses = []; render(); return; }
@@ -285,7 +314,8 @@ function render() {
   // Table
   const tbody = document.getElementById('expenseBody');
   if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="${isElevated ? 7 : 6}" class="empty">No expenses found for this period.</td></tr>`;
+    const cols = isElevated ? 7 : 6;
+    tbody.innerHTML = `<tr><td colspan="${cols}" class="empty">No expenses found for this period.</td></tr>`;
     return;
   }
   tbody.innerHTML = filtered.map(e => `
@@ -407,7 +437,9 @@ document.getElementById('addModal').addEventListener('click', e => {
 
 async function init() {
   if (!token) { window.location.href = '/'; return; }
+  buildHead();
   setDefaultDates();
+  await initStoreButtons();
   await load();
 }
 init();
