@@ -244,7 +244,8 @@ router.get('/inventory-value', auth, requireOwner, async (req, res) => {
     let query = supabase
       .from('inventory_items')
       .select('store_id, cost, clover_qty, status')
-      .neq('status', 'discontinued');
+      .neq('status', 'discontinued')
+      .limit(50000); // Supabase default is 1000 — raise to cover all stores
 
     if (store_id) query = query.eq('store_id', store_id);
 
