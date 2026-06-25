@@ -86,36 +86,27 @@ router.get('/pl', auth, requireOwner, async (req, res) => {
     // ── Revenue from sales_log ─────────────────────────────────────────────
     const { data: salesData } = await supabase
       .from('sales_log')
-      .select('store_id, net_amount, sale_date')
+      .select('store_id, net')
       .in('store_id', storeIds)
-      .gte('sale_date', start)
-      .lte('sale_date', end);
+      .gte('created_at', start + 'T00:00:00')
+      .lte('created_at', end + 'T23:59:59');
 
     const revenueByStore = {};
     for (const row of salesData || []) {
-      revenueByStore[row.store_id] = (revenueByStore[row.store_id] || 0) + parseFloat(row.net_amount || 0);
+      revenueByStore[row.store_id] = (revenueByStore[row.store_id] || 0) + parseFloat(row.net || 0);
     }
 
-    // ── COGS: budget invoice totals ────────────────────────────────────────
-    // Budgets have a period (month/quarter); use invoice line items with dates in range
-    const { data: invoiceItems } = await supabase
-      .from('budget_items')
-      .select('amount, budgets(store_id, period_start, period_end)')
-      .in('budgets.store_id', storeIds);
-
-    // Also check budget_invoices if that table exists (from budget-view invoices)
-    const { data: invoices } = await supabase
-      .from('budget_invoices')
-      .select('amount, store_id, invoice_date, budgets(store_id)')
+    // ── COGS: weekly budget invoiced totals ───────────────────────────────
+    const { data: weeklyBudgets } = await supabase
+      .from('weekly_budgets')
+      .select('store_id, total_invoiced')
       .in('store_id', storeIds)
-      .gte('invoice_date', start)
-      .lte('invoice_date', end)
-      .catch(() => ({ data: null }));
+      .lte('week_start', end)
+      .gte('week_end', start);
 
     const cogsByStore = {};
-    for (const inv of invoices || []) {
-      const sid = inv.store_id;
-      cogsByStore[sid] = (cogsByStore[sid] || 0) + parseFloat(inv.amount || 0);
+    for (const b of weeklyBudgets || []) {
+      cogsByStore[b.store_id] = (cogsByStore[b.store_id] || 0) + parseFloat(b.total_invoiced || 0);
     }
 
     // ── GM Expenses ────────────────────────────────────────────────────────
