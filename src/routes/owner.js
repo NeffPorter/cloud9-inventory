@@ -44,11 +44,12 @@ router.get('/inventory-search', auth, requireOwner, async (req, res) => {
       });
     }
 
-    // Group results by product name + variant for easy display
+    // Group results by normalized product name (case-insensitive)
     const grouped = {};
     for (const item of data || []) {
-      const key = item.group_name || item.variant_name || item.id;
-      if (!grouped[key]) grouped[key] = { name: key, variants: [] };
+      const displayName = item.group_name || item.variant_name || item.id;
+      const key = displayName.toLowerCase().trim();
+      if (!grouped[key]) grouped[key] = { name: displayName, variants: [] };
       grouped[key].variants.push({
         id: item.id,
         store_id: item.store_id,
@@ -134,6 +135,34 @@ router.get('/pl', auth, requireOwner, async (req, res) => {
         (expenseCategoryByStore[exp.store_id][exp.category] || 0) + parseFloat(exp.amount);
     }
 
+    // ── Stocktake shortages (potentially stolen/lost) ─────────────────────
+    // Find the most recent completed stocktake per store within or just before the period
+    const { data: stocktakes } = await supabase
+      .from('stock_take_reports')
+      .select('id, store_id, discrepancies, created_at')
+      .in('store_id', storeIds)
+      .lte('created_at', end + 'T23:59:59')
+      .order('created_at', { ascending: false });
+
+    // For each store, use the most recent stocktake in or before the period
+    const shortagesByStore = {};
+    const seenStores = new Set();
+    for (const st of stocktakes || []) {
+      if (seenStores.has(st.store_id)) continue;
+      seenStores.add(st.store_id);
+      const discrepancies = st.discrepancies || [];
+      let totalItems = 0;
+      let totalValue = 0;
+      for (const d of discrepancies) {
+        if (d.diff < 0) { // shortage = potentially lost/stolen
+          totalItems += Math.abs(d.diff);
+          const price = parseFloat(d.item?.price || d.price || 0);
+          totalValue += Math.abs(d.diff) * price;
+        }
+      }
+      shortagesByStore[st.store_id] = { items: totalItems, value: totalValue, stocktake_date: st.created_at?.slice(0, 10) };
+    }
+
     // ── Assemble P&L per store ─────────────────────────────────────────────
     const result = stores.map(store => {
       const revenue = revenueByStore[store.id] || 0;
@@ -151,7 +180,8 @@ router.get('/pl', auth, requireOwner, async (req, res) => {
         gm_expenses: gmExpenses,
         expense_breakdown: expenseCategoryByStore[store.id] || {},
         net_profit: netProfit,
-        margin_pct: margin
+        margin_pct: margin,
+        shortages: shortagesByStore[store.id] || null
       };
     });
 

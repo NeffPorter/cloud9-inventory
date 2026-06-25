@@ -135,11 +135,29 @@
     }
     @media print {
       .no-print { display: none !important; }
-      nav { display: none !important; }
-      body { background: white; }
-      .container { padding: 0; max-width: 100%; }
-      .report-wrap { box-shadow: none; border-radius: 0; padding: 20px; }
+      #navbar-container { display: none !important; }
+      body { background: white; font-size: 12px; }
+      .container { padding: 8px; max-width: 100%; }
+      .report-wrap { box-shadow: none; border: 1px solid #ddd; border-radius: 0; padding: 16px; }
+      .stats-grid { grid-template-columns: repeat(4, 1fr); }
+      .stat-box { padding: 8px; border: 1px solid #ddd; background: white; }
+      .stat-val { font-size: 18px; }
+      .cat-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      th { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #f8f9fa !important; }
+      .over-row td, .under-row td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      td, th { padding: 5px 10px; }
+      .cat-section { break-inside: avoid; }
+      .print-header { display: block !important; }
     }
+    .print-header {
+      display: none;
+      text-align: center;
+      padding-bottom: 16px;
+      border-bottom: 3px solid #2f5597;
+      margin-bottom: 24px;
+    }
+    .print-header .co-name { font-size: 22px; font-weight: 800; color: #1a1a2e; }
+    .print-header .co-sub { font-size: 13px; color: #666; margin-top: 4px; }
   </style>
 </head>
 <body>
@@ -148,11 +166,12 @@
 
   <div class="action-bar no-print">
     <button class="btn btn-gray" onclick="window.location.href='/stocktake'">← Back to Stock Takes</button>
-    <button class="btn btn-blue" onclick="window.print()">🖨️ Print / Save PDF</button>
+    <button class="btn btn-blue" onclick="printReport()">🖨️ Print / Save PDF</button>
     <button class="btn btn-green" id="applyBtn" onclick="applyToClover()">✅ Apply to Clover</button>
     <div id="statusActions"></div>
   </div>
 
+  <div id="printPageHeader" class="report-wrap print-header" style="display:none"></div>
   <div id="reportContainer" class="loading">Loading report...</div>
 
 </div>
@@ -171,11 +190,11 @@
 
   async function loadReport() {
     try {
-      const res = await fetch('/api/inventory/stocktake/reports', {
+      const res = await fetch(`/api/inventory/stocktake/reports/${reportId}`, {
         headers: { 'Authorization': 'Bearer ' + token }
       });
       const data = await res.json();
-      report = (data.reports || []).find(r => r.id === reportId);
+      report = data.report;
 
       if (!report) {
         document.getElementById('reportContainer').innerHTML = '<div class="loading">Report not found</div>';
@@ -395,6 +414,20 @@
   }
 
   loadReport();
+
+  function printReport() {
+    if (!report) return;
+    const storeName = report.stores?.name || '';
+    const dateStr = report.created_at ? new Date(report.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '';
+    const hdr = document.getElementById('printPageHeader');
+    hdr.innerHTML = `
+      <div class="co-name">Cloud 9 Vapor</div>
+      <div class="co-sub">Stocktake Report — ${storeName}</div>
+      <div class="co-sub">Completed ${dateStr} &nbsp;·&nbsp; Generated ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</div>`;
+    hdr.style.display = '';
+    window.print();
+    setTimeout(() => { hdr.style.display = 'none'; }, 500);
+  }
 </script>
 <script>loadNavbar();</script>
 </body>

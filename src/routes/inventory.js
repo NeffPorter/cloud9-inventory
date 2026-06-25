@@ -407,7 +407,7 @@ router.get('/stocktake/reports', auth, async (req, res) => {
 
     let query = supabase
       .from('stock_take_reports')
-      .select('*')
+      .select('*, stores(name)')
       .order('created_at', { ascending: false });
 
     if (store_id) query = query.eq('store_id', store_id);
@@ -421,6 +421,21 @@ router.get('/stocktake/reports', auth, async (req, res) => {
   } catch (err) {
     console.error('Get reports error:', err);
     res.status(500).json({ error: 'Failed to load reports' });
+  }
+});
+
+// Get single stock take report by ID
+router.get('/stocktake/reports/:id', auth, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('stock_take_reports')
+      .select('*, stores(name)')
+      .eq('id', req.params.id)
+      .single();
+    if (error) throw error;
+    res.json({ report: data });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load report' });
   }
 });
 // Save stock take draft

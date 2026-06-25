@@ -355,6 +355,8 @@
     });
     const itemData = await itemRes.json();
     allItems = (itemData.items || []).filter(i => i.status === 'Active');
+    // Snapshot original system quantities before any Clover pushes modify them
+    allItems.forEach(i => { i._originalQty = i.clover_qty ?? 0; });
 
     try {
       const draftRes = await fetch(`/api/inventory/stocktake/drafts?store_id=${storeId}`, {
@@ -635,10 +637,17 @@ async function pushCategoryToClover(discrepancies) {
   console.log(`✅ Pushed ${discrepancies.length} adjustments to Clover for ${currentCat}`);
 }
   function showFinalReport() {
+    // Guard: all categories must be counted
+    const allCats = [...new Set(allItems.map(i => i.category || 'No Category'))];
+    const uncounted = allCats.filter(c => !catStatus[c]);
+    if (uncounted.length > 0) {
+      alert(`Please count all categories before viewing the report.\n\nNot yet counted:\n• ${uncounted.join('\n• ')}`);
+      return;
+    }
     const allCatItems = allItems.filter(i => catStatus[i.category || 'No Category']);
     const allDiscrepancies = allCatItems
-      .filter(i => counts[i.id] !== undefined && counts[i.id] !== (i.clover_qty || 0))
-      .map(i => ({ item: i, counted: counts[i.id], system: i.clover_qty || 0, diff: counts[i.id] - (i.clover_qty || 0) }));
+      .filter(i => counts[i.id] !== undefined && counts[i.id] !== (i._originalQty))
+      .map(i => ({ item: i, counted: counts[i.id], system: i._originalQty, diff: counts[i.id] - i._originalQty }));
 
     const totalCounted = Object.keys(counts).length;
     const totalMatches = allCatItems.filter(i => counts[i.id] !== undefined && counts[i.id] === (i.clover_qty || 0)).length;
@@ -730,17 +739,26 @@ async function pushCategoryToClover(discrepancies) {
   }
 
   async function saveAndFinish() {
+    // Guard: all categories must be counted
+    const allCats = [...new Set(allItems.map(i => i.category || 'No Category'))];
+    const countedCats = Object.keys(catStatus);
+    const uncounted = allCats.filter(c => !countedCats.includes(c));
+    if (uncounted.length > 0) {
+      alert(`Please count all categories before finalizing.\n\nNot yet counted:\n• ${uncounted.join('\n• ')}`);
+      return;
+    }
+
     const btn = document.querySelector('[onclick="saveAndFinish()"]');
     btn.disabled = true;
     btn.textContent = 'Saving...';
 
     const allCatItems = allItems.filter(i => catStatus[i.category || 'No Category']);
     const allDiscrepancies = allCatItems
-      .filter(i => counts[i.id] !== undefined && counts[i.id] !== (i.clover_qty || 0))
-      .map(i => ({ item: i, counted: counts[i.id], system: i.clover_qty || 0, diff: counts[i.id] - (i.clover_qty || 0) }));
+      .filter(i => counts[i.id] !== undefined && counts[i.id] !== i._originalQty)
+      .map(i => ({ item: i, counted: counts[i.id], system: i._originalQty, diff: counts[i.id] - i._originalQty }));
 
     const totalCounted = Object.keys(counts).length;
-    const totalMatches = allCatItems.filter(i => counts[i.id] !== undefined && counts[i.id] === (i.clover_qty || 0)).length;
+    const totalMatches = allCatItems.filter(i => counts[i.id] !== undefined && counts[i.id] === i._originalQty).length;
     const totalShortages = allDiscrepancies.filter(d => d.diff < 0).length;
     const totalOverages = allDiscrepancies.filter(d => d.diff > 0).length;
     const totalShortQty = allDiscrepancies.filter(d => d.diff < 0).reduce((a, d) => a + Math.abs(d.diff), 0);

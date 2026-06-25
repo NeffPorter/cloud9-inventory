@@ -23,6 +23,16 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .btn { padding: 9px 18px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
 .btn-primary { background: #2563eb; color: white; }
 .btn:hover { opacity: .85; }
+.store-btn { padding: 7px 16px; border: 1px solid #ddd; border-radius: 20px; font-size: 13px; font-weight: 500; cursor: pointer; background: white; color: #555; transition: all .15s; }
+.store-btn:hover { border-color: #2563eb; color: #2563eb; }
+.store-btn.active { background: #2563eb; color: white; border-color: #2563eb; }
+.shortage-banner { display:flex; align-items:center; gap:16px; background:#fff8f0; border:1px solid #f97316; border-radius:10px; padding:12px 18px; margin-bottom:20px; }
+.shortage-banner strong { color:#c2410c; }
+.shortage-stats { margin-left:auto; display:flex; gap:16px; font-size:14px; font-weight:600; color:#c2410c; }
+.shortage-value { }
+.row-shortage td { background:#fff8f0 !important; color:#c2410c; font-size:13px; }
+.shortage-cell { padding:8px 12px !important; }
+.shortage-date { font-weight:400; color:#999; margin-left:6px; font-size:12px; }
 
 /* View tabs */
 .view-tabs { display: flex; gap: 2px; background: #f3f4f6; border-radius: 10px; padding: 4px; margin-bottom: 20px; width: fit-content; }
@@ -89,7 +99,8 @@ tr:last-child td { border-bottom: none; }
       </div>
     </div>
     <div class="control-group" id="periodPickerWrap">
-      <label id="periodPickerLabel">Month</label>
+      <label id="periodPickerLabel">Week of</label>
+      <input type="date" id="weekDatePicker" onchange="load()" style="display:none">
       <input type="month" id="monthPicker" onchange="load()">
     </div>
     <div class="control-group" id="customDateWrap" style="display:none;flex-direction:row;gap:8px;align-items:flex-end">
@@ -102,18 +113,15 @@ tr:last-child td { border-bottom: none; }
         <input type="date" id="customEnd" onchange="load()">
       </div>
     </div>
-    <div class="control-group">
-      <label>Store</label>
-      <select id="storeFilter" onchange="load()">
-        <option value="">All Stores</option>
-      </select>
-    </div>
     <div class="control-group" style="margin-left:auto;flex-direction:row;align-items:flex-end;gap:8px;">
       <button class="btn btn-primary" onclick="savePLSnapshot()" id="saveBtn" title="Save snapshot to history">💾 Save</button>
-      <button class="btn" style="background:#f3f4f6;color:#1a1a1a;" onclick="window.print()" title="Download / Print as PDF">🖨️ PDF</button>
+      <button class="btn" style="background:#f3f4f6;color:#1a1a1a;" onclick="printPDF()" title="Download / Print as PDF">🖨️ PDF</button>
       <button class="btn" style="background:#f3f4f6;color:#1a1a1a;" onclick="toggleSnapshotPanel()">📂 History</button>
     </div>
   </div>
+
+  <!-- Store buttons -->
+  <div id="storeButtonsWrap" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;"></div>
 
   <!-- Snapshot history panel -->
   <div id="snapshotPanel" style="display:none;background:white;border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px;margin-bottom:20px;">
@@ -147,25 +155,34 @@ async function api(path) {
   return res.json();
 }
 
+let currentStoreId = '';
+
 async function init() {
   if (!token) { window.location.href = '/'; return; }
   stores = await api('/api/owner/stores');
-  const sel = document.getElementById('storeFilter');
-  sel.innerHTML = '<option value="">All Stores</option>' +
-    stores.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
 
-  // Default to current week
+  // Build store toggle buttons
+  const wrap = document.getElementById('storeButtonsWrap');
+  wrap.innerHTML = `
+    <button class="store-btn active" onclick="setStore('', this)">All Stores</button>
+    ${stores.map(s => `<button class="store-btn" onclick="setStore('${s.id}', this)">${s.name}</button>`).join('')}
+  `;
+
+  // Default to current week using date picker
   const now = new Date();
   const pad = n => String(n).padStart(2, '0');
-  // Set week picker to current ISO week
-  const yr = now.getFullYear();
-  const startOfYear = new Date(yr, 0, 1);
-  const dayOfYear = Math.floor((now - startOfYear) / 86400000);
-  const weekNum = Math.ceil((dayOfYear + startOfYear.getDay() + 1) / 7);
-  document.getElementById('monthPicker').type = 'week';
-  document.getElementById('monthPicker').value = `${yr}-W${pad(weekNum)}`;
-  document.getElementById('periodPickerLabel').textContent = 'Week';
+  document.getElementById('weekDatePicker').value = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  document.getElementById('weekDatePicker').style.display = '';
+  document.getElementById('monthPicker').style.display = 'none';
+  document.getElementById('periodPickerLabel').textContent = 'Week of';
   await load();
+}
+
+function setStore(storeId, btn) {
+  currentStoreId = storeId;
+  document.querySelectorAll('.store-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  load();
 }
 
 function setPeriod(period, btn) {
@@ -175,26 +192,39 @@ function setPeriod(period, btn) {
 
   const pickerWrap = document.getElementById('periodPickerWrap');
   const customWrap = document.getElementById('customDateWrap');
-  const picker = document.getElementById('monthPicker');
+  const monthPicker = document.getElementById('monthPicker');
+  const weekPicker = document.getElementById('weekDatePicker');
   const label = document.getElementById('periodPickerLabel');
 
   if (period === 'custom') {
     pickerWrap.style.display = 'none';
     customWrap.style.display = 'flex';
+    monthPicker.style.display = 'none';
+    weekPicker.style.display = 'none';
   } else {
     pickerWrap.style.display = '';
     customWrap.style.display = 'none';
     if (period === 'weekly') {
-      picker.type = 'week'; label.textContent = 'Week';
+      weekPicker.style.display = '';
+      monthPicker.style.display = 'none';
+      label.textContent = 'Week of';
+      if (!weekPicker.value) {
+        const now = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        weekPicker.value = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+      }
     } else if (period === 'quarterly') {
-      picker.type = 'text'; picker.placeholder = 'e.g. 2026-Q2';
+      weekPicker.style.display = 'none';
+      monthPicker.style.display = '';
+      monthPicker.type = 'text'; monthPicker.placeholder = 'e.g. 2026-Q2';
       label.textContent = 'Quarter';
-      // Set default
       const now = new Date();
       const q = Math.ceil((now.getMonth()+1)/3);
-      picker.value = `${now.getFullYear()}-Q${q}`;
+      monthPicker.value = `${now.getFullYear()}-Q${q}`;
     } else {
-      picker.type = 'month'; label.textContent = 'Month';
+      weekPicker.style.display = 'none';
+      monthPicker.style.display = '';
+      monthPicker.type = 'month'; label.textContent = 'Month';
     }
   }
   load();
@@ -213,13 +243,14 @@ function getDateRange() {
     return { start: `${y}-${m}-01`, end: `${y}-${m}-${String(lastDay).padStart(2,'0')}` };
   }
   if (currentPeriod === 'weekly') {
-    const val = document.getElementById('monthPicker').value;
+    const val = document.getElementById('weekDatePicker').value;
     if (!val) return null;
-    // val format: YYYY-Www
-    const [year, week] = val.split('-W');
-    const jan4 = new Date(year, 0, 4);
-    const weekStart = new Date(jan4);
-    weekStart.setDate(jan4.getDate() - jan4.getDay() + 1 + (parseInt(week)-1)*7);
+    const d = new Date(val + 'T00:00:00');
+    // Get Monday of the week containing this date
+    const day = d.getDay(); // 0=Sun
+    const diff = day === 0 ? -6 : 1 - day; // Mon = start
+    const weekStart = new Date(d);
+    weekStart.setDate(d.getDate() + diff);
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekStart.getDate() + 6);
     const fmt = d => d.toISOString().split('T')[0];
@@ -255,7 +286,7 @@ function marginPill(pct) {
 async function load() {
   const range = getDateRange();
   if (!range?.start || !range?.end) return;
-  const storeId = document.getElementById('storeFilter').value;
+  const storeId = currentStoreId;
 
   document.getElementById('content').innerHTML = '<div class="loading">Loading...</div>';
 
@@ -296,6 +327,8 @@ function renderPL() {
   const totGMExp = plData.reduce((s, r) => s + r.gm_expenses, 0);
   const totNet = plData.reduce((s, r) => s + r.net_profit, 0);
   const totMargin = totRevenue > 0 ? ((totNet/totRevenue)*100).toFixed(1) : null;
+  const totShortageItems = plData.reduce((s, r) => s + (r.shortages?.items || 0), 0);
+  const totShortageValue = plData.reduce((s, r) => s + (r.shortages?.value || 0), 0);
 
   const netClass = totNet >= 0 ? 'positive' : 'negative';
 
@@ -321,7 +354,18 @@ function renderPL() {
       <div class="value">${fmtMoney(totNet)}</div>
       <div class="sub">${totMargin !== null ? totMargin + '% margin' : '—'}</div>
     </div>
-  </div>`;
+  </div>
+  ${totShortageItems > 0 ? `
+  <div class="shortage-banner">
+    <span class="shortage-icon">⚠️</span>
+    <div>
+      <strong>Potentially Lost / Stolen Inventory</strong> — based on most recent stocktake
+    </div>
+    <div class="shortage-stats">
+      <span>${totShortageItems} items</span>
+      <span class="shortage-value">${fmtMoney(totShortageValue)} estimated retail value</span>
+    </div>
+  </div>` : ''}`;
 
   // Per-store P&L tables
   for (const store of plData) {
@@ -348,6 +392,11 @@ function renderPL() {
           ${expBreakdown.map(([cat, amt]) => `
           <tr class="exp-breakdown"><td>— ${cat.charAt(0).toUpperCase()+cat.slice(1)}</td><td class="num" style="color:#888">(${fmtMoney(amt)})</td></tr>`).join('')}
           <tr class="row-net ${netClass2}"><td>Net Profit / Loss</td><td class="num">${fmtMoney(store.net_profit)}</td></tr>
+          ${store.shortages && store.shortages.items > 0 ? `
+          <tr class="row-shortage"><td colspan="2" class="shortage-cell">
+            ⚠️ <strong>Potentially Lost/Stolen:</strong> ${store.shortages.items} items &nbsp;·&nbsp; ${fmtMoney(store.shortages.value)} estimated value
+            <span class="shortage-date">(stocktake ${store.shortages.stocktake_date || ''})</span>
+          </td></tr>` : ''}
         </tbody>
       </table>
     </div>`;
@@ -498,7 +547,7 @@ async function savePLSnapshot() {
   btn.disabled = true; btn.textContent = '⏳ Saving...';
 
   const label = buildPeriodLabel();
-  const storeId = document.getElementById('storeFilter').value || null;
+  const storeId = currentStoreId || null;
   const periodType = currentPeriod === 'weekly' ? 'monthly' : (currentPeriod === 'quarterly' ? 'quarterly' : 'monthly');
 
   const res = await fetch('/api/owner/pl-snapshots', {
@@ -569,13 +618,42 @@ async function loadSnapshot(id) {
 const printStyle = document.createElement('style');
 printStyle.textContent = `
   @media print {
-    #snapshotPanel, .controls, .view-tabs, #navbar-container { display: none !important; }
-    body { background: white; }
-    .page { max-width: 100%; padding: 0; }
-    .pl-table-wrap { break-inside: avoid; }
-    .summary-banner { grid-template-columns: repeat(4, 1fr); }
+    #snapshotPanel, .controls, .view-tabs, #navbar-container, #storeButtonsWrap,
+    button, .btn { display: none !important; }
+    body { background: white; font-size: 12px; }
+    .page { max-width: 100%; padding: 8px; }
+    .pl-table-wrap { break-inside: avoid; margin-bottom: 12px; box-shadow: none; border: 1px solid #ddd; }
+    .summary-banner { grid-template-columns: repeat(4, 1fr); margin-bottom: 12px; }
+    .metric-card { padding: 10px 12px; border: 1px solid #ddd; box-shadow: none; }
+    .metric-card .value { font-size: 18px; }
+    th, td { padding: 7px 10px !important; }
+    .exp-breakdown td { padding: 4px 10px !important; }
+    .page-title::before { content: "Cloud 9 Vapor — "; }
   }`;
 document.head.appendChild(printStyle);
+
+function printPDF() {
+  // Show a clean print header
+  const range = getDateRange();
+  const label = buildPeriodLabel();
+  const storeLabel = currentStoreId
+    ? stores.find(s => s.id === currentStoreId)?.name || ''
+    : 'All Stores';
+  const header = document.createElement('div');
+  header.id = 'printHeader';
+  header.style.cssText = 'display:none';
+  header.innerHTML = `
+    <div style="text-align:center;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #2563eb">
+      <div style="font-size:20px;font-weight:800;color:#1a1a2e">Cloud 9 Vapor</div>
+      <div style="font-size:15px;font-weight:600;margin-top:4px">P&L Statement — ${label}</div>
+      <div style="font-size:13px;color:#666;margin-top:2px">${storeLabel} · ${range?.start} to ${range?.end}</div>
+      <div style="font-size:12px;color:#999;margin-top:2px">Generated ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</div>
+    </div>`;
+  document.querySelector('.page').prepend(header);
+  printStyle.textContent += '@media print { #printHeader { display: block !important; } }';
+  window.print();
+  setTimeout(() => { header.remove(); }, 500);
+}
 
 init();
 </script>
