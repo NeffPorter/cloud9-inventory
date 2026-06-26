@@ -74,6 +74,8 @@ tr:last-child td { border-bottom: none; }
 .exp-breakdown { background: #fafafa; }
 .exp-breakdown td { padding: 6px 16px; font-size: 13px; color: #666; }
 .exp-breakdown td:first-child { padding-left: 32px; }
+.row-discount td { background: #fffbeb; color: #92400e; font-size: 13px; }
+.row-discount td:first-child { padding-left: 32px; }
 
 /* Top products */
 .top-products-wrap { background: white; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; }
@@ -325,6 +327,7 @@ function renderPL() {
   const totRevenue = plData.reduce((s, r) => s + r.revenue, 0);
   const totCOGS = plData.reduce((s, r) => s + r.cogs, 0);
   const totGMExp = plData.reduce((s, r) => s + r.gm_expenses, 0);
+  const totDiscounts = plData.reduce((s, r) => s + (r.discounts || 0), 0);
   const totNet = plData.reduce((s, r) => s + r.net_profit, 0);
   const totMargin = totRevenue > 0 ? ((totNet/totRevenue)*100).toFixed(1) : null;
   const totShortageItems = plData.reduce((s, r) => s + (r.shortages?.items || 0), 0);
@@ -349,6 +352,12 @@ function renderPL() {
       <div class="value">${fmtMoney(totGMExp)}</div>
       <div class="sub">Payroll, rent, etc.</div>
     </div>
+    ${totDiscounts > 0 ? `
+    <div class="metric-card" style="border-color:#fde68a">
+      <div class="label" style="color:#92400e">Discounts Given</div>
+      <div class="value" style="color:#b45309">${fmtMoney(totDiscounts)}</div>
+      <div class="sub">${totRevenue > 0 ? ((totDiscounts/(totRevenue+totDiscounts))*100).toFixed(1)+'% of gross sales' : 'All stores'}</div>
+    </div>` : ''}
     <div class="metric-card net ${netClass}">
       <div class="label">Net Profit</div>
       <div class="value">${fmtMoney(totNet)}</div>
@@ -385,7 +394,10 @@ function renderPL() {
           </tr>
         </thead>
         <tbody>
-          <tr><td>💰 Revenue (Sales)</td><td class="num profit">${fmtMoney(store.revenue)}</td></tr>
+          <tr><td>💰 Gross Revenue (Sales)</td><td class="num profit">${fmtMoney(store.gross_revenue || store.revenue)}</td></tr>
+          ${store.discounts > 0 ? `
+          <tr class="row-discount"><td>🏷️ — Discounts Given</td><td class="num">(${fmtMoney(store.discounts)})</td></tr>
+          <tr class="row-subtotal" style="background:#f0fdf4"><td style="padding-left:16px;font-weight:600">Net Revenue</td><td class="num profit">${fmtMoney(store.revenue)}</td></tr>` : ''}
           <tr><td>📦 COGS (Budget Invoices)</td><td class="num loss">(${fmtMoney(store.cogs)})</td></tr>
           <tr class="row-subtotal"><td>Gross Profit</td><td class="num ${store.gross_profit >= 0 ? 'profit' : 'loss'}">${fmtMoney(store.gross_profit)}</td></tr>
           <tr><td>💼 GM Expenses (Total)</td><td class="num loss">(${fmtMoney(store.gm_expenses)})</td></tr>

@@ -86,14 +86,18 @@ router.get('/pl', auth, requireOwner, async (req, res) => {
     // ── Revenue from sales_log ─────────────────────────────────────────────
     const { data: salesData } = await supabase
       .from('sales_log')
-      .select('store_id, net')
+      .select('store_id, net, gross, discounts')
       .in('store_id', storeIds)
       .gte('created_at', start + 'T00:00:00')
       .lte('created_at', end + 'T23:59:59');
 
     const revenueByStore = {};
+    const grossRevenueByStore = {};
+    const discountsByStore = {};
     for (const row of salesData || []) {
       revenueByStore[row.store_id] = (revenueByStore[row.store_id] || 0) + parseFloat(row.net || 0);
+      grossRevenueByStore[row.store_id] = (grossRevenueByStore[row.store_id] || 0) + parseFloat(row.gross || 0);
+      discountsByStore[row.store_id] = (discountsByStore[row.store_id] || 0) + parseFloat(row.discounts || 0);
     }
 
     // ── COGS: weekly budget invoiced totals ───────────────────────────────
@@ -162,9 +166,13 @@ router.get('/pl', auth, requireOwner, async (req, res) => {
       const grossProfit = revenue - cogs;
       const netProfit = grossProfit - gmExpenses;
       const margin = revenue > 0 ? ((netProfit / revenue) * 100).toFixed(1) : null;
+      const grossRevenue = grossRevenueByStore[store.id] || 0;
+      const discounts = discountsByStore[store.id] || 0;
       return {
         store_id: store.id,
         store_name: store.name,
+        gross_revenue: grossRevenue,
+        discounts,
         revenue,
         cogs,
         gross_profit: grossProfit,

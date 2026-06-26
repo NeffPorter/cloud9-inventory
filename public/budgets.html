@@ -272,6 +272,14 @@ function renderPage(current, history, storeId) {
           </div>
           <div class="budget-bar-label">${pct.toFixed(1)}% of budget used — click to view details</div>
         </div>
+        ${current.prev_week_net_sales > 0 ? (() => {
+          const sp = ((spent / current.prev_week_net_sales) * 100).toFixed(1);
+          const spColor = sp > 45 ? '#f97316' : sp > 30 ? '#fbbf24' : '#86efac';
+          return `<div style="margin-top:10px;display:flex;align-items:center;gap:10px;font-size:13px;opacity:0.9">
+            <span>Spent as % of prev week sales:</span>
+            <span style="font-weight:800;font-size:15px;color:${spColor}">${sp}%</span>
+          </div>`;
+        })() : ''}
       </div>`;
   }
 
