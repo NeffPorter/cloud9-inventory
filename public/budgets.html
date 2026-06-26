@@ -85,6 +85,73 @@
     .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
 
     .loading { text-align: center; padding: 48px; color: #aaa; font-size: 15px; }
+
+    /* Completed budgets tree */
+    .cb-year { font-size: 18px; font-weight: 800; color: #1a1a2e; margin: 32px 0 12px; padding-bottom: 6px; border-bottom: 2px solid #e8ecf4; }
+    .cb-quarter { margin-bottom: 20px; }
+    .cb-quarter-header {
+      display: flex; align-items: center; justify-content: space-between;
+      background: #eef2fb; border-radius: 10px; padding: 11px 16px;
+      cursor: pointer; user-select: none; margin-bottom: 4px;
+    }
+    .cb-quarter-header:hover { background: #e0e8f7; }
+    .cb-quarter-title { font-size: 14px; font-weight: 700; color: #2f5597; }
+    .cb-quarter-meta { font-size: 12px; color: #666; }
+    .cb-quarter-chevron { font-size: 12px; color: #999; transition: transform 0.2s; }
+    .cb-quarter-body { padding-left: 8px; }
+    .cb-month { margin-bottom: 8px; }
+    .cb-month-header {
+      font-size: 12px; font-weight: 700; color: #888; text-transform: uppercase;
+      letter-spacing: 0.5px; padding: 6px 12px; cursor: pointer;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .cb-month-header:hover { color: #555; }
+    .cb-month-weeks { }
+    .cb-week-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 9px 16px; border-radius: 8px; cursor: pointer;
+      transition: background 0.15s; font-size: 13px;
+    }
+    .cb-week-row:hover { background: #f0f4ff; }
+    .cb-week-dates { font-weight: 600; color: #1a1a2e; flex: 1; }
+    .cb-week-spent { color: #1a1a2e; font-weight: 600; width: 90px; text-align: right; }
+    .cb-week-bar { width: 60px; height: 5px; background: #e8ecf4; border-radius: 3px; overflow: hidden; margin: 0 12px; }
+    .cb-week-bar-fill { height: 100%; border-radius: 3px; }
+    .cb-week-pct { width: 42px; text-align: right; font-size: 12px; color: #888; }
+    .cb-week-link { color: #2f5597; font-size: 12px; font-weight: 600; margin-left: 12px; white-space: nowrap; }
+    .cb-week-link:hover { text-decoration: underline; }
+
+    /* Completed budgets tree */
+    .cb-year { font-size: 18px; font-weight: 800; color: #1a1a2e; margin: 32px 0 12px; padding-bottom: 6px; border-bottom: 2px solid #e8ecf4; }
+    .cb-quarter { margin-bottom: 20px; }
+    .cb-quarter-header {
+      display: flex; align-items: center; justify-content: space-between;
+      background: #eef2fb; border-radius: 10px; padding: 11px 16px;
+      cursor: pointer; user-select: none; margin-bottom: 4px;
+    }
+    .cb-quarter-header:hover { background: #e0e8f7; }
+    .cb-quarter-title { font-size: 14px; font-weight: 700; color: #2f5597; }
+    .cb-quarter-meta { font-size: 12px; color: #666; }
+    .cb-quarter-chevron { font-size: 12px; color: #999; transition: transform 0.2s; }
+    .cb-quarter-body { padding-left: 8px; }
+    .cb-month { margin-bottom: 6px; }
+    .cb-month-header {
+      font-size: 12px; font-weight: 700; color: #888; text-transform: uppercase;
+      letter-spacing: 0.5px; padding: 6px 12px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .cb-week-row {
+      display: flex; align-items: center;
+      padding: 9px 16px; border-radius: 8px; cursor: pointer;
+      transition: background 0.15s; font-size: 13px;
+    }
+    .cb-week-row:hover { background: #f0f4ff; }
+    .cb-week-dates { font-weight: 600; color: #1a1a2e; flex: 1; }
+    .cb-week-spent { color: #1a1a2e; font-weight: 600; width: 90px; text-align: right; }
+    .cb-week-bar { width: 60px; height: 5px; background: #e8ecf4; border-radius: 3px; overflow: hidden; margin: 0 12px; }
+    .cb-week-bar-fill { height: 100%; border-radius: 3px; }
+    .cb-week-pct { width: 42px; text-align: right; font-size: 12px; color: #888; }
+    .cb-week-link { color: #2f5597; font-size: 12px; font-weight: 600; margin-left: 12px; white-space: nowrap; }
   </style>
 </head>
 <body>
@@ -283,59 +350,110 @@ function renderPage(current, history, storeId) {
       </div>`;
   }
 
-  // ── History ───────────────────────────────────────────────────────────────
+  // ── Completed Budgets (Year > Quarter > Month > Week) ───────────────────
   if (history.length === 0) {
     html += `<div class="empty-state"><div class="icon">📂</div>No past budgets yet.</div>`;
   } else {
-    // Group by quarter
-    const quarters = {};
+    const MONTHS = ['January','February','March','April','May','June',
+                    'July','August','September','October','November','December'];
+    const tree = {};
     history.forEach(b => {
-      const d = new Date(b.week_start);
-      const q = `Q${Math.ceil((d.getMonth() + 1) / 3)} ${d.getFullYear()}`;
-      if (!quarters[q]) quarters[q] = [];
-      quarters[q].push(b);
+      const d = new Date(b.week_start + 'T12:00:00');
+      const yr = d.getFullYear();
+      const mo = d.getMonth();
+      const qn = Math.ceil((mo + 1) / 3);
+      const qk = 'Q' + qn + ' ' + yr;
+      if (!tree[yr]) tree[yr] = {};
+      if (!tree[yr][qk]) tree[yr][qk] = {};
+      if (!tree[yr][qk][mo]) tree[yr][qk][mo] = [];
+      tree[yr][qk][mo].push(b);
     });
 
-    Object.keys(quarters).sort().reverse().forEach(q => {
-      html += `<div class="section-title">${q}</div>`;
-      html += `<table class="budget-table"><thead><tr>
-        <th>Week</th>
-        <th>Prev Sales</th>
-        <th>Budget</th>
-        <th>Spent</th>
-        <th>% of Sales</th>
-        <th>Remaining</th>
-        <th>Status</th>
-      </tr></thead><tbody>`;
+    html += `<div style="margin-top:8px;font-size:12px;color:#888;margin-bottom:4px">Past budget reports — click any week to view details.</div>`;
 
-      quarters[q].forEach(b => {
-        const budget = b.status === 'approved_extended' ? b.budget_45 : b.budget_30;
-        const spent = b.total_invoiced || 0;
-        const remaining = Math.max(0, budget - spent);
-        const pct = budget > 0 ? Math.min(100, (spent / budget) * 100) : 0;
-        const color = spendColor(pct);
-        const salesPct = b.prev_week_net_sales > 0 ? ((spent / b.prev_week_net_sales) * 100).toFixed(1) : null;
-        const salesPctColor = salesPct === null ? '#888' : salesPct > 45 ? '#e53e3e' : salesPct > 30 ? '#e65100' : '#2e7d32';
+    Object.keys(tree).sort().reverse().forEach(yr => {
+      html += `<div class="cb-year">${yr}</div>`;
+      const yrQ = tree[yr];
+      Object.keys(yrQ).sort().reverse().forEach(qk => {
+        const months = yrQ[qk];
+        let qSpent = 0, qBudget = 0, qWeeks = 0;
+        Object.values(months).forEach(weeks => {
+          weeks.forEach(b => {
+            const bgt = b.status === 'approved_extended' ? b.budget_45 : b.budget_30;
+            qSpent += b.total_invoiced || 0;
+            qBudget += bgt || 0;
+            qWeeks++;
+          });
+        });
+        const qPct = qBudget > 0 ? ((qSpent / qBudget) * 100).toFixed(1) : '—';
+        const qId = 'q_' + qk.replace(/[^a-z0-9]/gi, '_');
 
-        html += `<tr class="clickable" onclick="window.location.href='/budget-view?id=${b.id}'">
-          <td style="font-weight:600">${formatDate(b.week_start)} – ${formatDate(b.week_end)}</td>
-          <td>${formatMoney(b.prev_week_net_sales)}</td>
-          <td>${formatMoney(budget)}</td>
-          <td>
-            ${formatMoney(spent)}
-            <span class="progress-mini"><span class="progress-mini-fill" style="width:${pct}%;background:${color}"></span></span>
-          </td>
-          <td style="font-weight:600;color:${salesPctColor}">${salesPct !== null ? salesPct + '%' : '—'}</td>
-          <td>${formatMoney(remaining)}</td>
-          <td>${getStatusBadge(b.status)}</td>
-        </tr>`;
+        html += `
+        <div class="cb-quarter">
+          <div class="cb-quarter-header" onclick="toggleSection('${qId}')">
+            <div>
+              <div class="cb-quarter-title">${qk}</div>
+              <div class="cb-quarter-meta">${qWeeks} weeks &nbsp;·&nbsp; Spent ${formatMoney(qSpent)} of ${formatMoney(qBudget)} (${qPct}%)</div>
+            </div>
+            <div class="cb-quarter-chevron" id="${qId}_chev">▼</div>
+          </div>
+          <div class="cb-quarter-body" id="${qId}">`;
+
+        Object.keys(months).map(Number).sort().forEach(mo => {
+          const weeks = months[mo];
+          let mSpent = 0, mBudget = 0;
+          weeks.forEach(b => {
+            const bgt = b.status === 'approved_extended' ? b.budget_45 : b.budget_30;
+            mSpent += b.total_invoiced || 0;
+            mBudget += bgt || 0;
+          });
+          const mPct = mBudget > 0 ? ((mSpent / mBudget) * 100).toFixed(1) : '—';
+
+          html += `
+            <div class="cb-month">
+              <div class="cb-month-header">
+                <span>${MONTHS[mo]}</span>
+                <span style="font-weight:400;color:#aaa">${formatMoney(mSpent)} / ${formatMoney(mBudget)} &nbsp;(${mPct}%)</span>
+              </div>
+              <div class="cb-month-weeks">`;
+
+          weeks.slice().sort((a,b) => a.week_start.localeCompare(b.week_start)).forEach(b => {
+            const bgt = b.status === 'approved_extended' ? b.budget_45 : b.budget_30;
+            const spent = b.total_invoiced || 0;
+            const pct = bgt > 0 ? Math.min(110, (spent / bgt) * 100) : 0;
+            const barColor = pct >= 100 ? '#e53e3e' : pct >= 85 ? '#e65100' : '#2f5597';
+            html += `
+                <div class="cb-week-row" onclick="window.location.href='/budget-view?id=${b.id}'">
+                  <div class="cb-week-dates">Week of ${formatDate(b.week_start)} – ${formatDate(b.week_end)}</div>
+                  <div class="cb-week-spent">${formatMoney(spent)}</div>
+                  <div class="cb-week-bar"><div class="cb-week-bar-fill" style="width:${pct.toFixed(0)}%;background:${barColor}"></div></div>
+                  <div class="cb-week-pct">${bgt > 0 ? ((spent/bgt)*100).toFixed(0)+'%' : '—'}</div>
+                  <div class="cb-week-link">View →</div>
+                </div>`;
+          });
+
+          html += `
+              </div>
+            </div>`;
+        });
+
+        html += `
+          </div>
+        </div>`;
       });
-
-      html += `</tbody></table>`;
     });
   }
 
   document.getElementById('mainContent').innerHTML = html;
+}
+
+function toggleSection(id) {
+  const el = document.getElementById(id);
+  const chev = document.getElementById(id + '_chev');
+  if (!el) return;
+  const hidden = el.style.display === 'none';
+  el.style.display = hidden ? '' : 'none';
+  if (chev) chev.style.transform = hidden ? '' : 'rotate(-90deg)';
 }
 
 init();

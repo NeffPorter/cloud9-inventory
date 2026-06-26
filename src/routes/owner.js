@@ -185,25 +185,26 @@ router.get('/pl', auth, requireOwner, async (req, res) => {
         (opExCatByStore[exp.store_id][exp.category] || 0) + parseFloat(exp.amount);
     }
 
-    // ── Stocktake shortages ───────────────────────────────────────────
+    // ── Stocktake shortages — sum ALL stocktakes within the period ───────
     const { data: stocktakes } = await supabase
       .from('stock_take_reports').select('id, store_id, discrepancies, created_at')
-      .in('store_id', storeIds).lte('created_at', end + 'T23:59:59')
-      .order('created_at', { ascending: false });
+      .in('store_id', storeIds)
+      .gte('created_at', start + 'T00:00:00')
+      .lte('created_at', end + 'T23:59:59')
+      .order('created_at', { ascending: true });
 
     const shortagesByStore = {};
-    const seenSt = new Set();
     for (const st of stocktakes || []) {
-      if (seenSt.has(st.store_id)) continue;
-      seenSt.add(st.store_id);
-      let totalItems = 0, totalValue = 0;
+      const sid = st.store_id;
+      if (!shortagesByStore[sid]) shortagesByStore[sid] = { items: 0, value: 0, count: 0, stocktake_date: st.created_at?.slice(0, 10) };
       for (const d of (st.discrepancies || [])) {
         if (d.diff < 0) {
-          totalItems += Math.abs(d.diff);
-          totalValue += Math.abs(d.diff) * parseFloat(d.item?.price || d.price || 0);
+          shortagesByStore[sid].items += Math.abs(d.diff);
+          shortagesByStore[sid].value += Math.abs(d.diff) * parseFloat(d.item?.price || d.price || 0);
         }
       }
-      shortagesByStore[st.store_id] = { items: totalItems, value: totalValue, stocktake_date: st.created_at?.slice(0, 10) };
+      shortagesByStore[sid].count++;
+      shortagesByStore[sid].stocktake_date = st.created_at?.slice(0, 10); // last one
     }
 
     // ── Assemble result ───────────────────────────────────────────────
