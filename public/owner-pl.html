@@ -318,110 +318,254 @@ function renderView() {
   else if (currentView === 'invvalue') renderInvValue();
 }
 
+function combinePLStores(stores) {
+  const c = {
+    store_name: 'All Stores Combined',
+    gross_sales: 0, discounts: 0, refunds: 0, net_sales: 0,
+    cogs: 0, cogs_by_distributor: {}, gross_profit: 0,
+    op_ex: 0, expense_breakdown: {}, net_profit: 0, shortages: null
+  };
+  let si = 0, sv = 0;
+  for (const s of stores) {
+    c.gross_sales += s.gross_sales || 0;
+    c.discounts += s.discounts || 0;
+    c.refunds += s.refunds || 0;
+    c.net_sales += s.net_sales || 0;
+    c.cogs += s.cogs || 0;
+    c.gross_profit += s.gross_profit || 0;
+    c.op_ex += s.op_ex || 0;
+    c.net_profit += s.net_profit || 0;
+    for (const [d, a] of Object.entries(s.cogs_by_distributor || {}))
+      c.cogs_by_distributor[d] = (c.cogs_by_distributor[d] || 0) + a;
+    for (const [cat, a] of Object.entries(s.expense_breakdown || {}))
+      c.expense_breakdown[cat] = (c.expense_breakdown[cat] || 0) + a;
+    if (s.shortages) { si += s.shortages.items || 0; sv += s.shortages.value || 0; }
+  }
+  if (si > 0) c.shortages = { items: si, value: sv };
+  c.gross_margin_pct = c.net_sales > 0 ? ((c.gross_profit / c.net_sales) * 100).toFixed(1) : null;
+  c.net_margin_pct = c.net_sales > 0 ? ((c.net_profit / c.net_sales) * 100).toFixed(1) : null;
+  return c;
+}
+
+function cap(str) { return str ? str.charAt(0).toUpperCase() + str.slice(1) : ''; }
+
+let _charts = [];
+function destroyCharts() { _charts.forEach(c => c.destroy()); _charts = []; }
+
 function renderPL() {
+  destroyCharts();
   if (!Array.isArray(plData) || !plData.length) {
     document.getElementById('content').innerHTML = '<div class="empty">No data for this period.</div>';
     return;
   }
 
-  const totRevenue = plData.reduce((s, r) => s + r.revenue, 0);
-  const totCOGS = plData.reduce((s, r) => s + r.cogs, 0);
-  const totGMExp = plData.reduce((s, r) => s + r.gm_expenses, 0);
-  const totDiscounts = plData.reduce((s, r) => s + (r.discounts || 0), 0);
-  const totNet = plData.reduce((s, r) => s + r.net_profit, 0);
-  const totMargin = totRevenue > 0 ? ((totNet/totRevenue)*100).toFixed(1) : null;
-  const totShortageItems = plData.reduce((s, r) => s + (r.shortages?.items || 0), 0);
-  const totShortageValue = plData.reduce((s, r) => s + (r.shortages?.value || 0), 0);
+  // All Stores = combine; single store = find it or use first
+  const d = currentStoreId
+    ? (plData.find(s => s.store_id === currentStoreId) || plData[0])
+    : combinePLStores(plData);
 
-  const netClass = totNet >= 0 ? 'positive' : 'negative';
+  const distEntries = Object.entries(d.cogs_by_distributor || {}).sort((a,b) => b[1]-a[1]);
+  const expEntries  = Object.entries(d.expense_breakdown  || {}).sort((a,b) => b[1]-a[1]);
+  const grossMC = parseFloat(d.gross_margin_pct) >= 30 ? '#16a34a' : parseFloat(d.gross_margin_pct) >= 15 ? '#d97706' : '#dc2626';
+  const netMC   = parseFloat(d.net_margin_pct)   >= 15 ? '#16a34a' : parseFloat(d.net_margin_pct)   >= 5  ? '#d97706' : '#dc2626';
 
   let html = `
-  <div class="summary-banner">
-    <div class="metric-card revenue">
-      <div class="label">Total Revenue</div>
-      <div class="value">${fmtMoney(totRevenue)}</div>
-      <div class="sub">All stores</div>
+  <div class="pl-table-wrap">
+    <div class="pl-table-title" style="background:#1e293b;color:white;font-size:16px;font-weight:700;padding:16px 20px">
+      📊 ${d.store_name}
     </div>
-    <div class="metric-card expenses">
-      <div class="label">Total COGS</div>
-      <div class="value">${fmtMoney(totCOGS)}</div>
-      <div class="sub">Budget invoices</div>
-    </div>
-    <div class="metric-card expenses">
-      <div class="label">GM Expenses</div>
-      <div class="value">${fmtMoney(totGMExp)}</div>
-      <div class="sub">Payroll, rent, etc.</div>
-    </div>
-    ${totDiscounts > 0 ? `
-    <div class="metric-card" style="border-color:#fde68a">
-      <div class="label" style="color:#92400e">Discounts Given</div>
-      <div class="value" style="color:#b45309">${fmtMoney(totDiscounts)}</div>
-      <div class="sub">${totRevenue > 0 ? ((totDiscounts/(totRevenue+totDiscounts))*100).toFixed(1)+'% of gross sales' : 'All stores'}</div>
-    </div>` : ''}
-    <div class="metric-card net ${netClass}">
-      <div class="label">Net Profit</div>
-      <div class="value">${fmtMoney(totNet)}</div>
-      <div class="sub">${totMargin !== null ? totMargin + '% margin' : '—'}</div>
-    </div>
-  </div>
-  ${totShortageItems > 0 ? `
-  <div class="shortage-banner">
-    <span class="shortage-icon">⚠️</span>
-    <div>
-      <strong>Potentially Lost / Stolen Inventory</strong> — based on most recent stocktake
-    </div>
-    <div class="shortage-stats">
-      <span>${totShortageItems} items</span>
-      <span class="shortage-value">${fmtMoney(totShortageValue)} estimated retail value</span>
-    </div>
-  </div>` : ''}`;
+    <table>
+      <tbody>
 
-  // Per-store P&L tables
-  for (const store of plData) {
-    const netClass2 = store.net_profit >= 0 ? '' : 'negative';
-    const expBreakdown = Object.entries(store.expense_breakdown || {});
-    html += `
-    <div class="pl-table-wrap">
-      <div class="pl-table-title">
-        <span>🏪 ${store.store_name}</span>
-        ${marginPill(store.margin_pct)}
+        <!-- ── SALES ── -->
+        <tr class="pl-section-header"><td>Sales</td><td class="num"></td></tr>
+        <tr class="pl-indent"><td>Gross Sales</td><td class="num profit">${fmtMoney(d.gross_sales)}</td></tr>
+        ${d.discounts > 0 ? `<tr class="pl-indent-muted"><td>Less: Discounts Given</td><td class="num loss">(${fmtMoney(d.discounts)})</td></tr>` : ''}
+        ${d.refunds   > 0 ? `<tr class="pl-indent-muted"><td>Less: Refunds</td><td class="num loss">(${fmtMoney(d.refunds)})</td></tr>` : ''}
+        <tr class="pl-section-total">
+          <td>NET SALES</td>
+          <td class="num profit">${fmtMoney(d.net_sales)}</td>
+        </tr>
+
+        <!-- ── COGS ── -->
+        <tr class="pl-section-header"><td>Cost of Goods Sold</td><td class="num"></td></tr>
+        ${distEntries.length > 0
+          ? distEntries.map(([dist, amt]) =>
+              `<tr class="pl-indent-muted"><td>${dist}</td><td class="num loss">(${fmtMoney(amt)})</td></tr>`
+            ).join('')
+          : `<tr class="pl-indent-muted"><td>Total Purchases (Invoices)</td><td class="num loss">(${fmtMoney(d.cogs)})</td></tr>`
+        }
+        <tr class="pl-section-total">
+          <td>TOTAL COGS</td>
+          <td class="num loss">(${fmtMoney(d.cogs)})</td>
+        </tr>
+
+        <!-- ── GROSS PROFIT ── -->
+        <tr class="pl-gross-profit">
+          <td>GROSS PROFIT</td>
+          <td class="num ${d.gross_profit >= 0 ? 'profit' : 'loss'}">${fmtMoney(d.gross_profit)}</td>
+        </tr>
+        <tr class="pl-margin-row">
+          <td colspan="2">Gross Profit Margin: <strong style="color:${grossMC}">${d.gross_margin_pct !== null ? d.gross_margin_pct + '%' : '—'}</strong></td>
+        </tr>
+
+        <!-- ── OPERATING EXPENSES ── -->
+        <tr class="pl-section-header"><td>Operating Expenses</td><td class="num"></td></tr>
+        ${expEntries.length > 0
+          ? expEntries.map(([cat, amt]) =>
+              `<tr class="pl-indent-muted"><td>${cap(cat)}</td><td class="num loss">(${fmtMoney(amt)})</td></tr>`
+            ).join('')
+          : `<tr class="pl-indent-muted"><td style="color:#aaa">No expenses recorded</td><td></td></tr>`
+        }
+        <tr class="pl-section-total">
+          <td>TOTAL OPERATING EXPENSES</td>
+          <td class="num loss">(${fmtMoney(d.op_ex)})</td>
+        </tr>
+
+        <!-- ── NET PROFIT ── -->
+        <tr class="pl-net-profit ${d.net_profit < 0 ? 'negative' : ''}">
+          <td>NET PROFIT</td>
+          <td class="num">${fmtMoney(d.net_profit)}</td>
+        </tr>
+        <tr class="pl-net-margin">
+          <td colspan="2">Net Profit Margin: <strong style="color:${netMC}">${d.net_margin_pct !== null ? d.net_margin_pct + '%' : '—'}</strong></td>
+        </tr>
+
+        ${d.shortages?.items > 0 ? `
+        <tr class="row-shortage">
+          <td colspan="2" style="padding:10px 16px">
+            ⚠️ <strong>Potentially Lost/Stolen:</strong> ${d.shortages.items} items · ${fmtMoney(d.shortages.value)} est. retail value
+            ${d.shortages.stocktake_date ? `<span style="color:#999;font-size:12px;margin-left:8px">(stocktake ${d.shortages.stocktake_date})</span>` : ''}
+          </td>
+        </tr>` : ''}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── CHARTS ── -->
+  <div class="charts-grid">
+    <div class="chart-card">
+      <div class="chart-title">Net Sales Breakdown</div>
+      <canvas id="chartSales"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">P&L Summary</div>
+      <canvas id="chartPL"></canvas>
+    </div>
+    ${expEntries.length > 0 ? `
+    <div class="chart-card">
+      <div class="chart-title">Operating Expenses by Category</div>
+      <canvas id="chartOpEx"></canvas>
+    </div>` : ''}
+    ${d.net_sales > 0 ? `
+    <div class="chart-card" style="display:flex;flex-direction:column;align-items:center;justify-content:center">
+      <div class="chart-title" style="text-align:center">COGS % of Net Sales</div>
+      <div style="position:relative;width:200px">
+        <canvas id="chartGauge"></canvas>
+        <div style="position:absolute;bottom:10px;left:0;right:0;text-align:center;font-size:22px;font-weight:800;color:#1e293b">
+          ${d.net_sales > 0 ? ((d.cogs / d.net_sales) * 100).toFixed(1) : 0}%
+        </div>
       </div>
-      <table>
-        <thead>
-          <tr>
-            <th>Line Item</th>
-            <th class="num">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr><td>💰 Gross Revenue (Sales)</td><td class="num profit">${fmtMoney(store.gross_revenue || store.revenue)}</td></tr>
-          ${store.discounts > 0 ? `
-          <tr class="row-discount"><td>🏷️ — Discounts Given</td><td class="num">(${fmtMoney(store.discounts)})</td></tr>
-          <tr class="row-subtotal" style="background:#f0fdf4"><td style="padding-left:16px;font-weight:600">Net Revenue</td><td class="num profit">${fmtMoney(store.revenue)}</td></tr>` : ''}
-          <tr><td>📦 COGS (Budget Invoices)</td><td class="num loss">(${fmtMoney(store.cogs)})</td></tr>
-          <tr class="row-subtotal"><td>Gross Profit</td><td class="num ${store.gross_profit >= 0 ? 'profit' : 'loss'}">${fmtMoney(store.gross_profit)}</td></tr>
-          <tr><td>💼 GM Expenses (Total)</td><td class="num loss">(${fmtMoney(store.gm_expenses)})</td></tr>
-          ${expBreakdown.map(([cat, amt]) => `
-          <tr class="exp-breakdown"><td>— ${cat.charAt(0).toUpperCase()+cat.slice(1)}</td><td class="num" style="color:#888">(${fmtMoney(amt)})</td></tr>`).join('')}
-          <tr class="row-net ${netClass2}"><td>Net Profit / Loss</td><td class="num">${fmtMoney(store.net_profit)}</td></tr>
-          ${store.shortages && store.shortages.items > 0 ? `
-          <tr class="row-shortage"><td colspan="2" class="shortage-cell">
-            ⚠️ <strong>Potentially Lost/Stolen:</strong> ${store.shortages.items} items &nbsp;·&nbsp; ${fmtMoney(store.shortages.value)} estimated value
-            <span class="shortage-date">(stocktake ${store.shortages.stocktake_date || ''})</span>
-          </td></tr>` : ''}
-        </tbody>
-      </table>
-    </div>`;
-  }
+    </div>` : ''}
+  </div>`;
 
   document.getElementById('content').innerHTML = html;
+
+  // Init charts after render
+  requestAnimationFrame(() => initPLCharts(d, expEntries));
+}
+
+function initPLCharts(d, expEntries) {
+  const COLORS = ['#2563eb','#16a34a','#f59e0b','#dc2626','#8b5cf6','#06b6d4','#ec4899','#84cc16'];
+  const gridColor = 'rgba(0,0,0,0.06)';
+  const commonOpts = {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: { y: { grid: { color: gridColor }, ticks: { callback: v => '$'+Math.abs(v/1000).toFixed(0)+'k' } }, x: { grid: { display: false } } }
+  };
+
+  // 1. Net Sales Breakdown
+  const salesCtx = document.getElementById('chartSales');
+  if (salesCtx) {
+    _charts.push(new Chart(salesCtx, {
+      type: 'bar',
+      data: {
+        labels: ['Gross Sales', ...(d.discounts > 0 ? ['Discounts'] : []), ...(d.refunds > 0 ? ['Refunds'] : []), 'Net Sales'],
+        datasets: [{
+          data: [d.gross_sales, ...(d.discounts > 0 ? [-d.discounts] : []), ...(d.refunds > 0 ? [-d.refunds] : []), d.net_sales],
+          backgroundColor: ['#16a34a', ...(d.discounts > 0 ? ['#f59e0b'] : []), ...(d.refunds > 0 ? ['#dc2626'] : []), '#2563eb'],
+          borderRadius: 6,
+        }]
+      },
+      options: { ...commonOpts, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => '$' + Math.abs(ctx.raw).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) } } } }
+    }));
+  }
+
+  // 2. P&L Summary bar
+  const plCtx = document.getElementById('chartPL');
+  if (plCtx) {
+    _charts.push(new Chart(plCtx, {
+      type: 'bar',
+      data: {
+        labels: ['Net Sales', 'COGS', 'Gross Profit', 'Op. Expenses', 'Net Profit'],
+        datasets: [{
+          data: [d.net_sales, -d.cogs, d.gross_profit, -d.op_ex, d.net_profit],
+          backgroundColor: ['#2563eb','#f59e0b','#16a34a','#f97316', d.net_profit >= 0 ? '#16a34a' : '#dc2626'],
+          borderRadius: 6,
+        }]
+      },
+      options: { ...commonOpts, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => '$' + Math.abs(ctx.raw).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) } } } }
+    }));
+  }
+
+  // 3. Operating Expenses donut
+  const opExCtx = document.getElementById('chartOpEx');
+  if (opExCtx && expEntries.length > 0) {
+    _charts.push(new Chart(opExCtx, {
+      type: 'doughnut',
+      data: {
+        labels: expEntries.map(([c]) => cap(c)),
+        datasets: [{ data: expEntries.map(([,a]) => a), backgroundColor: COLORS, borderWidth: 2, borderColor: 'white' }]
+      },
+      options: {
+        responsive: true,
+        cutout: '60%',
+        plugins: {
+          legend: { position: 'right', labels: { font: { size: 11 }, padding: 10, boxWidth: 12 } },
+          tooltip: { callbacks: { label: ctx => ctx.label + ': $' + ctx.raw.toLocaleString('en-US', {minimumFractionDigits:2}) } }
+        }
+      }
+    }));
+  }
+
+  // 4. COGS % gauge
+  const gaugeCtx = document.getElementById('chartGauge');
+  if (gaugeCtx && d.net_sales > 0) {
+    const cogsPct = Math.min(100, (d.cogs / d.net_sales) * 100);
+    const gc = cogsPct > 55 ? '#dc2626' : cogsPct > 40 ? '#f59e0b' : '#16a34a';
+    _charts.push(new Chart(gaugeCtx, {
+      type: 'doughnut',
+      data: {
+        datasets: [{
+          data: [cogsPct, 100 - cogsPct],
+          backgroundColor: [gc, '#f1f5f9'],
+          borderWidth: 0,
+        }]
+      },
+      options: { circumference: 180, rotation: -90, cutout: '70%', responsive: true, plugins: { legend: { display: false }, tooltip: { enabled: false } } }
+    }));
+  }
 }
 
 function renderCompare() {
+  destroyCharts();
   if (!Array.isArray(plData) || !plData.length) {
     document.getElementById('content').innerHTML = '<div class="empty">No data for this period.</div>';
     return;
   }
+
+  const totals = { net_sales: 0, cogs: 0, gross_profit: 0, op_ex: 0, net_profit: 0 };
+  plData.forEach(s => { totals.net_sales += s.net_sales||0; totals.cogs += s.cogs||0; totals.gross_profit += s.gross_profit||0; totals.op_ex += s.op_ex||0; totals.net_profit += s.net_profit||0; });
 
   let html = `
   <div class="pl-table-wrap">
@@ -430,34 +574,37 @@ function renderCompare() {
       <thead>
         <tr>
           <th>Store</th>
-          <th class="num">Revenue</th>
+          <th class="num">Gross Sales</th>
+          <th class="num">Net Sales</th>
           <th class="num">COGS</th>
           <th class="num">Gross Profit</th>
-          <th class="num">GM Expenses</th>
+          <th class="num">Op. Expenses</th>
           <th class="num">Net Profit</th>
-          <th class="num">Margin</th>
+          <th class="num">Net Margin</th>
         </tr>
       </thead>
       <tbody>
         ${plData.map(s => `
         <tr>
           <td class="store-name">${s.store_name}</td>
-          <td class="num profit">${fmtMoney(s.revenue)}</td>
+          <td class="num">${fmtMoney(s.gross_sales||0)}</td>
+          <td class="num profit">${fmtMoney(s.net_sales||0)}</td>
           <td class="num loss">${fmtMoney(s.cogs)}</td>
-          <td class="num ${s.gross_profit >= 0 ? 'profit' : 'loss'}">${fmtMoney(s.gross_profit)}</td>
-          <td class="num loss">${fmtMoney(s.gm_expenses)}</td>
-          <td class="num ${s.net_profit >= 0 ? 'profit' : 'loss'}">${fmtMoney(s.net_profit)}</td>
-          <td class="num">${marginPill(s.margin_pct)}</td>
+          <td class="num ${s.gross_profit>=0?'profit':'loss'}">${fmtMoney(s.gross_profit)}</td>
+          <td class="num loss">${fmtMoney(s.op_ex||0)}</td>
+          <td class="num ${s.net_profit>=0?'profit':'loss'}">${fmtMoney(s.net_profit)}</td>
+          <td class="num">${marginPill(s.net_margin_pct)}</td>
         </tr>`).join('')}
         ${plData.length > 1 ? `
         <tr class="row-subtotal">
-          <td>All Stores Total</td>
-          <td class="num">${fmtMoney(plData.reduce((s,r)=>s+r.revenue,0))}</td>
-          <td class="num">${fmtMoney(plData.reduce((s,r)=>s+r.cogs,0))}</td>
-          <td class="num">${fmtMoney(plData.reduce((s,r)=>s+r.gross_profit,0))}</td>
-          <td class="num">${fmtMoney(plData.reduce((s,r)=>s+r.gm_expenses,0))}</td>
-          <td class="num">${fmtMoney(plData.reduce((s,r)=>s+r.net_profit,0))}</td>
-          <td class="num">${marginPill((plData.reduce((s,r)=>s+r.net_profit,0)/Math.max(1,plData.reduce((s,r)=>s+r.revenue,0))*100).toFixed(1))}</td>
+          <td><strong>All Stores Total</strong></td>
+          <td class="num">${fmtMoney(plData.reduce((s,r)=>s+(r.gross_sales||0),0))}</td>
+          <td class="num profit">${fmtMoney(totals.net_sales)}</td>
+          <td class="num loss">${fmtMoney(totals.cogs)}</td>
+          <td class="num ${totals.gross_profit>=0?'profit':'loss'}">${fmtMoney(totals.gross_profit)}</td>
+          <td class="num loss">${fmtMoney(totals.op_ex)}</td>
+          <td class="num ${totals.net_profit>=0?'profit':'loss'}">${fmtMoney(totals.net_profit)}</td>
+          <td class="num">${marginPill(totals.net_sales > 0 ? ((totals.net_profit/totals.net_sales)*100).toFixed(1) : null)}</td>
         </tr>` : ''}
       </tbody>
     </table>
@@ -651,24 +798,4 @@ function printPDF() {
   const storeLabel = currentStoreId
     ? stores.find(s => s.id === currentStoreId)?.name || ''
     : 'All Stores';
-  const header = document.createElement('div');
-  header.id = 'printHeader';
-  header.style.cssText = 'display:none';
-  header.innerHTML = `
-    <div style="text-align:center;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid #2563eb">
-      <div style="font-size:20px;font-weight:800;color:#1a1a2e">Cloud 9 Vapor</div>
-      <div style="font-size:15px;font-weight:600;margin-top:4px">P&L Statement — ${label}</div>
-      <div style="font-size:13px;color:#666;margin-top:2px">${storeLabel} · ${range?.start} to ${range?.end}</div>
-      <div style="font-size:12px;color:#999;margin-top:2px">Generated ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</div>
-    </div>`;
-  document.querySelector('.page').prepend(header);
-  printStyle.textContent += '@media print { #printHeader { display: block !important; } }';
-  window.print();
-  setTimeout(() => { header.remove(); }, 500);
-}
-
-init();
-</script>
-<script>loadNavbar();</script>
-</body>
-</html>
+  const header = 

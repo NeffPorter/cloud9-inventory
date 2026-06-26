@@ -69,117 +69,132 @@ router.get('/inventory-search', auth, requireOwner, async (req, res) => {
 });
 
 // ── GET /api/owner/pl?start=&end=&store_id= ───────────────────────────────────
-// P&L data: revenue, COGS (budget invoices), GM expenses, net
 router.get('/pl', auth, requireOwner, async (req, res) => {
   try {
     const { start, end, store_id } = req.query;
     if (!start || !end) return res.status(400).json({ error: 'start and end dates required' });
 
-    // Get all stores or specific store
     let storeQuery = supabase.from('stores').select('id, name');
     if (store_id) storeQuery = storeQuery.eq('id', store_id);
     const { data: stores } = await storeQuery;
     if (!stores?.length) return res.json([]);
-
     const storeIds = stores.map(s => s.id);
 
-    // ── Revenue from sales_log ─────────────────────────────────────────────
+    // ── Sales: separate sales from refunds ────────────────────────────
     const { data: salesData } = await supabase
       .from('sales_log')
-      .select('store_id, net, gross, discounts')
+      .select('store_id, net, gross, discounts, type')
       .in('store_id', storeIds)
       .gte('created_at', start + 'T00:00:00')
       .lte('created_at', end + 'T23:59:59');
 
-    const revenueByStore = {};
-    const grossRevenueByStore = {};
-    const discountsByStore = {};
+    const grossSalesByStore = {}, discountsByStore = {}, refundsByStore = {};
     for (const row of salesData || []) {
-      revenueByStore[row.store_id] = (revenueByStore[row.store_id] || 0) + parseFloat(row.net || 0);
-      grossRevenueByStore[row.store_id] = (grossRevenueByStore[row.store_id] || 0) + parseFloat(row.gross || 0);
-      discountsByStore[row.store_id] = (discountsByStore[row.store_id] || 0) + parseFloat(row.discounts || 0);
+      if (row.type === 'Refund') {
+        refundsByStore[row.store_id] = (refundsByStore[row.store_id] || 0) + Math.abs(parseFloat(row.net || 0));
+      } else {
+        grossSalesByStore[row.store_id] = (grossSalesByStore[row.store_id] || 0) + parseFloat(row.gross || 0);
+        discountsByStore[row.store_id] = (discountsByStore[row.store_id] || 0) + parseFloat(row.discounts || 0);
+      }
     }
 
-    // ── COGS: weekly budget invoiced totals ───────────────────────────────
-    const { data: weeklyBudgets } = await supabase
+    // ── COGS: budget invoices broken down by distributor ──────────────
+    const { data: budgets } = await supabase
       .from('weekly_budgets')
-      .select('store_id, total_invoiced')
+      .select('id, store_id')
       .in('store_id', storeIds)
       .lte('week_start', end)
       .gte('week_end', start);
 
-    const cogsByStore = {};
-    for (const b of weeklyBudgets || []) {
-      cogsByStore[b.store_id] = (cogsByStore[b.store_id] || 0) + parseFloat(b.total_invoiced || 0);
+    const budgetIds = (budgets || []).map(b => b.id);
+    const budgetStoreMap = Object.fromEntries((budgets || []).map(b => [b.id, b.store_id]));
+    const cogsByStore = {}, cogsByDistByStore = {};
+
+    if (budgetIds.length > 0) {
+      const { data: invoices } = await supabase
+        .from('budget_invoices')
+        .select('budget_id, distributor_name, invoice_amount')
+        .in('budget_id', budgetIds);
+      for (const inv of invoices || []) {
+        const sid = budgetStoreMap[inv.budget_id];
+        if (!sid) continue;
+        const dist = inv.distributor_name || 'Other';
+        const amt = parseFloat(inv.invoice_amount || 0);
+        cogsByStore[sid] = (cogsByStore[sid] || 0) + amt;
+        if (!cogsByDistByStore[sid]) cogsByDistByStore[sid] = {};
+        cogsByDistByStore[sid][dist] = (cogsByDistByStore[sid][dist] || 0) + amt;
+      }
+    }
+    // Fallback to total_invoiced if no invoice-level data
+    if (Object.keys(cogsByStore).length === 0) {
+      const { data: wb } = await supabase
+        .from('weekly_budgets').select('store_id, total_invoiced')
+        .in('store_id', storeIds).lte('week_start', end).gte('week_end', start);
+      for (const b of wb || []) {
+        cogsByStore[b.store_id] = (cogsByStore[b.store_id] || 0) + parseFloat(b.total_invoiced || 0);
+      }
     }
 
-    // ── GM Expenses ────────────────────────────────────────────────────────
+    // ── Operating Expenses ────────────────────────────────────────────
     const { data: expenses } = await supabase
-      .from('store_expenses')
-      .select('store_id, amount, category')
-      .in('store_id', storeIds)
-      .gte('expense_date', start)
-      .lte('expense_date', end);
+      .from('store_expenses').select('store_id, amount, category')
+      .in('store_id', storeIds).gte('expense_date', start).lte('expense_date', end);
 
-    const expensesByStore = {};
-    const expenseCategoryByStore = {};
+    const opExByStore = {}, opExCatByStore = {};
     for (const exp of expenses || []) {
-      expensesByStore[exp.store_id] = (expensesByStore[exp.store_id] || 0) + parseFloat(exp.amount);
-      if (!expenseCategoryByStore[exp.store_id]) expenseCategoryByStore[exp.store_id] = {};
-      expenseCategoryByStore[exp.store_id][exp.category] =
-        (expenseCategoryByStore[exp.store_id][exp.category] || 0) + parseFloat(exp.amount);
+      opExByStore[exp.store_id] = (opExByStore[exp.store_id] || 0) + parseFloat(exp.amount);
+      if (!opExCatByStore[exp.store_id]) opExCatByStore[exp.store_id] = {};
+      opExCatByStore[exp.store_id][exp.category] =
+        (opExCatByStore[exp.store_id][exp.category] || 0) + parseFloat(exp.amount);
     }
 
-    // ── Stocktake shortages (potentially stolen/lost) ─────────────────────
-    // Find the most recent completed stocktake per store within or just before the period
+    // ── Stocktake shortages ───────────────────────────────────────────
     const { data: stocktakes } = await supabase
-      .from('stock_take_reports')
-      .select('id, store_id, discrepancies, created_at')
-      .in('store_id', storeIds)
-      .lte('created_at', end + 'T23:59:59')
+      .from('stock_take_reports').select('id, store_id, discrepancies, created_at')
+      .in('store_id', storeIds).lte('created_at', end + 'T23:59:59')
       .order('created_at', { ascending: false });
 
-    // For each store, use the most recent stocktake in or before the period
     const shortagesByStore = {};
-    const seenStores = new Set();
+    const seenSt = new Set();
     for (const st of stocktakes || []) {
-      if (seenStores.has(st.store_id)) continue;
-      seenStores.add(st.store_id);
-      const discrepancies = st.discrepancies || [];
-      let totalItems = 0;
-      let totalValue = 0;
-      for (const d of discrepancies) {
-        if (d.diff < 0) { // shortage = potentially lost/stolen
+      if (seenSt.has(st.store_id)) continue;
+      seenSt.add(st.store_id);
+      let totalItems = 0, totalValue = 0;
+      for (const d of (st.discrepancies || [])) {
+        if (d.diff < 0) {
           totalItems += Math.abs(d.diff);
-          const price = parseFloat(d.item?.price || d.price || 0);
-          totalValue += Math.abs(d.diff) * price;
+          totalValue += Math.abs(d.diff) * parseFloat(d.item?.price || d.price || 0);
         }
       }
       shortagesByStore[st.store_id] = { items: totalItems, value: totalValue, stocktake_date: st.created_at?.slice(0, 10) };
     }
 
-    // ── Assemble P&L per store ─────────────────────────────────────────────
+    // ── Assemble result ───────────────────────────────────────────────
     const result = stores.map(store => {
-      const revenue = revenueByStore[store.id] || 0;
-      const cogs = cogsByStore[store.id] || 0;
-      const gmExpenses = expensesByStore[store.id] || 0;
-      const grossProfit = revenue - cogs;
-      const netProfit = grossProfit - gmExpenses;
-      const margin = revenue > 0 ? ((netProfit / revenue) * 100).toFixed(1) : null;
-      const grossRevenue = grossRevenueByStore[store.id] || 0;
+      const grossSales = grossSalesByStore[store.id] || 0;
       const discounts = discountsByStore[store.id] || 0;
+      const refunds = refundsByStore[store.id] || 0;
+      const netSales = grossSales - discounts - refunds;
+      const cogs = cogsByStore[store.id] || 0;
+      const grossProfit = netSales - cogs;
+      const opEx = opExByStore[store.id] || 0;
+      const netProfit = grossProfit - opEx;
       return {
         store_id: store.id,
         store_name: store.name,
-        gross_revenue: grossRevenue,
+        gross_sales: grossSales,
         discounts,
-        revenue,
+        refunds,
+        net_sales: netSales,
         cogs,
+        cogs_by_distributor: cogsByDistByStore[store.id] || {},
         gross_profit: grossProfit,
-        gm_expenses: gmExpenses,
-        expense_breakdown: expenseCategoryByStore[store.id] || {},
+        gross_margin_pct: netSales > 0 ? ((grossProfit / netSales) * 100).toFixed(1) : null,
+        op_ex: opEx,
+        expense_breakdown: opExCatByStore[store.id] || {},
         net_profit: netProfit,
-        margin_pct: margin,
+        net_margin_pct: netSales > 0 ? ((netProfit / netSales) * 100).toFixed(1) : null,
+        revenue: netSales, gm_expenses: opEx, margin_pct: netSales > 0 ? ((netProfit / netSales) * 100).toFixed(1) : null,
         shortages: shortagesByStore[store.id] || null
       };
     });
@@ -414,20 +429,4 @@ module.exports.autoSnapshotPL = async function autoSnapshotPL(periodType, start,
       ...s,
       gross_profit: s.revenue - s.cogs,
       net_profit: s.revenue - s.cogs - s.expenses,
-      margin: s.revenue > 0 ? (((s.revenue - s.cogs - s.expenses) / s.revenue) * 100).toFixed(1) : null
-    }));
-
-    await supabase.from('pl_snapshots').upsert({
-      period_type: periodType,
-      period_label: label,
-      start_date: start,
-      end_date: end,
-      store_id: null,
-      data: payload
-    }, { onConflict: 'period_label,start_date,end_date' });
-
-    console.log(`[P&L snapshot] saved: ${label}`);
-  } catch (err) {
-    console.error('[P&L snapshot] error:', err.message);
-  }
-};
+      margin: s.
