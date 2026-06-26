@@ -824,13 +824,26 @@ async function loadSnapshot(id) {
 const printStyle = document.createElement('style');
 printStyle.textContent = `
   @media print {
-    #snapshotPanel, .controls, .view-tabs, #navbar-container, #storeButtonsWrap,
-    button, .btn { display: none !important; }
-    body { background: white; font-size: 12px; }
-    .page { max-width: 100%; padding: 8px; }
-    .pl-table-wrap { break-inside: avoid; margin-bottom: 12px; border: 1px solid #ddd; }
-    th, td { padding: 7px 10px !important; }
-    .page-title::before { content: "Cloud 9 Vapor — "; }
+    @page { size: letter portrait; margin: 0.6in 0.5in; }
+    #completedPeriodsSection, .controls, .view-tabs, #navbar-container,
+    #storeButtonsWrap, button, .btn, .cp-inprogress { display: none !important; }
+    body { background: white; font-size: 11px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .page { max-width: 100%; padding: 0; }
+    .page-title { display: none; }
+    #__printHeader { display: block !important; }
+    .pl-table-wrap { break-inside: avoid; margin-bottom: 14px; border: 1px solid #ddd; border-radius: 0; box-shadow: none; }
+    .pl-section-header td { background: #1e293b !important; color: white !important; padding: 6px 10px !important; }
+    .pl-gross-profit td { background: #d1fae5 !important; color: #065f46 !important; padding: 8px 10px !important; }
+    .pl-net-profit td { background: #1e293b !important; color: white !important; padding: 10px !important; }
+    .pl-net-margin td { background: #0f172a !important; color: #94a3b8 !important; padding: 4px 10px !important; }
+    .pl-section-total td { background: #f1f5f9 !important; padding: 7px 10px !important; border-top: 1px solid #cbd5e1 !important; }
+    .pl-margin-row td { background: #f0fdf4 !important; padding: 4px 10px !important; }
+    th, td { padding: 6px 10px !important; font-size: 11px !important; }
+    .charts-grid { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 12px !important; margin-top: 14px !important; break-inside: avoid; }
+    .chart-card { border: 1px solid #e5e7eb !important; border-radius: 6px !important; padding: 12px !important; break-inside: avoid; }
+    .chart-card canvas { display: none !important; }
+    .chart-card img.__print-chart { display: block !important; width: 100% !important; height: auto !important; }
+    .chart-title { font-size: 10px !important; margin-bottom: 8px !important; }
   }`;
 document.head.appendChild(printStyle);
 
@@ -839,13 +852,38 @@ function printPDF() {
     ? stores.find(s => s.id === currentStoreId)?.name || ''
     : 'All Stores';
   const label = buildPeriodLabel();
+
+  // Convert chart canvases to images for print
+  const canvases = document.querySelectorAll('.chart-card canvas');
+  const addedImgs = [];
+  canvases.forEach(canvas => {
+    try {
+      const img = document.createElement('img');
+      img.src = canvas.toDataURL('image/png');
+      img.className = '__print-chart';
+      img.style.display = 'none'; // hidden on screen, shown via print CSS
+      canvas.parentNode.insertBefore(img, canvas.nextSibling);
+      addedImgs.push(img);
+    } catch(e) {}
+  });
+
+  // Add report header
   const el = document.createElement('div');
   el.id = '__printHeader';
-  el.style.cssText = 'margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #1e293b';
-  el.innerHTML = `<strong>Cloud 9 Vapor</strong> · ${storeLabel} · ${label}`;
+  el.style.cssText = 'margin-bottom:16px;padding-bottom:10px;border-bottom:3px solid #1e293b;display:flex;justify-content:space-between;align-items:flex-end';
+  el.innerHTML = `
+    <div>
+      <div style="font-size:20px;font-weight:800;color:#1e293b">Cloud 9 Vapor</div>
+      <div style="font-size:13px;color:#555;margin-top:2px">${storeLabel} · P&L Statement · ${label}</div>
+    </div>
+    <div style="font-size:11px;color:#888">Generated ${new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</div>`;
   document.querySelector('.page').prepend(el);
+
   window.print();
+
+  // Cleanup
   document.getElementById('__printHeader')?.remove();
+  addedImgs.forEach(img => img.remove());
 }
 
 
