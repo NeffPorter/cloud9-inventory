@@ -791,7 +791,6 @@ async function loadSnapshot(id) {
   renderView();
 }
 
-// Print CSS
 const printStyle = document.createElement('style');
 printStyle.textContent = `
   @media print {
@@ -799,21 +798,27 @@ printStyle.textContent = `
     button, .btn { display: none !important; }
     body { background: white; font-size: 12px; }
     .page { max-width: 100%; padding: 8px; }
-    .pl-table-wrap { break-inside: avoid; margin-bottom: 12px; box-shadow: none; border: 1px solid #ddd; }
-    .summary-banner { grid-template-columns: repeat(4, 1fr); margin-bottom: 12px; }
-    .metric-card { padding: 10px 12px; border: 1px solid #ddd; box-shadow: none; }
-    .metric-card .value { font-size: 18px; }
+    .pl-table-wrap { break-inside: avoid; margin-bottom: 12px; border: 1px solid #ddd; }
     th, td { padding: 7px 10px !important; }
-    .exp-breakdown td { padding: 4px 10px !important; }
     .page-title::before { content: "Cloud 9 Vapor — "; }
   }`;
 document.head.appendChild(printStyle);
 
 function printPDF() {
-  // Show a clean print header
-  const range = getDateRange();
-  const label = buildPeriodLabel();
   const storeLabel = currentStoreId
     ? stores.find(s => s.id === currentStoreId)?.name || ''
     : 'All Stores';
-  const header = 
+  const label = buildPeriodLabel();
+  const el = document.createElement('div');
+  el.id = '__printHeader';
+  el.style.cssText = 'margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #1e293b';
+  el.innerHTML = `<strong>Cloud 9 Vapor</strong> &middot; ${storeLabel} &middot; ${label}`;
+  document.querySelector('.page').prepend(el);
+  window.print();
+  document.getElementById('__printHeader')?.remove();
+}
+
+init();
+</script>
+</body>
+</html>
