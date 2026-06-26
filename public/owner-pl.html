@@ -340,15 +340,20 @@ function combinePLStores(stores) {
   const c = {
     store_name: 'All Stores Combined',
     gross_sales: 0, discounts: 0, refunds: 0, net_sales: 0,
+    beginning_inventory: 0, purchases: 0, ending_inventory: 0,
     cogs: 0, cogs_by_distributor: {}, gross_profit: 0,
     op_ex: 0, expense_breakdown: {}, net_profit: 0, shortages: null
   };
   let si = 0, sv = 0;
+  let hasInvData = false;
   for (const s of stores) {
     c.gross_sales += s.gross_sales || 0;
     c.discounts += s.discounts || 0;
     c.refunds += s.refunds || 0;
     c.net_sales += s.net_sales || 0;
+    c.purchases += s.purchases || 0;
+    if (s.beginning_inventory !== null) { c.beginning_inventory += s.beginning_inventory || 0; hasInvData = true; }
+    if (s.ending_inventory !== null) { c.ending_inventory += s.ending_inventory || 0; }
     c.cogs += s.cogs || 0;
     c.gross_profit += s.gross_profit || 0;
     c.op_ex += s.op_ex || 0;
@@ -398,8 +403,8 @@ function renderPL() {
         <!-- ── SALES ── -->
         <tr class="pl-section-header"><td>Sales</td><td class="num"></td></tr>
         <tr class="pl-indent"><td>Gross Sales</td><td class="num profit">${fmtMoney(d.gross_sales)}</td></tr>
-        ${d.discounts > 0 ? `<tr class="pl-indent-muted"><td>Less: Discounts Given</td><td class="num loss">(${fmtMoney(d.discounts)})</td></tr>` : ''}
-        ${d.refunds   > 0 ? `<tr class="pl-indent-muted"><td>Less: Refunds</td><td class="num loss">(${fmtMoney(d.refunds)})</td></tr>` : ''}
+        ${d.discounts > 0 ? `<tr class="pl-indent-muted"><td>Discounts</td><td class="num" style="color:#dc2626">-${fmtMoney(d.discounts)}</td></tr>` : ''}
+        ${d.refunds   > 0 ? `<tr class="pl-indent-muted"><td>Refunds</td><td class="num" style="color:#dc2626">-${fmtMoney(d.refunds)}</td></tr>` : ''}
         <tr class="pl-section-total">
           <td>NET SALES</td>
           <td class="num profit">${fmtMoney(d.net_sales)}</td>
@@ -407,15 +412,22 @@ function renderPL() {
 
         <!-- ── COGS ── -->
         <tr class="pl-section-header"><td>Cost of Goods Sold</td><td class="num"></td></tr>
+        ${d.beginning_inventory !== null && d.beginning_inventory !== undefined
+          ? `<tr class="pl-indent-muted"><td>Beginning Inventory</td><td class="num">${fmtMoney(d.beginning_inventory)}</td></tr>`
+          : ''}
         ${distEntries.length > 0
-          ? distEntries.map(([dist, amt]) =>
-              `<tr class="pl-indent-muted"><td>${dist}</td><td class="num loss">(${fmtMoney(amt)})</td></tr>`
+          ? `<tr class="pl-indent-muted"><td style="font-weight:600;color:#333">+ Purchases</td><td class="num"></td></tr>` +
+            distEntries.map(([dist, amt]) =>
+              `<tr class="pl-indent-muted" style="padding-left:8px"><td style="padding-left:36px">${dist}</td><td class="num" style="color:#dc2626">-${fmtMoney(amt)}</td></tr>`
             ).join('')
-          : `<tr class="pl-indent-muted"><td>Total Purchases (Invoices)</td><td class="num loss">(${fmtMoney(d.cogs)})</td></tr>`
+          : `<tr class="pl-indent-muted"><td>+ Purchases (Invoices)</td><td class="num" style="color:#dc2626">-${fmtMoney(d.purchases || d.cogs)}</td></tr>`
         }
+        ${d.ending_inventory !== null && d.ending_inventory !== undefined
+          ? `<tr class="pl-indent-muted"><td>- Ending Inventory</td><td class="num profit">${fmtMoney(d.ending_inventory)}</td></tr>`
+          : ''}
         <tr class="pl-section-total">
           <td>TOTAL COGS</td>
-          <td class="num loss">(${fmtMoney(d.cogs)})</td>
+          <td class="num" style="color:#dc2626">-${fmtMoney(d.cogs)}</td>
         </tr>
 
         <!-- ── GROSS PROFIT ── -->
@@ -812,7 +824,7 @@ function printPDF() {
   const el = document.createElement('div');
   el.id = '__printHeader';
   el.style.cssText = 'margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #1e293b';
-  el.innerHTML = `<strong>Cloud 9 Vapor</strong> &middot; ${storeLabel} &middot; ${label}`;
+  el.innerHTML = `<strong>Cloud 9 Vapor</strong> · ${storeLabel} · ${label}`;
   document.querySelector('.page').prepend(el);
   window.print();
   document.getElementById('__printHeader')?.remove();

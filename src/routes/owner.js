@@ -108,7 +108,7 @@ router.get('/pl', auth, requireOwner, async (req, res) => {
 
     const budgetIds = (budgets || []).map(b => b.id);
     const budgetStoreMap = Object.fromEntries((budgets || []).map(b => [b.id, b.store_id]));
-    const cogsByStore = {}, cogsByDistByStore = {};
+    const purchasesByStore = {}, cogsByDistByStore = {};
 
     if (budgetIds.length > 0) {
       const { data: invoices } = await supabase
@@ -120,18 +120,55 @@ router.get('/pl', auth, requireOwner, async (req, res) => {
         if (!sid) continue;
         const dist = inv.distributor_name || 'Other';
         const amt = parseFloat(inv.invoice_amount || 0);
-        cogsByStore[sid] = (cogsByStore[sid] || 0) + amt;
+        purchasesByStore[sid] = (purchasesByStore[sid] || 0) + amt;
         if (!cogsByDistByStore[sid]) cogsByDistByStore[sid] = {};
         cogsByDistByStore[sid][dist] = (cogsByDistByStore[sid][dist] || 0) + amt;
       }
     }
     // Fallback to total_invoiced if no invoice-level data
-    if (Object.keys(cogsByStore).length === 0) {
+    if (Object.keys(purchasesByStore).length === 0) {
       const { data: wb } = await supabase
         .from('weekly_budgets').select('store_id, total_invoiced')
         .in('store_id', storeIds).lte('week_start', end).gte('week_end', start);
       for (const b of wb || []) {
-        cogsByStore[b.store_id] = (cogsByStore[b.store_id] || 0) + parseFloat(b.total_invoiced || 0);
+        purchasesByStore[b.store_id] = (purchasesByStore[b.store_id] || 0) + parseFloat(b.total_invoiced || 0);
+      }
+    }
+
+    // ── Inventory Snapshots for COGS formula ─────────────────────────
+    // COGS = Beginning Inventory + Purchases - Ending Inventory
+    const { data: snapshots } = await supabase
+      .from('inventory_snapshots')
+      .select('store_id, snapshot_date, total_value')
+      .in('store_id', storeIds)
+      .order('snapshot_date', { ascending: true });
+
+    const beginInvByStore = {}, endInvByStore = {};
+    for (const sid of storeIds) {
+      const storeSnaps = (snapshots || []).filter(s => s.store_id === sid);
+      // Beginning: closest snapshot on or before start date
+      const before = storeSnaps.filter(s => s.snapshot_date <= start);
+      if (before.length > 0) beginInvByStore[sid] = parseFloat(before[before.length - 1].total_value);
+      // Ending: closest snapshot on or after end date
+      const after = storeSnaps.filter(s => s.snapshot_date >= end);
+      if (after.length > 0) endInvByStore[sid] = parseFloat(after[0].total_value);
+      else {
+        // Fall back to most recent snapshot before end
+        const beforeEnd = storeSnaps.filter(s => s.snapshot_date <= end);
+        if (beforeEnd.length > 0) endInvByStore[sid] = parseFloat(beforeEnd[beforeEnd.length - 1].total_value);
+      }
+    }
+
+    // Compute COGS per store: beginning + purchases - ending (or just purchases if no snapshots)
+    const cogsByStore = {};
+    for (const sid of storeIds) {
+      const purchases = purchasesByStore[sid] || 0;
+      const beginInv = beginInvByStore[sid];
+      const endInv = endInvByStore[sid];
+      if (beginInv !== undefined && endInv !== undefined) {
+        cogsByStore[sid] = beginInv + purchases - endInv;
+      } else {
+        cogsByStore[sid] = purchases;
       }
     }
 
@@ -175,6 +212,9 @@ router.get('/pl', auth, requireOwner, async (req, res) => {
       const discounts = discountsByStore[store.id] || 0;
       const refunds = refundsByStore[store.id] || 0;
       const netSales = grossSales - discounts - refunds;
+      const purchases = purchasesByStore[store.id] || 0;
+      const beginInv = beginInvByStore[store.id] ?? null;
+      const endInv = endInvByStore[store.id] ?? null;
       const cogs = cogsByStore[store.id] || 0;
       const grossProfit = netSales - cogs;
       const opEx = opExByStore[store.id] || 0;
@@ -186,6 +226,9 @@ router.get('/pl', auth, requireOwner, async (req, res) => {
         discounts,
         refunds,
         net_sales: netSales,
+        beginning_inventory: beginInv,
+        purchases,
+        ending_inventory: endInv,
         cogs,
         cogs_by_distributor: cogsByDistByStore[store.id] || {},
         gross_profit: grossProfit,
