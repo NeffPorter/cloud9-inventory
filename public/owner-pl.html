@@ -99,6 +99,21 @@ tr:last-child td { border-bottom: none; }
 .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-top: 20px; }
 .chart-card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; padding: 20px; }
 .chart-title { font-size: 13px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 14px; }
+
+/* Completed Periods */
+.cp-year { font-size: 18px; font-weight: 800; color: #1e293b; margin: 28px 0 12px; }
+.cp-quarter { background: white; border: 1px solid #e5e7eb; border-radius: 12px; margin-bottom: 10px; overflow: hidden; }
+.cp-quarter-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; cursor: pointer; user-select: none; }
+.cp-quarter-header:hover { background: #f8fafc; }
+.cp-quarter-label { font-weight: 700; font-size: 15px; color: #1e293b; }
+.cp-quarter-link { background: #1e293b; color: white; border: none; border-radius: 8px; padding: 6px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.cp-quarter-link:hover { background: #2563eb; }
+.cp-months { border-top: 1px solid #f0f0f0; }
+.cp-month-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 18px 10px 30px; border-bottom: 1px solid #f7f7f7; }
+.cp-month-row:last-child { border-bottom: none; }
+.cp-month-name { font-size: 14px; color: #555; }
+.cp-month-link { color: #2563eb; font-size: 13px; font-weight: 500; cursor: pointer; background: none; border: none; text-decoration: underline; }
+.cp-inprogress { display: flex; align-items: center; gap: 10px; background: #fffbeb; border: 1px solid #fbbf24; border-radius: 10px; padding: 12px 18px; margin-bottom: 20px; font-size: 14px; color: #92400e; }
 </style>
 </head>
 <body>
@@ -134,23 +149,12 @@ tr:last-child td { border-bottom: none; }
       </div>
     </div>
     <div class="control-group" style="margin-left:auto;flex-direction:row;align-items:flex-end;gap:8px;">
-      <button class="btn btn-primary" onclick="savePLSnapshot()" id="saveBtn" title="Save snapshot to history">💾 Save</button>
       <button class="btn" style="background:#f3f4f6;color:#1a1a1a;" onclick="printPDF()" title="Download / Print as PDF">🖨️ PDF</button>
-      <button class="btn" style="background:#f3f4f6;color:#1a1a1a;" onclick="toggleSnapshotPanel()">📂 History</button>
     </div>
   </div>
 
   <!-- Store buttons -->
   <div id="storeButtonsWrap" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;"></div>
-
-  <!-- Snapshot history panel -->
-  <div id="snapshotPanel" style="display:none;background:white;border:1px solid #e5e7eb;border-radius:12px;padding:18px 20px;margin-bottom:20px;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <span style="font-weight:600;font-size:15px;">📂 Saved P&L Reports</span>
-      <button onclick="toggleSnapshotPanel()" style="background:none;border:none;font-size:18px;cursor:pointer;color:#888;">✕</button>
-    </div>
-    <div id="snapshotList"><div style="color:#999;font-size:13px;">Loading...</div></div>
-  </div>
 
   <!-- View tabs -->
   <div class="view-tabs">
@@ -161,6 +165,9 @@ tr:last-child td { border-bottom: none; }
   </div>
 
   <div id="content"><div class="loading">Loading...</div></div>
+
+  <!-- Completed Periods -->
+  <div id="completedPeriodsSection" style="margin-top:32px;"></div>
 </div>
 
 <script>
@@ -251,6 +258,7 @@ function setPeriod(period, btn) {
 }
 
 function getDateRange() {
+  if (window._overrideRange) return window._overrideRange;
   const now = new Date();
   if (currentPeriod === 'custom') {
     return { start: document.getElementById('customStart').value, end: document.getElementById('customEnd').value };
@@ -389,10 +397,23 @@ function renderPL() {
 
   const distEntries = Object.entries(d.cogs_by_distributor || {}).sort((a,b) => b[1]-a[1]);
   const expEntries  = Object.entries(d.expense_breakdown  || {}).sort((a,b) => b[1]-a[1]);
+  const shrinkage   = d.shortages?.value || 0;
+  const shrinkageItems = d.shortages?.items || 0;
+  const totalOpEx   = d.op_ex + shrinkage;
+  const adjNetProfit = d.net_profit - shrinkage;
+  const adjNetMarginPct = d.net_sales > 0 ? ((adjNetProfit / d.net_sales) * 100).toFixed(1) : null;
   const grossMC = parseFloat(d.gross_margin_pct) >= 30 ? '#16a34a' : parseFloat(d.gross_margin_pct) >= 15 ? '#d97706' : '#dc2626';
-  const netMC   = parseFloat(d.net_margin_pct)   >= 15 ? '#16a34a' : parseFloat(d.net_margin_pct)   >= 5  ? '#d97706' : '#dc2626';
+  const netMC   = parseFloat(adjNetMarginPct)    >= 15 ? '#16a34a' : parseFloat(adjNetMarginPct)    >= 5  ? '#d97706' : '#dc2626';
 
-  let html = `
+  // In-progress banner
+  const range = getDateRange();
+  const today = new Date().toISOString().split('T')[0];
+  const inProgress = range && range.end >= today;
+  const inProgressHTML = inProgress
+    ? `<div class="cp-inprogress">⏳ <strong>Period in progress</strong> — data shown is current through today (${today}). Final numbers will change as the period completes.</div>`
+    : '';
+
+  let html = inProgressHTML + `
   <div class="pl-table-wrap">
     <div class="pl-table-title" style="background:#1e293b;color:white;font-size:16px;font-weight:700;padding:16px 20px">
       📊 ${d.store_name}
@@ -443,31 +464,28 @@ function renderPL() {
         <tr class="pl-section-header"><td>Operating Expenses</td><td class="num"></td></tr>
         ${expEntries.length > 0
           ? expEntries.map(([cat, amt]) =>
-              `<tr class="pl-indent-muted"><td>${cap(cat)}</td><td class="num loss">(${fmtMoney(amt)})</td></tr>`
+              `<tr class="pl-indent-muted"><td>${cap(cat)}</td><td class="num" style="color:#dc2626">-${fmtMoney(amt)}</td></tr>`
             ).join('')
           : `<tr class="pl-indent-muted"><td style="color:#aaa">No expenses recorded</td><td></td></tr>`
         }
+        ${shrinkageItems > 0 ? `
+        <tr class="pl-indent-muted" style="background:#fff8f0">
+          <td>⚠️ Shrinkage / Losses <span style="font-size:11px;color:#999;font-weight:400">(${shrinkageItems} items, est. retail — stocktake ${d.shortages.stocktake_date || ''})</span></td>
+          <td class="num" style="color:#dc2626">-${fmtMoney(shrinkage)}</td>
+        </tr>` : ''}
         <tr class="pl-section-total">
           <td>TOTAL OPERATING EXPENSES</td>
-          <td class="num loss">(${fmtMoney(d.op_ex)})</td>
+          <td class="num" style="color:#dc2626">-${fmtMoney(totalOpEx)}</td>
         </tr>
 
         <!-- ── NET PROFIT ── -->
-        <tr class="pl-net-profit ${d.net_profit < 0 ? 'negative' : ''}">
+        <tr class="pl-net-profit ${adjNetProfit < 0 ? 'negative' : ''}">
           <td>NET PROFIT</td>
-          <td class="num">${fmtMoney(d.net_profit)}</td>
+          <td class="num">${fmtMoney(adjNetProfit)}</td>
         </tr>
         <tr class="pl-net-margin">
-          <td colspan="2">Net Profit Margin: <strong style="color:${netMC}">${d.net_margin_pct !== null ? d.net_margin_pct + '%' : '—'}</strong></td>
+          <td colspan="2">Net Profit Margin: <strong style="color:${netMC}">${adjNetMarginPct !== null ? adjNetMarginPct + '%' : '—'}</strong></td>
         </tr>
-
-        ${d.shortages?.items > 0 ? `
-        <tr class="row-shortage">
-          <td colspan="2" style="padding:10px 16px">
-            ⚠️ <strong>Potentially Lost/Stolen:</strong> ${d.shortages.items} items · ${fmtMoney(d.shortages.value)} est. retail value
-            ${d.shortages.stocktake_date ? `<span style="color:#999;font-size:12px;margin-left:8px">(stocktake ${d.shortages.stocktake_date})</span>` : ''}
-          </td>
-        </tr>` : ''}
       </tbody>
     </table>
   </div>
@@ -830,7 +848,111 @@ function printPDF() {
   document.getElementById('__printHeader')?.remove();
 }
 
+
+// ── Completed Periods ─────────────────────────────────────────────────────
+function renderCompletedPeriods() {
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  const section = document.getElementById('completedPeriodsSection');
+  if (!section) return;
+
+  // Build list of completed quarters and months going back to Jan 2026
+  const startYear = 2026;
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth(); // 0-indexed
+  const currentQ = Math.ceil((currentMonth + 1) / 3);
+
+  const MONTHS = ['January','February','March','April','May','June',
+                  'July','August','September','October','November','December'];
+  const pad = n => String(n).padStart(2,'0');
+
+  let html = `<div style="font-size:18px;font-weight:800;color:#1e293b;margin-bottom:16px;">📋 Completed P&L Reports</div>`;
+
+  let hasAny = false;
+  for (let yr = currentYear; yr >= startYear; yr--) {
+    let yearHTML = '';
+    for (let q = 4; q >= 1; q--) {
+      const qStartMonth = (q - 1) * 3; // 0-indexed
+      const qEndMonth = qStartMonth + 2;
+      const qStart = `${yr}-${pad(qStartMonth + 1)}-01`;
+      const qEndDate = new Date(yr, qEndMonth + 1, 0);
+      const qEnd = qEndDate.toISOString().split('T')[0];
+
+      // Skip future quarters and current in-progress quarter
+      if (qStart > todayStr) continue;
+      if (yr === currentYear && q === currentQ) continue; // in progress
+
+      const qLabel = `Q${q} ${yr}`;
+      const qPeriodLabel = `${MONTHS[qStartMonth]} 1 – ${MONTHS[qEndMonth]} ${qEndDate.getDate()}, ${yr}`;
+
+      let monthsHTML = '';
+      for (let m = qStartMonth; m <= qEndMonth; m++) {
+        const mStart = `${yr}-${pad(m + 1)}-01`;
+        const mEndDate = new Date(yr, m + 1, 0);
+        const mEnd = mEndDate.toISOString().split('T')[0];
+        if (mStart > todayStr) continue;
+        // Skip current in-progress month
+        if (yr === currentYear && m === currentMonth) continue;
+        monthsHTML += `
+          <div class="cp-month-row">
+            <span class="cp-month-name">${MONTHS[m]} ${yr}</span>
+            <button class="cp-month-link" onclick="loadCompletedPeriod('monthly','${mStart}','${mEnd}','${MONTHS[m]} ${yr}')">View →</button>
+          </div>`;
+      }
+
+      if (!monthsHTML && q > currentQ - 1 && yr === currentYear) continue;
+
+      yearHTML += `
+      <div class="cp-quarter">
+        <div class="cp-quarter-header" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'':'none'">
+          <span class="cp-quarter-label">📅 ${qLabel} <span style="font-size:12px;font-weight:400;color:#888;margin-left:6px">${qPeriodLabel}</span></span>
+          <button class="cp-quarter-link" onclick="event.stopPropagation();loadCompletedPeriod('quarterly','${qStart}','${qEnd}','${qLabel}')">Full Quarter P&L</button>
+        </div>
+        <div class="cp-months">${monthsHTML}</div>
+      </div>`;
+      hasAny = true;
+    }
+    if (yearHTML) {
+      html += `<div class="cp-year">${yr}</div>${yearHTML}`;
+    }
+  }
+
+  if (!hasAny) {
+    html += '<div style="color:#aaa;font-size:14px;padding:20px 0">No completed periods yet.</div>';
+  }
+
+  section.innerHTML = html;
+}
+
+function loadCompletedPeriod(period, start, end, label) {
+  currentPeriod = period;
+  // Update period tabs UI
+  document.querySelectorAll('.period-tab').forEach(b => {
+    b.classList.toggle('active', b.textContent.toLowerCase() === period);
+  });
+  // Set the pickers
+  if (period === 'quarterly') {
+    const mp = document.getElementById('monthPicker');
+    const wp = document.getElementById('weekDatePicker');
+    if (mp) { mp.style.display = ''; mp.type = 'text'; mp.value = label; }
+    if (wp) wp.style.display = 'none';
+    document.getElementById('periodPickerLabel').textContent = 'Quarter';
+  } else if (period === 'monthly') {
+    const mp = document.getElementById('monthPicker');
+    const wp = document.getElementById('weekDatePicker');
+    if (mp) { mp.style.display = ''; mp.type = 'month'; mp.value = start.slice(0, 7); }
+    if (wp) wp.style.display = 'none';
+    document.getElementById('periodPickerLabel').textContent = 'Month';
+  }
+  // Override getDateRange for this call
+  const origLoad = window._overrideRange;
+  window._overrideRange = { start, end };
+  load().then(() => { window._overrideRange = null; });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 init();
+renderCompletedPeriods();
 </script>
 </body>
 </html>
