@@ -136,19 +136,26 @@
     @media print {
       @page { size: letter portrait; margin: 0.55in 0.5in; }
       .no-print { display: none !important; }
-      #navbar-container { display: none !important; }
+      body > nav { display: none !important; }
+      .action-bar { display: none !important; }
       body { background: white; font-size: 11px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; color-adjust: exact; }
-      .container { padding: 8px; max-width: 100%; }
-      .report-wrap { box-shadow: none; border: 1px solid #ddd; border-radius: 0; padding: 16px; }
-      .stats-grid { grid-template-columns: repeat(4, 1fr); }
-      .stat-box { padding: 8px; border: 1px solid #ddd; background: white; }
-      .stat-val { font-size: 18px; }
-      .cat-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      th { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #f8f9fa !important; }
-      .over-row td, .under-row td { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      td, th { padding: 5px 10px; font-size: 11px; }
-      .cat-section { break-inside: avoid; }
+      .container { padding: 0; max-width: 100%; }
+      .report-wrap { box-shadow: none !important; border: none !important; border-radius: 0 !important; padding: 0 !important; }
+      .stats-grid { grid-template-columns: repeat(4, 1fr) !important; gap: 8px !important; }
+      .stat-box { padding: 10px 12px !important; border: 1px solid #e2e8f0 !important; border-radius: 6px !important; background: #f8fafc !important; }
+      .stat-val { font-size: 20px !important; }
+      .stat-label { font-size: 10px !important; }
+      .cat-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #1a1a2e !important; color: white !important; padding: 7px 12px !important; font-size: 11px !important; border-radius: 4px !important; }
+      th { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #f1f5f9 !important; font-size: 10px !important; color: #555 !important; text-transform: uppercase; letter-spacing: 0.3px; }
+      td { font-size: 11px !important; }
+      .over-row td { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #f0fdf4 !important; }
+      .under-row td { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #fff5f5 !important; }
+      td, th { padding: 6px 10px !important; }
+      .cat-section { break-inside: avoid; margin-bottom: 16px; }
+      table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+      table td, table th { border-bottom: 1px solid #f0f0f0; }
       .print-header { display: block !important; }
+      .report-title-area { display: none !important; }
     }
     .print-header { display: none; }
   </style>
@@ -411,17 +418,19 @@
 
 function buildPrintHeader(reportType, storeLine) {
   const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-  return `<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #1a1a2e;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
-    <div>
-      <img src="/logo-wordmark.png" style="height:36px;display:block;margin-bottom:8px">
-      <div style="font-size:11px;font-weight:700;color:#2f5597;text-transform:uppercase;letter-spacing:1px">${reportType}</div>
-      <div style="font-size:12px;color:#555;margin-top:3px">${storeLine}</div>
-    </div>
-    <div style="text-align:right;font-size:11px;color:#888;line-height:1.7">
-      Generated ${today}<br>
-      <span style="color:#bbb;font-size:10px">cloud9systems.up.railway.app</span>
-    </div>
-  </div>`;
+  return '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;margin-bottom:20px">'
+    + '<div style="background:#1a1a2e;padding:11px 20px;display:flex;justify-content:space-between;align-items:center;border-radius:6px 6px 0 0">'
+    +   '<img src="/logo-wordmark.png" style="height:30px;display:block">'
+    +   '<div style="color:rgba(255,255,255,0.6);font-size:10px;text-align:right;line-height:1.6">'
+    +     'Generated ' + today + '<br>'
+    +     '<span style="color:rgba(255,255,255,0.3);font-size:9px">cloud9systems.up.railway.app</span>'
+    +   '</div>'
+    + '</div>'
+    + '<div style="padding:9px 20px 11px;background:#f8fafc;border:1px solid #e2e8f0;border-top:3px solid #2f5597;border-radius:0 0 6px 6px">'
+    +   '<div style="font-size:10px;font-weight:700;color:#2f5597;text-transform:uppercase;letter-spacing:1.5px">' + reportType + '</div>'
+    +   '<div style="font-size:12px;color:#444;margin-top:3px;font-weight:500">' + storeLine + '</div>'
+    + '</div>'
+    + '</div>';
 }
 
   function printReport() {

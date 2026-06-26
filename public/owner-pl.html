@@ -9,7 +9,7 @@
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; }
-#navbar-container { position: sticky; top: 0; z-index: 100; }
+body > nav { position: sticky; top: 0; z-index: 100; }
 .page { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
 .page-title { font-size: 22px; font-weight: 600; margin-bottom: 20px; }
 
@@ -825,7 +825,7 @@ const printStyle = document.createElement('style');
 printStyle.textContent = `
   @media print {
     @page { size: letter portrait; margin: 0.55in 0.5in; }
-    #completedPeriodsSection, .controls, .view-tabs, #navbar-container,
+    #completedPeriodsSection, .controls, .view-tabs, body > nav,
     #storeButtonsWrap, button, .btn, .cp-inprogress { display: none !important; }
     body { background: white; font-size: 11px; -webkit-print-color-adjust: exact; print-color-adjust: exact; color-adjust: exact; }
     .page { max-width: 100%; padding: 0; }
@@ -850,17 +850,19 @@ document.head.appendChild(printStyle);
 
 function buildPrintHeader(reportType, storeLine) {
   const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-  return `<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:16px;padding-bottom:12px;border-bottom:3px solid #1a1a2e;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
-    <div>
-      <img src="/logo-wordmark.png" style="height:36px;display:block;margin-bottom:8px">
-      <div style="font-size:11px;font-weight:700;color:#2f5597;text-transform:uppercase;letter-spacing:1px">${reportType}</div>
-      <div style="font-size:12px;color:#555;margin-top:3px">${storeLine}</div>
-    </div>
-    <div style="text-align:right;font-size:11px;color:#888;line-height:1.7">
-      Generated ${today}<br>
-      <span style="color:#bbb;font-size:10px">cloud9systems.up.railway.app</span>
-    </div>
-  </div>`;
+  return '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;margin-bottom:20px">'
+    + '<div style="background:#1a1a2e;padding:11px 20px;display:flex;justify-content:space-between;align-items:center;border-radius:6px 6px 0 0">'
+    +   '<img src="/logo-wordmark.png" style="height:30px;display:block">'
+    +   '<div style="color:rgba(255,255,255,0.6);font-size:10px;text-align:right;line-height:1.6">'
+    +     'Generated ' + today + '<br>'
+    +     '<span style="color:rgba(255,255,255,0.3);font-size:9px">cloud9systems.up.railway.app</span>'
+    +   '</div>'
+    + '</div>'
+    + '<div style="padding:9px 20px 11px;background:#f8fafc;border:1px solid #e2e8f0;border-top:3px solid #2f5597;border-radius:0 0 6px 6px">'
+    +   '<div style="font-size:10px;font-weight:700;color:#2f5597;text-transform:uppercase;letter-spacing:1.5px">' + reportType + '</div>'
+    +   '<div style="font-size:12px;color:#444;margin-top:3px;font-weight:500">' + storeLine + '</div>'
+    + '</div>'
+    + '</div>';
 }
 
 function printPDF() {

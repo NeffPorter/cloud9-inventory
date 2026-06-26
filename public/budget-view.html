@@ -168,7 +168,7 @@
       .print-area, .print-area * { visibility: visible; }
       .print-area { position: absolute; top: 0; left: 0; width: 100%; }
 
-      #navbar, nav, .navbar, .navbar-hide, .back-link, .btn-add-invoice, .btn-save-row, .btn-del-row,
+      body > nav, .back-link, .btn-add-invoice, .btn-save-row, .btn-del-row,
       .upload-label, .upload-later-label, .bottom-actions, .approval-banner .btn-approve,
       .approval-banner button, .modal-overlay { display: none !important; }
 
@@ -176,7 +176,7 @@
 
       .page-wrap { padding: 0; max-width: 100%; }
       @page { size: letter portrait; margin: 0.55in 0.5in; }
-      body { background: white; color: #000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; color-adjust: exact; }
+      body { background: white; color: #000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; color-adjust: exact; font-size: 11px; }
 
       .summary-card, .progress-section, .invoice-table-wrap, .approval-banner,
       .approved-banner, .complete-banner {
@@ -256,6 +256,23 @@ let distributors = [];
 let committedPos = 0;
 let openPos = [];
 let selectedFile = null;
+
+function buildPrintHeader(reportType, storeLine) {
+  const today = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  return '<div style="font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;margin-bottom:20px">'
+    + '<div style="background:#1a1a2e;padding:11px 20px;display:flex;justify-content:space-between;align-items:center;border-radius:6px 6px 0 0">'
+    +   '<img src="/logo-wordmark.png" style="height:30px;display:block">'
+    +   '<div style="color:rgba(255,255,255,0.6);font-size:10px;text-align:right;line-height:1.6">'
+    +     'Generated ' + today + '<br>'
+    +     '<span style="color:rgba(255,255,255,0.3);font-size:9px">cloud9systems.up.railway.app</span>'
+    +   '</div>'
+    + '</div>'
+    + '<div style="padding:9px 20px 11px;background:#f8fafc;border:1px solid #e2e8f0;border-top:3px solid #2f5597;border-radius:0 0 6px 6px">'
+    +   '<div style="font-size:10px;font-weight:700;color:#2f5597;text-transform:uppercase;letter-spacing:1.5px">' + reportType + '</div>'
+    +   '<div style="font-size:12px;color:#444;margin-top:3px;font-weight:500">' + storeLine + '</div>'
+    + '</div>'
+    + '</div>';
+}
 
 async function init() {
   if (!token || !budgetId) { window.location.href = '/budgets'; return; }
