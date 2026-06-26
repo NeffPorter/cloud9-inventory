@@ -172,19 +172,11 @@
       .upload-label, .upload-later-label, .bottom-actions, .approval-banner .btn-approve,
       .approval-banner button, .modal-overlay { display: none !important; }
 
-      .print-header {
-        display: block !important;
-        text-align: center;
-        border-bottom: 3px double #1a1a2e;
-        padding-bottom: 14px;
-        margin-bottom: 22px;
-      }
-      .print-header .company-name { font-size: 24px; font-weight: 800; letter-spacing: 1px; }
-      .print-header .doc-title { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; color: #555; margin-top: 4px; }
-      .print-header .doc-meta { font-size: 12px; color: #777; margin-top: 8px; }
+      .print-header { display: block !important; }
 
       .page-wrap { padding: 0; max-width: 100%; }
-      body { background: white; color: #000; font-family: Georgia, 'Times New Roman', serif; }
+      @page { size: letter portrait; margin: 0.55in 0.5in; }
+      body { background: white; color: #000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; color-adjust: exact; }
 
       .summary-card, .progress-section, .invoice-table-wrap, .approval-banner,
       .approved-banner, .complete-banner {
@@ -338,11 +330,7 @@ function renderPage() {
   const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
   let html = `
-    <div class="print-header">
-      <div class="company-name">☁️ Cloud 9</div>
-      <div class="doc-title">Weekly Budget Report</div>
-      <div class="doc-meta">${storeName} &nbsp;•&nbsp; Week of ${formatDate(budget.week_start)} – ${formatDate(budget.week_end)} &nbsp;•&nbsp; Generated ${today}</div>
-    </div>
+    <div class="print-header">${buildPrintHeader('Weekly Budget Report', storeName + ' · Week of ' + formatDate(budget.week_start) + ' – ' + formatDate(budget.week_end))}</div>
 
     <div onclick="window.location.href='/budgets${budget.store_id ? '?store=' + budget.store_id : ''}'" class="back-link">← Back to Budget Reports</div>
 
@@ -515,10 +503,10 @@ function renderPage() {
     html += `
       <div class="bottom-actions">
         <button class="btn-complete" onclick="markComplete()" id="btnComplete">✔ Mark Budget Complete</button>
-        <button class="btn-print" onclick="window.print()">🖨️ Print / Download PDF</button>
+        <button class="btn-print" onclick="window.print()">🖨️ Print / Download as PDF</button>
       </div>`;
   } else {
-    html += `<div class="bottom-actions"><button class="btn-print" onclick="window.print()">🖨️ Print / Download PDF</button></div>`;
+    html += `<div class="bottom-actions"><button class="btn-print" onclick="window.print()">🖨️ Print / Download as PDF</button></div>`;
   }
 
   html += `<div class="print-footer">Cloud 9 — Weekly Budget Report — ${storeName} — Week of ${formatDate(budget.week_start)} – ${formatDate(budget.week_end)}</div>`;
