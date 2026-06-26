@@ -429,4 +429,20 @@ module.exports.autoSnapshotPL = async function autoSnapshotPL(periodType, start,
       ...s,
       gross_profit: s.revenue - s.cogs,
       net_profit: s.revenue - s.cogs - s.expenses,
-      margin: s.
+      margin: s.revenue > 0 ? (((s.revenue - s.cogs - s.expenses) / s.revenue) * 100).toFixed(1) : null
+    }));
+
+    await supabase.from('pl_snapshots').upsert({
+      period_type: periodType,
+      period_label: label,
+      start_date: start,
+      end_date: end,
+      store_id: null,
+      data: payload
+    }, { onConflict: 'period_label,start_date,end_date' });
+
+    console.log(`[P&L snapshot] saved: ${label}`);
+  } catch (err) {
+    console.error('[P&L snapshot] error:', err.message);
+  }
+};
