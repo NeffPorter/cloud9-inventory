@@ -36,10 +36,19 @@ router.get('/webhook', (req, res) => {
 router.post('/webhook', async (req, res) => {
   try {
     const payload = req.body;
-    const merchants = payload.merchants || {};
+    console.log('[Webhook] Received payload:', JSON.stringify(payload));
 
-    for (const mid of Object.keys(merchants)) {
+    const merchants = payload.merchants || {};
+    const mids = Object.keys(merchants);
+
+    if (mids.length === 0) {
+      console.log('[Webhook] No merchants in payload — raw body:', JSON.stringify(payload));
+      return res.send('OK');
+    }
+
+    for (const mid of mids) {
       const events = merchants[mid] || [];
+      console.log(`[Webhook] MID=${mid} events=${events.length}`);
 
       const { data: store } = await supabase
         .from('stores')
@@ -47,11 +56,13 @@ router.post('/webhook', async (req, res) => {
         .eq('merchant_id', mid)
         .single();
 
-      if (!store) { console.log('No store found for MID:', mid); continue; }
+      if (!store) { console.log('[Webhook] No store found for MID:', mid); continue; }
 
       for (const event of events) {
         const objectId = event.objectId || '';
         const eventType = (event.type || '').toUpperCase();
+        console.log(`[Webhook] Event type=${eventType} objectId=${objectId}`);
+
         const isOrderEvent = objectId.startsWith('O:') || eventType.includes('ORDER');
         const isPaymentEvent = objectId.startsWith('P:');
         const isInventoryEvent = objectId.startsWith('I:');
@@ -68,13 +79,16 @@ router.post('/webhook', async (req, res) => {
           const isRefund = eventType.includes('REFUND') || eventType.includes('CREDIT');
           if (isRefund && event.data?.order?.id) {
             await processOrderEvent(store, event.data.order.id);
+          } else if (!isRefund) {
+            // Payment event — treat as order event to catch paid orders
+            console.log('[Webhook] Payment event, no order id in data:', JSON.stringify(event));
           }
         }
       }
     }
     res.send('OK');
   } catch (err) {
-    console.error('Webhook error:', err);
+    console.error('[Webhook] Error:', err);
     res.status(500).send('ERROR');
   }
 });
@@ -83,6 +97,7 @@ router.post('/webhook', async (req, res) => {
 async function processOrderEvent(store, orderId) {
   try {
     const cleanId = orderId.replace(/^O:/, '');
+    console.log(`[processOrderEvent] store=${store.name} orderId=${cleanId}`);
 
     const { data: existingSales } = await supabase
       .from('sales_log')
@@ -91,7 +106,9 @@ async function processOrderEvent(store, orderId) {
       .eq('order_id', cleanId);
 
     const apiToken = await getValidApiToken(store);
+    console.log(`[processOrderEvent] fetching order from Clover...`);
     const fullOrder = await fetchFullOrder(store.merchant_id, apiToken, cleanId);
+    console.log(`[processOrderEvent] order state=${fullOrder.state} paymentState=${fullOrder.paymentState} total=${fullOrder.total}`);
 
     const isRefund = fullOrder.state === 'refunded' ||
                      fullOrder.paymentState === 'credited' ||
