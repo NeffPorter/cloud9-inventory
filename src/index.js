@@ -47,6 +47,9 @@ app.get('/dashboard', (req, res) => {
 app.get('/stores', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/stores.html'));
 });
+app.get('/connect-store', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/connect-store.html'));
+});
 app.get('/users', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/users.html'));
 });

@@ -21,71 +21,85 @@ setInterval(() => {
   for (const [k, v] of oauthNonces) { if (v.exp < now) oauthNonces.delete(k); }
 }, 60_000);
 
-// ── Clover OAuth: start ──────────────────────────────────────────────────────
-router.get('/clover/start', auth, async (req, res) => {
+// ── Store invite: send email ──────────────────────────────────────────────────
+router.post('/store-invite', auth, async (req, res) => {
   if (!isUserAdmin(req.user.role)) return res.status(403).json({ error: 'Admin only' });
-  if (!CLOVER_APP_ID) return res.status(500).json({ error: 'CLOVER_APP_ID not configured' });
 
-  const nonce = crypto.randomBytes(16).toString('hex');
-  oauthNonces.set(nonce, { userId: req.user.id, exp: Date.now() + 10 * 60 * 1000 });
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Store email is required' });
 
-  const redirectUri = `${APP_BASE_URL}/api/auth/clover/callback`;
-  const url = `${CLOVER_WWW_BASE}/oauth/v2/authorize?client_id=${CLOVER_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${nonce}`;
-  res.json({ url });
-});
+  const inviteToken = jwt.sign(
+    { type: 'store-invite', email },
+    process.env.JWT_SECRET,
+    { expiresIn: '48h' }
+  );
 
-// ── Clover OAuth: callback ───────────────────────────────────────────────────
-router.get('/clover/callback', async (req, res) => {
-  const { merchant_id, code, state } = req.query;
-
-  if (!code || !merchant_id) return res.redirect('/stores?error=missing_params');
-
-  const nonceData = oauthNonces.get(state);
-  if (!nonceData || nonceData.exp < Date.now()) return res.redirect('/stores?error=invalid_state');
-  oauthNonces.delete(state);
+  const connectUrl = `${APP_BASE_URL}/connect-store?token=${inviteToken}`;
 
   try {
-    const redirectUri = `${APP_BASE_URL}/api/auth/clover/callback`;
-
-    // Exchange code for tokens
-    const tokenRes = await axios.post(`${CLOVER_API_BASE}/oauth/v2/token`, {
-      client_id:     CLOVER_APP_ID,
-      client_secret: CLOVER_APP_SECRET,
-      code,
-      grant_type:    'authorization_code',
-      redirect_uri:  redirectUri
+    const { sendEmail } = require('../services/email');
+    await sendEmail({
+      to: email,
+      subject: 'Cloud 9 Vapor — Connect Your Clover Store',
+      html: `
+        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:560px;margin:0 auto;padding:24px;">
+          <div style="background:#1a1a2e;padding:16px 24px;border-radius:12px 12px 0 0;">
+            <h1 style="color:white;margin:0;font-size:18px;">Cloud 9 Vapor</h1>
+          </div>
+          <div style="background:white;border:1px solid #e5e7eb;border-top:none;padding:24px;border-radius:0 0 12px 12px;">
+            <h2 style="margin:0 0 12px;font-size:17px;color:#1a1a1a;">Connect Your Store to Cloud 9 Inventory</h2>
+            <p style="color:#555;line-height:1.6;margin:0 0 20px;">You've been invited to connect your Clover store to the Cloud 9 Vapor inventory system. Click the button below to complete the setup.</p>
+            <p style="margin:0 0 20px;"><a href="${connectUrl}" style="background:#2f5597;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">Connect My Store</a></p>
+            <p style="color:#777;font-size:13px;margin:0 0 8px;">You'll need the following from your Clover Developer Dashboard:</p>
+            <ul style="color:#777;font-size:13px;margin:0 0 16px;padding-left:20px;">
+              <li>Your Merchant ID</li>
+              <li>Your API Token</li>
+            </ul>
+            <p style="color:#aaa;font-size:12px;margin:0;">This link expires in 48 hours.</p>
+            <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+            <p style="color:#aaa;font-size:12px;margin:0;">Cloud 9 Vapor Inventory System</p>
+          </div>
+        </div>`
     });
-    const { access_token, refresh_token, expires_in } = tokenRes.data;
-    const tokenExpiresAt = new Date(Date.now() + (expires_in || 3600) * 1000).toISOString();
-
-    // Fetch merchant name from Clover
-    let storeName = merchant_id;
-    try {
-      const mRes = await axios.get(`${CLOVER_API_BASE}/v3/merchants/${merchant_id}`,
-        { headers: { Authorization: `Bearer ${access_token}` } });
-      storeName = mRes.data.name || merchant_id;
-    } catch { /* fall back to merchant_id */ }
-
-    // Upsert store
-    const { data: store, error: storeErr } = await supabase
-      .from('stores')
-      .upsert({ merchant_id, name: storeName, api_token: access_token, refresh_token, token_expires_at: tokenExpiresAt },
-               { onConflict: 'merchant_id' })
-      .select()
-      .single();
-    if (storeErr) throw storeErr;
-
-    // Create store_settings if new store
-    const { data: existing } = await supabase.from('store_settings').select('id').eq('store_id', store.id).maybeSingle();
-    if (!existing) {
-      await supabase.from('store_settings').insert([{ store_id: store.id, lead_time: 5, buffer_days: 14 }]);
-    }
-
-    res.redirect('/stores?connected=1');
+    res.json({ success: true });
   } catch (err) {
-    console.error('Clover OAuth callback error:', err.response?.data || err.message);
-    res.redirect('/stores?error=oauth_error');
+    console.error('Store invite email error:', err.message);
+    res.status(500).json({ error: 'Failed to send invite email' });
   }
+});
+
+// ── Store invite: complete connection (public — no auth required) ──────────────
+router.post('/store-connect', async (req, res) => {
+  const { invite_token, store_name, merchant_id, api_token } = req.body;
+
+  if (!invite_token || !store_name || !merchant_id || !api_token) {
+    return res.status(400).json({ error: 'All fields are required' });
+  }
+
+  try {
+    const payload = jwt.verify(invite_token, process.env.JWT_SECRET);
+    if (payload.type !== 'store-invite') throw new Error('Wrong token type');
+  } catch {
+    return res.status(400).json({ error: 'Invite link has expired or is invalid. Ask your admin to resend.' });
+  }
+
+  const { data: store, error: storeErr } = await supabase
+    .from('stores')
+    .upsert({ merchant_id, name: store_name, api_token }, { onConflict: 'merchant_id' })
+    .select()
+    .single();
+
+  if (storeErr) {
+    console.error('store-connect upsert error:', storeErr);
+    return res.status(500).json({ error: 'Failed to save store. Please try again.' });
+  }
+
+  const { data: existing } = await supabase.from('store_settings').select('id').eq('store_id', store.id).maybeSingle();
+  if (!existing) {
+    await supabase.from('store_settings').insert([{ store_id: store.id, lead_time: 5, buffer_days: 14 }]);
+  }
+
+  res.json({ success: true });
 });
 
 // Login — accepts email or username
