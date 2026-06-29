@@ -106,6 +106,7 @@ async function processOrderEvent(store, orderId) {
       .eq('order_id', cleanId);
 
     const apiToken = await getValidApiToken(store);
+    console.log(`[processOrderEvent] using token=${apiToken ? apiToken.substring(0,8) + '...' : 'NONE'}`);
     console.log(`[processOrderEvent] fetching order from Clover...`);
     const fullOrder = await fetchFullOrder(store.merchant_id, apiToken, cleanId);
     console.log(`[processOrderEvent] order state=${fullOrder.state} paymentState=${fullOrder.paymentState} total=${fullOrder.total}`);
@@ -208,7 +209,7 @@ async function processOrderEvent(store, orderId) {
       await updateInventoryItem(store, id);
     }
   } catch (err) {
-    console.error('processOrderEvent error:', err.message);
+    console.error('processOrderEvent error:', err.message, err.response?.data);
   }
 }
 
@@ -324,7 +325,7 @@ await supabase.from('inventory_items').upsert([{
 
     console.log(`📦 Updated item ${itemId} for ${store.name}: qty=${cloverQty}`);
   } catch (err) {
-    console.error('updateInventoryItem error:', err.message);
+    console.error('updateInventoryItem error:', err.message, err.response?.data);
   }
 }
 
