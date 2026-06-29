@@ -44,7 +44,7 @@ router.post('/stores', auth, async (req, res) => {
     }
     const { data, error } = await supabase
       .from('stores')
-      .insert([{ name, merchant_id, api_token }])
+      .upsert({ name, merchant_id, api_token, refresh_token: null, token_expires_at: null }, { onConflict: 'merchant_id' })
       .select()
       .single();
     if (error) throw error;
