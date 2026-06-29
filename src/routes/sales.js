@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 const auth = require('../middleware/auth');
-const { fetchFullOrder, fetchOrderRefunds, fetchItem, pushStockToClover, extractLineItems, extractRefundedItems, createCashSale, getCashTenderId } = require('../services/clover');
+const { fetchFullOrder, fetchOrderRefunds, fetchItem, pushStockToClover, extractLineItems, extractRefundedItems, createCashSale, getCashTenderId, getValidApiToken } = require('../services/clover');
 const { calculateSuggestedOrder } = require('../services/suggested');
 const { notify } = require('../services/notify');
 const supabase = require('../lib/supabase');
@@ -90,7 +90,8 @@ async function processOrderEvent(store, orderId) {
       .eq('store_id', store.id)
       .eq('order_id', cleanId);
 
-    const fullOrder = await fetchFullOrder(store.merchant_id, store.api_token, cleanId);
+    const apiToken = await getValidApiToken(store);
+    const fullOrder = await fetchFullOrder(store.merchant_id, apiToken, cleanId);
 
     const isRefund = fullOrder.state === 'refunded' ||
                      fullOrder.paymentState === 'credited' ||
@@ -121,7 +122,7 @@ async function processOrderEvent(store, orderId) {
     let restockThisRefund = true;
 
     if (isRefund) {
-      const refundsData = await fetchOrderRefunds(store.merchant_id, store.api_token, cleanId);
+      const refundsData = await fetchOrderRefunds(store.merchant_id, apiToken, cleanId);
       const latestRefund = refundsData?.elements?.length > 0
         ? refundsData.elements[refundsData.elements.length - 1]
         : fullOrder.refunds?.elements?.[fullOrder.refunds.elements.length - 1];
@@ -185,7 +186,7 @@ async function processOrderEvent(store, orderId) {
 
     for (const id of itemIds) {
       if (isRefund && restockThisRefund) {
-        await pushStockToClover(store.merchant_id, store.api_token, id, itemMap[id].qty);
+        await pushStockToClover(store.merchant_id, apiToken, id, itemMap[id].qty);
       }
       await updateInventoryItem(store, id);
     }
@@ -196,7 +197,8 @@ async function processOrderEvent(store, orderId) {
 
 async function updateInventoryItem(store, itemId) {
   try {
-    const item = await fetchItem(store.merchant_id, store.api_token, itemId);
+    const apiToken = await getValidApiToken(store);
+    const item = await fetchItem(store.merchant_id, apiToken, itemId);
     if (!item || item.hidden || item.deleted || !item.name) return;
 
     const cloverQty = item.itemStock ? item.itemStock.quantity : 0;
