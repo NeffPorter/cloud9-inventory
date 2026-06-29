@@ -293,6 +293,28 @@ router.put('/me', auth, async (req, res) => {
   }
 });
 
+// Test Clover connection — GET /api/auth/test-clover (admin only)
+router.get('/test-clover', auth, async (req, res) => {
+  if (!isUserAdmin(req.user.role)) return res.status(403).json({ error: 'Admin only' });
+  try {
+    const { data: stores } = await supabase.from('stores').select('*');
+    const results = [];
+    for (const store of stores) {
+      try {
+        const r = await axios.get(`https://api.clover.com/v3/merchants/${store.merchant_id}`, {
+          headers: { Authorization: `Bearer ${store.api_token}` }
+        });
+        results.push({ store: store.name, mid: store.merchant_id, status: 'OK', name: r.data.name });
+      } catch (err) {
+        results.push({ store: store.name, mid: store.merchant_id, status: err.response?.status, error: err.response?.data });
+      }
+    }
+    res.json(results);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Test email (admin only) — hit GET /api/auth/test-email?to=you@example.com
 router.get('/test-email', auth, async (req, res) => {
   if (!isUserAdmin(req.user.role)) return res.status(403).json({ error: 'Admin only' });
