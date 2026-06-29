@@ -300,12 +300,12 @@ router.get('/test-clover', async (req, res) => {
     const results = [];
     for (const store of stores) {
       try {
-        const r = await axios.get(`https://api.clover.com/v3/merchants/${store.merchant_id}`, {
+        const r = await axios.get(`https://apisandbox.dev.clover.com/v3/merchants/${store.merchant_id}`, {
           headers: { Authorization: `Bearer ${store.api_token}` }
         });
-        results.push({ store: store.name, mid: store.merchant_id, status: 'OK', name: r.data.name });
+        results.push({ store: store.name, mid: store.merchant_id, token_in_db: store.api_token, status: 'OK', name: r.data.name });
       } catch (err) {
-        results.push({ store: store.name, mid: store.merchant_id, status: err.response?.status, error: err.response?.data });
+        results.push({ store: store.name, mid: store.merchant_id, token_in_db: store.api_token, status: err.response?.status, error: err.response?.data });
       }
     }
     res.json(results);
