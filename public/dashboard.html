@@ -217,7 +217,7 @@
         document.getElementById('activePOs').textContent = '—';
 
         stores.forEach(store => {
-          const storeStats = storeData.find(s => s.name === store.name);
+          const storeStats = storeData.find(s => s.store_id === store.id);
           if (storeStats) {
             const salesEl = document.getElementById(`sales-${store.id}`);
             const ordersEl = document.getElementById(`orders-${store.id}`);

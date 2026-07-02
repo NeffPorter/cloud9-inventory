@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const axios = require('axios');
 const auth = require('../middleware/auth');
 const { fetchFullOrder, fetchOrderRefunds, fetchItem, pushStockToClover, extractLineItems, extractRefundedItems, createCashSale, getCashTenderId, getValidApiToken } = require('../services/clover');
 const { calculateSuggestedOrder } = require('../services/suggested');
@@ -11,19 +10,6 @@ const { isHim, isOwnerLevel } = require('../lib/roles');
 // Per-category low stock threshold is fetched dynamically in updateInventoryItem.
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-// Retry once after a backoff if Clover rate-limits us (429)
-async function withRetry429(fn) {
-  try {
-    return await fn();
-  } catch (err) {
-    if (err.response?.status === 429) {
-      await sleep(2500);
-      return await fn();
-    }
-    throw err;
-  }
-}
 
 // Webhook verification
 router.get('/webhook', (req, res) => {
@@ -36,15 +22,10 @@ router.get('/webhook', (req, res) => {
 router.post('/webhook', async (req, res) => {
   try {
     const payload = req.body;
-    console.log('[Webhook] Received payload:', JSON.stringify(payload));
-
     const merchants = payload.merchants || {};
     const mids = Object.keys(merchants);
 
-    if (mids.length === 0) {
-      console.log('[Webhook] No merchants in payload — raw body:', JSON.stringify(payload));
-      return res.send('OK');
-    }
+    if (mids.length === 0) return res.send('OK');
 
     for (const mid of mids) {
       const events = merchants[mid] || [];
@@ -106,7 +87,6 @@ async function processOrderEvent(store, orderId) {
       .eq('order_id', cleanId);
 
     const apiToken = await getValidApiToken(store);
-    console.log(`[processOrderEvent] using token=${apiToken ? apiToken.substring(0,8) + '...' : 'NONE'}`);
     console.log(`[processOrderEvent] fetching order from Clover...`);
     const fullOrder = await fetchFullOrder(store.merchant_id, apiToken, cleanId);
     console.log(`[processOrderEvent] order state=${fullOrder.state} paymentState=${fullOrder.paymentState} total=${fullOrder.total}`);
@@ -429,7 +409,7 @@ router.get('/by-store', auth, async (req, res) => {
 
     const storeMap = {};
     (stores || []).forEach(s => {
-      storeMap[s.id] = { name: s.name, gross: 0, net: 0, tax: 0, discounts: 0, refunds: 0, tips: 0, totalCost: 0, orders: 0 };
+      storeMap[s.id] = { store_id: s.id, name: s.name, gross: 0, net: 0, tax: 0, discounts: 0, refunds: 0, tips: 0, totalCost: 0, orders: 0 };
     });
 
     (sales || []).forEach(row => {

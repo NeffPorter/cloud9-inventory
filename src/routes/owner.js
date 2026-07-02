@@ -441,48 +441,72 @@ router.get('/pl-snapshots/:id', auth, requireOwner, async (req, res) => {
 
 module.exports = router;
 
-// Export for cron usage
+// Export for cron usage — reuses the same /pl logic for consistency
 module.exports.autoSnapshotPL = async function autoSnapshotPL(periodType, start, end, label) {
   try {
-    // Pull P&L data directly (same logic as /pl route)
+    // Reuse the same aggregation logic as GET /api/owner/pl
+    const { data: stores } = await supabase.from('stores').select('id, name');
+    if (!stores?.length) return;
+    const storeIds = stores.map(s => s.id);
+
     const { data: salesData } = await supabase
-      .from('sales_log')
-      .select('store_id, net')
+      .from('sales_log').select('store_id, net, gross, discounts, type')
+      .in('store_id', storeIds)
       .gte('created_at', start + 'T00:00:00').lte('created_at', end + 'T23:59:59');
 
-    const { data: invoices } = await supabase
-      .from('budget_invoices')
-      .select('store_id, total_cost, stores(name)')
-      .gte('created_at', start + 'T00:00:00Z').lte('created_at', end + 'T23:59:59Z');
+    const grossByStore = {}, discountsByStore = {}, refundsByStore = {};
+    for (const r of salesData || []) {
+      if (r.type === 'Refund') {
+        refundsByStore[r.store_id] = (refundsByStore[r.store_id] || 0) + Math.abs(parseFloat(r.net || 0));
+      } else {
+        grossByStore[r.store_id]     = (grossByStore[r.store_id]     || 0) + parseFloat(r.gross     || 0);
+        discountsByStore[r.store_id] = (discountsByStore[r.store_id] || 0) + parseFloat(r.discounts || 0);
+      }
+    }
+
+    const { data: budgets } = await supabase
+      .from('weekly_budgets').select('id, store_id')
+      .in('store_id', storeIds).lte('week_start', end).gte('week_end', start);
+    const budgetIds = (budgets || []).map(b => b.id);
+    const budgetStoreMap = Object.fromEntries((budgets || []).map(b => [b.id, b.store_id]));
+    const purchasesByStore = {};
+    if (budgetIds.length > 0) {
+      const { data: invoices } = await supabase
+        .from('budget_invoices').select('budget_id, invoice_amount').in('budget_id', budgetIds);
+      for (const inv of invoices || []) {
+        const sid = budgetStoreMap[inv.budget_id];
+        if (sid) purchasesByStore[sid] = (purchasesByStore[sid] || 0) + parseFloat(inv.invoice_amount || 0);
+      }
+    }
 
     const { data: expenses } = await supabase
-      .from('store_expenses')
-      .select('store_id, amount, stores(name)')
-      .gte('expense_date', start).lte('expense_date', end);
+      .from('store_expenses').select('store_id, amount')
+      .in('store_id', storeIds).gte('expense_date', start).lte('expense_date', end);
+    const opExByStore = {};
+    for (const e of expenses || []) {
+      opExByStore[e.store_id] = (opExByStore[e.store_id] || 0) + parseFloat(e.amount || 0);
+    }
 
-    // Aggregate by store
-    const byStore = {};
-    const ensureStore = (sid, sname) => {
-      if (!byStore[sid]) byStore[sid] = { store_id: sid, store_name: sname || sid, revenue: 0, cogs: 0, expenses: 0 };
-    };
-    for (const r of salesData || []) { ensureStore(r.store_id, null); byStore[r.store_id].revenue += parseFloat(r.net || 0); }
-    for (const r of invoices || []) { ensureStore(r.store_id, r.stores?.name); byStore[r.store_id].cogs += parseFloat(r.total_cost || 0); }
-    for (const r of expenses || []) { ensureStore(r.store_id, r.stores?.name); byStore[r.store_id].expenses += parseFloat(r.amount || 0); }
-
-    const payload = Object.values(byStore).map(s => ({
-      ...s,
-      gross_profit: s.revenue - s.cogs,
-      net_profit: s.revenue - s.cogs - s.expenses,
-      margin: s.revenue > 0 ? (((s.revenue - s.cogs - s.expenses) / s.revenue) * 100).toFixed(1) : null
-    }));
+    const payload = stores.map(store => {
+      const gross    = grossByStore[store.id]     || 0;
+      const disc     = discountsByStore[store.id] || 0;
+      const refunds  = refundsByStore[store.id]   || 0;
+      const netSales = gross - disc - refunds;
+      const cogs     = purchasesByStore[store.id] || 0;
+      const opEx     = opExByStore[store.id]      || 0;
+      const grossProfit = netSales - cogs;
+      const netProfit   = grossProfit - opEx;
+      return {
+        store_id: store.id, store_name: store.name,
+        gross_sales: gross, discounts: disc, refunds, net_sales: netSales,
+        cogs, gross_profit: grossProfit, op_ex: opEx, net_profit: netProfit,
+        net_margin_pct: netSales > 0 ? ((netProfit / netSales) * 100).toFixed(1) : null
+      };
+    });
 
     await supabase.from('pl_snapshots').upsert({
-      period_type: periodType,
-      period_label: label,
-      start_date: start,
-      end_date: end,
-      store_id: null,
-      data: payload
+      period_type: periodType, period_label: label,
+      start_date: start, end_date: end, store_id: null, data: payload
     }, { onConflict: 'period_label,start_date,end_date' });
 
     console.log(`[P&L snapshot] saved: ${label}`);

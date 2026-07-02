@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const { setStockInClover } = require('../services/clover');
+const { setStockInClover, getValidApiToken } = require('../services/clover');
 const { notify, logActivity } = require('../services/notify');
 const { getOrCreateCurrentBudget } = require('./budgets');
 const supabase = require('../lib/supabase');
@@ -190,7 +190,7 @@ router.post('/', auth, async (req, res) => {
 
     if (needsApproval) {
       const { data: store } = await supabase.from('stores').select('name').eq('id', store_id).single();
-      notify({
+      await notify({
         type: 'po_pending_approval',
         title: 'PO needs approval',
         message: `PO ${po.po_number} (${distributor}) for ${store?.name || 'a store'} — $${po.total_cost.toFixed(2)} would put this week's spending over the ${budget.budget_30 > 0 ? '30%' : 'budget'} line and needs approval.`,
@@ -317,6 +317,8 @@ router.post('/:id/receive', auth, async (req, res) => {
       .eq('id', po.store_id)
       .single();
 
+    const receiveToken = store ? await getValidApiToken(store) : null;
+
     // Load all PO items
     const { data: allItems } = await supabase
       .from('purchase_order_items')
@@ -349,7 +351,7 @@ router.post('/:id/receive', auth, async (req, res) => {
             const currentQty = invItem ? (invItem.clover_qty || 0) : 0;
             const newQty = currentQty + qty;
 
-            await setStockInClover(store.merchant_id, store.api_token, poItem.item_id, newQty);
+            await setStockInClover(store.merchant_id, receiveToken, poItem.item_id, newQty);
             await supabase
               .from('inventory_items')
               .update({ clover_qty: newQty })
@@ -435,7 +437,7 @@ router.put('/:id/items/:itemId', auth, async (req, res) => {
       if (needsApproval && po.status !== 'pending_approval') {
         poUpdates.status = 'pending_approval';
         const { data: store } = await supabase.from('stores').select('name').eq('id', po.store_id).single();
-        notify({
+        await notify({
           type: 'po_pending_approval',
           title: 'PO needs approval',
           message: `PO ${po.po_number} (${po.distributor}) for ${store?.name || 'a store'} — qty change brought total to $${(Math.round(newTotal * 100) / 100).toFixed(2)}, pushing this week's spend over budget.`,
@@ -554,7 +556,7 @@ router.post('/:id/items', auth, async (req, res) => {
       if (needsApproval && po.status !== 'pending_approval') {
         updates.status = 'pending_approval';
         const { data: store } = await supabase.from('stores').select('name').eq('id', po.store_id).single();
-        notify({
+        await notify({
           type: 'po_pending_approval',
           title: 'PO needs approval',
           message: `PO ${po.po_number} (${po.distributor}) for ${store?.name || 'a store'} — now $${newTotalCost.toFixed(2)} after items were added, putting this week's spending over budget.`,

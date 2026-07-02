@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const { updateItemPriceAndCost } = require('../services/clover');
+const { updateItemPriceAndCost, getValidApiToken } = require('../services/clover');
 const supabase = require('../lib/supabase');
 const { isHim } = require('../lib/roles');
 
@@ -190,6 +190,7 @@ router.put('/:id/prices', auth, adminOnly, async (req, res) => {
       // Load store credentials once
       const { data: store } = await supabase
         .from('stores').select('*').eq('id', store_id).single();
+      const distToken = store ? await getValidApiToken(store) : null;
 
       for (const p of itemsWithPrices) {
         try {
@@ -222,10 +223,10 @@ router.put('/:id/prices', auth, adminOnly, async (req, res) => {
             .eq('store_id', store_id);
 
           // Push cost to Clover (keep existing selling price)
-          if (store) {
+          if (store && distToken) {
             await updateItemPriceAndCost(
               store.merchant_id,
-              store.api_token,
+              distToken,
               p.item_id,
               invItem.price || 0,
               cheapest

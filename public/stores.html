@@ -100,32 +100,6 @@
       cursor: pointer;
     }
     .empty { color: #999; font-size: 14px; text-align: center; padding: 24px 0; }
-    .invite-btn {
-      background: #2f5597;
-      color: white;
-      border: none;
-      padding: 14px 32px;
-      border-radius: 8px;
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .invite-btn:hover { background: #1e3a6e; }
-    .invite-btn:disabled { background: #999; cursor: not-allowed; }
-    .divider {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin: 24px 0;
-      color: #aaa;
-      font-size: 13px;
-    }
-    .divider::before, .divider::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: #e0e0e0;
-    }
     .banner {
       padding: 14px 16px;
       border-radius: 8px;
@@ -149,17 +123,6 @@
 
     <div class="card">
       <div class="card-title">➕ Add New Store</div>
-
-      <div class="form-group">
-        <label>Store Manager Email</label>
-        <input type="email" id="inviteEmail" placeholder="e.g. manager@cloud9vapor.com">
-      </div>
-      <button class="invite-btn" onclick="sendInvite()" id="inviteBtn">Send Store Email</button>
-      <div class="error" id="inviteError"></div>
-      <div class="success" id="inviteSuccess"></div>
-
-      <div class="divider">or add manually</div>
-
       <div class="form-group">
         <label>Store Name</label>
         <input type="text" id="storeName" placeholder="e.g. Cloud 9 - Phoenix">
@@ -196,43 +159,6 @@
       banner.textContent = '✅ Store connected successfully!';
       banner.className = 'banner success';
       history.replaceState({}, '', '/stores');
-    }
-
-    async function sendInvite() {
-      const email = document.getElementById('inviteEmail').value.trim();
-      const btn = document.getElementById('inviteBtn');
-      const errEl = document.getElementById('inviteError');
-      const okEl  = document.getElementById('inviteSuccess');
-      errEl.style.display = 'none';
-      okEl.style.display  = 'none';
-
-      if (!email) {
-        errEl.textContent = 'Please enter the store manager\'s email.';
-        errEl.style.display = 'block';
-        return;
-      }
-
-      btn.disabled = true;
-      btn.textContent = 'Sending...';
-
-      try {
-        const res = await fetch('/api/auth/store-invite', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-          body: JSON.stringify({ email })
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to send invite');
-        okEl.textContent = '✅ Invite sent to ' + email;
-        okEl.style.display = 'block';
-        document.getElementById('inviteEmail').value = '';
-      } catch (err) {
-        errEl.textContent = err.message;
-        errEl.style.display = 'block';
-      }
-
-      btn.disabled = false;
-      btn.textContent = 'Send Store Email';
     }
 
     async function loadStores() {

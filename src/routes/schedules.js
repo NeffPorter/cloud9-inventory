@@ -424,7 +424,10 @@ router.post('/:id/apply', auth, async (req, res) => {
   }
 });
 
-router.post('/run-cron', async (req, res) => {
+router.post('/run-cron', auth, async (req, res) => {
+  if (!['him', 'regional_manager', 'admin'].includes(req.user.role)) {
+    return res.status(403).json({ error: 'Admin only' });
+  }
   try {
     await runCron();
     res.json({ success: true });

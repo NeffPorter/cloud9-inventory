@@ -57,20 +57,27 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-// placeholder so existing code that sets req.profile still works
-function setProfile(req, res, next) {
-  next();
-}
 
 // ── SALE EVENTS (admin) ──────────────────────────────────────────────────────
 
-// GET /api/sale-events — list all events
+// GET /api/sale-events — list events (admins see all; store users see only their assigned events)
 router.get('/', auth, async (req, res) => {
   try {
-    const { data: events, error } = await supabase
-      .from('sale_events')
-      .select('*')
-      .order('start_date', { ascending: false });
+    let eventIds = null;
+
+    // Non-admins: only see events their store is assigned to
+    if (!isHim(req.user.role) && req.user.store_id) {
+      const { data: assigned } = await supabase
+        .from('sale_event_stores')
+        .select('sale_event_id')
+        .eq('store_id', req.user.store_id);
+      eventIds = (assigned || []).map(r => r.sale_event_id);
+      if (!eventIds.length) return res.json([]);
+    }
+
+    let query = supabase.from('sale_events').select('*').order('start_date', { ascending: false });
+    if (eventIds) query = query.in('id', eventIds);
+    const { data: events, error } = await query;
     if (error) throw error;
 
     // For each event, get assigned stores + proposal counts
@@ -87,6 +94,42 @@ router.get('/', auth, async (req, res) => {
     }));
 
     res.json(enriched);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// NOTE: /proposals/* routes are registered here (before /:id) so Express doesn't
+// swallow them as /:id = "proposals". The full handler bodies are below in the
+// PROPOSALS section — these just forward to avoid route-shadowing.
+router.get('/proposals/store/:storeId', auth, async (req, res) => {
+  try {
+    const { data: proposals, error } = await supabase
+      .from('sale_proposals')
+      .select('*, sale_events(id, name, start_date, end_date, proposal_due_date, description, purpose)')
+      .eq('store_id', req.params.storeId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    const withItems = await Promise.all((proposals || []).map(async p => {
+      const { data: items } = await supabase.from('sale_proposal_items').select('*').eq('proposal_id', p.id);
+      return { ...p, items: items || [] };
+    }));
+    res.json(withItems);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/proposals/:proposalId', auth, async (req, res) => {
+  try {
+    const { data: proposal, error } = await supabase
+      .from('sale_proposals')
+      .select('*, sale_events(*), stores(name)')
+      .eq('id', req.params.proposalId)
+      .single();
+    if (error || !proposal) return res.status(404).json({ error: 'Not found' });
+    const { data: items } = await supabase.from('sale_proposal_items').select('*').eq('proposal_id', proposal.id);
+    res.json({ ...proposal, items: items || [] });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -372,7 +415,7 @@ router.post('/proposals/:proposalId/reject', auth, requireAdmin, async (req, res
 
     // Notify the store's GM/IM via in-app + email
     if (proposal?.store_id) {
-      notify({
+      await notify({
         type: 'proposal_revision_requested',
         title: '⚠️ Sale Proposal Needs Revision',
         message: him_notes

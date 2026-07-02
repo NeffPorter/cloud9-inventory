@@ -3,104 +3,12 @@ const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const axios = require('axios');
-const crypto = require('crypto');
 const auth = require('../middleware/auth');
 const supabase = require('../lib/supabase');
 const { isUserAdmin } = require('../lib/roles');
 
-const CLOVER_APP_ID     = process.env.CLOVER_APP_ID;
-const CLOVER_APP_SECRET = process.env.CLOVER_APP_SECRET;
-const APP_BASE_URL      = process.env.APP_BASE_URL || 'https://cloud9-inventory-production.up.railway.app';
-const CLOVER_API_BASE   = 'https://api.clover.com';
-const CLOVER_WWW_BASE   = 'https://www.clover.com';
+const APP_BASE_URL = process.env.APP_BASE_URL || 'https://cloud9systems.up.railway.app';
 
-// In-memory nonce store (nonce -> { userId, exp })
-const oauthNonces = new Map();
-setInterval(() => {
-  const now = Date.now();
-  for (const [k, v] of oauthNonces) { if (v.exp < now) oauthNonces.delete(k); }
-}, 60_000);
-
-// ── Store invite: send email ──────────────────────────────────────────────────
-router.post('/store-invite', auth, async (req, res) => {
-  if (!isUserAdmin(req.user.role)) return res.status(403).json({ error: 'Admin only' });
-
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ error: 'Store email is required' });
-
-  const inviteToken = jwt.sign(
-    { type: 'store-invite', email },
-    process.env.JWT_SECRET,
-    { expiresIn: '48h' }
-  );
-
-  const connectUrl = `${APP_BASE_URL}/connect-store?token=${inviteToken}`;
-
-  try {
-    const { sendEmail } = require('../services/email');
-    await sendEmail({
-      to: email,
-      subject: 'Cloud 9 Vapor — Connect Your Clover Store',
-      html: `
-        <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:560px;margin:0 auto;padding:24px;">
-          <div style="background:#1a1a2e;padding:16px 24px;border-radius:12px 12px 0 0;">
-            <h1 style="color:white;margin:0;font-size:18px;">Cloud 9 Vapor</h1>
-          </div>
-          <div style="background:white;border:1px solid #e5e7eb;border-top:none;padding:24px;border-radius:0 0 12px 12px;">
-            <h2 style="margin:0 0 12px;font-size:17px;color:#1a1a1a;">Connect Your Store to Cloud 9 Inventory</h2>
-            <p style="color:#555;line-height:1.6;margin:0 0 20px;">You've been invited to connect your Clover store to the Cloud 9 Vapor inventory system. Click the button below to complete the setup.</p>
-            <p style="margin:0 0 20px;"><a href="${connectUrl}" style="background:#2f5597;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;display:inline-block;">Connect My Store</a></p>
-            <p style="color:#777;font-size:13px;margin:0 0 8px;">You'll need the following from your Clover Developer Dashboard:</p>
-            <ul style="color:#777;font-size:13px;margin:0 0 16px;padding-left:20px;">
-              <li>Your Merchant ID</li>
-              <li>Your API Token</li>
-            </ul>
-            <p style="color:#aaa;font-size:12px;margin:0;">This link expires in 48 hours.</p>
-            <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
-            <p style="color:#aaa;font-size:12px;margin:0;">Cloud 9 Vapor Inventory System</p>
-          </div>
-        </div>`
-    });
-    res.json({ success: true });
-  } catch (err) {
-    console.error('Store invite email error:', err.message);
-    res.status(500).json({ error: 'Failed to send invite email' });
-  }
-});
-
-// ── Store invite: complete connection (public — no auth required) ──────────────
-router.post('/store-connect', async (req, res) => {
-  const { invite_token, store_name, merchant_id, api_token } = req.body;
-
-  if (!invite_token || !store_name || !merchant_id || !api_token) {
-    return res.status(400).json({ error: 'All fields are required' });
-  }
-
-  try {
-    const payload = jwt.verify(invite_token, process.env.JWT_SECRET);
-    if (payload.type !== 'store-invite') throw new Error('Wrong token type');
-  } catch {
-    return res.status(400).json({ error: 'Invite link has expired or is invalid. Ask your admin to resend.' });
-  }
-
-  const { data: store, error: storeErr } = await supabase
-    .from('stores')
-    .upsert({ merchant_id, name: store_name, api_token, refresh_token: null, token_expires_at: null }, { onConflict: 'merchant_id' })
-    .select()
-    .single();
-
-  if (storeErr) {
-    console.error('store-connect upsert error:', storeErr);
-    return res.status(500).json({ error: 'Failed to save store. Please try again.' });
-  }
-
-  const { data: existing } = await supabase.from('store_settings').select('id').eq('store_id', store.id).maybeSingle();
-  if (!existing) {
-    await supabase.from('store_settings').insert([{ store_id: store.id, lead_time: 5, buffer_days: 14 }]);
-  }
-
-  res.json({ success: true });
-});
 
 // Login — accepts email or username
 router.post('/login', async (req, res) => {
@@ -185,7 +93,6 @@ router.post('/users', auth, async (req, res) => {
       return res.status(400).json({ error: 'All fields are required' });
     }
 
-    const bcrypt = require('bcryptjs');
     const password_hash = await bcrypt.hash(password, 10);
 
     const { data, error } = await supabase
@@ -288,27 +195,6 @@ router.put('/me', auth, async (req, res) => {
     const { error } = await supabase.from('users').update(updates).eq('id', req.user.id);
     if (error) throw error;
     res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Test Clover connection — GET /api/auth/test-clover (admin only)
-router.get('/test-clover', async (req, res) => {
-  try {
-    const { data: stores } = await supabase.from('stores').select('*');
-    const results = [];
-    for (const store of stores) {
-      try {
-        const r = await axios.get(`https://apisandbox.dev.clover.com/v3/merchants/${store.merchant_id}`, {
-          headers: { Authorization: `Bearer ${store.api_token}` }
-        });
-        results.push({ store: store.name, mid: store.merchant_id, token_in_db: store.api_token, status: 'OK', name: r.data.name });
-      } catch (err) {
-        results.push({ store: store.name, mid: store.merchant_id, token_in_db: store.api_token, status: err.response?.status, error: err.response?.data });
-      }
-    }
-    res.json(results);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

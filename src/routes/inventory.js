@@ -49,11 +49,10 @@ router.post('/stores', auth, async (req, res) => {
       .single();
     if (error) throw error;
 
-    await supabase.from('store_settings').insert([{
-      store_id: data.id,
-      lead_time: 5,
-      buffer_days: 14
-    }]);
+    const { data: existingSettings } = await supabase.from('store_settings').select('id').eq('store_id', data.id).maybeSingle();
+    if (!existingSettings) {
+      await supabase.from('store_settings').insert([{ store_id: data.id, lead_time: 5, buffer_days: 14 }]);
+    }
 
     // Auto-sync inventory in background
     triggerBackgroundSync(data);
@@ -140,7 +139,7 @@ router.delete('/stores/:id', auth, async (req, res) => {
       'store_tasks',
       'sales_log',
       'inventory_items',
-      'distributor_store_lead_times',
+      'distributor_lead_times',
       'purchase_orders',
       'budgets',
       'notifications',
@@ -270,6 +269,7 @@ router.post('/sync/:store_id', auth, async (req, res) => {
     if (error || !store) return res.status(404).json({ error: 'Store not found' });
 
     const { cloverFetch } = require('../services/clover');
+    const syncToken = await getValidApiToken(store);
 
     let allItems = [];
     let offset = 0;
@@ -280,7 +280,7 @@ router.post('/sync/:store_id', auth, async (req, res) => {
       const data = await cloverFetch(
         `items?expand=itemStock,categories,itemGroup&limit=${limit}&offset=${offset}`,
         store.merchant_id,
-        store.api_token
+        syncToken
       );
       const elements = data.elements || [];
       allItems = allItems.concat(elements);
@@ -295,7 +295,7 @@ router.post('/sync/:store_id', auth, async (req, res) => {
 
     console.log(`Total items fetched: ${allItems.length}`);
 
-    const groupsData = await cloverFetch('item_groups?limit=1000', store.merchant_id, store.api_token);
+    const groupsData = await cloverFetch('item_groups?limit=1000', store.merchant_id, syncToken);
     const groupMap = {};
     (groupsData.elements || []).forEach(g => {
       if (g.id && g.name) groupMap[g.id] = g.name.trim();
@@ -337,6 +337,21 @@ router.post('/stocktake/reports', auth, async (req, res) => {
   try {
     const { store_id, categories, total_counted, total_matches, total_shortages, total_overages, discrepancies } = req.body;
 
+    // Compute total_loss_value: sum of shortage quantities × item cost
+    let total_loss_value = 0;
+    if (discrepancies?.length) {
+      const itemIds = discrepancies.map(d => d.item_id).filter(Boolean);
+      if (itemIds.length) {
+        const { data: items } = await supabase.from('inventory_items').select('id, cost').in('id', itemIds);
+        const costMap = Object.fromEntries((items || []).map(i => [i.id, i.cost || 0]));
+        for (const d of discrepancies) {
+          if (d.counted < d.expected && d.item_id) {
+            total_loss_value += (d.expected - d.counted) * (costMap[d.item_id] || 0);
+          }
+        }
+      }
+    }
+
     const { data, error } = await supabase
       .from('stock_take_reports')
       .insert([{
@@ -346,7 +361,9 @@ router.post('/stocktake/reports', auth, async (req, res) => {
         total_matches,
         total_shortages,
         total_overages,
-        discrepancies
+        discrepancies,
+        total_loss_value: parseFloat(total_loss_value.toFixed(2)),
+        created_by_name: req.user.name || req.user.email
       }])
       .select()
       .single();
@@ -688,12 +705,13 @@ router.post('/category-settings/recalculate', auth, async (req, res) => {
 
       const suggestedQty = Math.max(0, Math.ceil((dailyRate * (leadTime + buffer)) - (item.clover_qty || 0)));
 
-      await supabase
+      const { error: updateErr } = await supabase
         .from('inventory_items')
         .update({ suggested_order: suggestedQty })
         .eq('id', item.id)
         .eq('store_id', store_id);
-      updated++;
+      if (updateErr) console.error(`Recalculate update failed for item ${item.id}:`, updateErr.message);
+      else updated++;
     }
 
     res.json({ success: true, updated, category });

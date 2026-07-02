@@ -11,7 +11,6 @@ dotenv.config();
 
 console.log('[Startup] GMAIL_USER:', process.env.GMAIL_USER || 'MISSING');
 console.log('[Startup] GMAIL_PASS:', process.env.GMAIL_PASS ? '***set***' : 'MISSING');
-console.log('[Startup] All env keys:', Object.keys(process.env).join(', '));
 
 const app = express();
 app.use(cors());
@@ -46,9 +45,6 @@ app.get('/dashboard', (req, res) => {
 });
 app.get('/stores', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/stores.html'));
-});
-app.get('/connect-store', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/connect-store.html'));
 });
 app.get('/users', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/users.html'));

@@ -17,7 +17,7 @@ function requireStoreAccess(req, res, next) {
 
 // Only GM, HIM, and Regional Manager can write expenses
 function requireGmOrAdmin(req, res, next) {
-  if (!['regional_manager', 'him', 'admin', 'gm'].includes(req.user.role)) return res.status(403).json({ error: 'GM or admin only' });
+  if (!['regional_manager', 'him', 'admin', 'owner', 'gm'].includes(req.user.role)) return res.status(403).json({ error: 'GM or admin only' });
   next();
 }
 

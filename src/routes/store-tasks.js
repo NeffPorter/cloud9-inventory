@@ -31,6 +31,17 @@ router.get('/', auth, async (req, res) => {
 router.put('/:id', auth, async (req, res) => {
   try {
     const { status } = req.body;
+
+    // Non-admins can only update tasks for their own store
+    const { isHim } = require('../lib/roles');
+    if (!isHim(req.user.role)) {
+      const { data: task } = await supabase
+        .from('store_tasks').select('store_id').eq('id', req.params.id).single();
+      if (!task || task.store_id !== req.user.store_id) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+    }
+
     const { data, error } = await supabase
       .from('store_tasks')
       .update({ status, updated_at: new Date().toISOString() })
@@ -70,7 +81,7 @@ async function runStocktakeCron() {
       .select('categories')
       .eq('store_id', store.id)
       .gte('created_at', monthStart)
-      .in('status', ['completed', 'approved']);
+      .in('status', ['reviewed', 'resolved']);
 
     const coveredThisMonth = new Set();
     for (const r of (reports || [])) {
