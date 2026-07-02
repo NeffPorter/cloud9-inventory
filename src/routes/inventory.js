@@ -703,7 +703,12 @@ router.post('/category-settings/recalculate', auth, async (req, res) => {
         ? leadTimeMap[cheapest.distributor_id]
         : 7;
 
-      const suggestedQty = Math.max(0, Math.ceil((dailyRate * (leadTime + buffer)) - (item.clover_qty || 0)));
+      // If out of stock: order enough to cover lead time + buffer (min 1), regardless of velocity.
+      // If in stock: order the projected shortfall.
+      const qty = item.clover_qty || 0;
+      const suggestedQty = qty <= 0
+        ? Math.max(1, Math.ceil(dailyRate * (leadTime + buffer)))
+        : Math.max(0, Math.ceil(dailyRate * (leadTime + buffer) - qty));
 
       const { error: updateErr } = await supabase
         .from('inventory_items')

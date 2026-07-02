@@ -260,7 +260,11 @@ async function updateInventoryItem(store, itemId) {
     });
 
     const dailyRate = Math.max(0, unitsSold) / 14;
-    const suggested = Math.max(0, Math.ceil(dailyRate * (leadTime + bufferDays) - cloverQty));
+    // If out of stock: order enough to cover lead time + buffer (min 1), regardless of velocity.
+    // If in stock: order the projected shortfall.
+    const suggested = cloverQty <= 0
+      ? Math.max(1, Math.ceil(dailyRate * (leadTime + bufferDays)))
+      : Math.max(0, Math.ceil(dailyRate * (leadTime + bufferDays) - cloverQty));
 
     // Check if item already exists - if so preserve existing metadata
 const { data: existingItem } = await supabase
