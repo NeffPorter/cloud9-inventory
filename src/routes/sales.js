@@ -260,9 +260,9 @@ async function updateInventoryItem(store, itemId) {
     });
 
     const dailyRate = Math.max(0, unitsSold) / 14;
-    // If out of stock: order enough to cover lead time + buffer (min 1), regardless of velocity.
-    // If in stock: order the projected shortfall.
-    const suggested = cloverQty <= 0
+    // At or below low stock threshold: always suggest enough to cover lead + buffer (min 1)
+    // Above threshold: order only the projected shortfall
+    const suggested = cloverQty <= lowStockThreshold
       ? Math.max(1, Math.ceil(dailyRate * (leadTime + bufferDays)))
       : Math.max(0, Math.ceil(dailyRate * (leadTime + bufferDays) - cloverQty));
 

@@ -622,11 +622,12 @@ router.put('/category-settings', auth, async (req, res) => {
 router.post('/category-settings/recalculate', auth, async (req, res) => {
   try {
     if (!isHim(req.user.role)) return res.status(403).json({ error: 'Admin only' });
-    const { store_id, category, buffer_days, lookback_days } = req.body;
+    const { store_id, category, buffer_days, lookback_days, low_stock_threshold } = req.body;
     if (!store_id || !category) return res.status(400).json({ error: 'store_id and category required' });
 
     const buffer = parseInt(buffer_days) || 3;
     const lookback = parseInt(lookback_days) || 14;
+    const lowStockThreshold = parseInt(low_stock_threshold) ?? 5;
 
     // Get all items in this category
     const { data: items, error: itemsError } = await supabase
@@ -703,10 +704,10 @@ router.post('/category-settings/recalculate', auth, async (req, res) => {
         ? leadTimeMap[cheapest.distributor_id]
         : 7;
 
-      // If out of stock: order enough to cover lead time + buffer (min 1), regardless of velocity.
-      // If in stock: order the projected shortfall.
+      // At or below low stock threshold: always suggest enough to cover lead + buffer (min 1)
+      // Above threshold: order only the projected shortfall
       const qty = item.clover_qty || 0;
-      const suggestedQty = qty <= 0
+      const suggestedQty = qty <= lowStockThreshold
         ? Math.max(1, Math.ceil(dailyRate * (leadTime + buffer)))
         : Math.max(0, Math.ceil(dailyRate * (leadTime + buffer) - qty));
 
