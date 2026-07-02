@@ -6,6 +6,27 @@ function navGo(path) {
   window.location.href = window.__navStore ? `${path}?store=${window.__navStore}` : path;
 }
 
+// Navigate to a path that REQUIRES a store — flash a hint if none is selected
+function navGoStore(path) {
+  if (!window.__navStore) {
+    const openDropdown = document.querySelector('.dropdown.open');
+    if (openDropdown) {
+      const sf = openDropdown.querySelector('[id^="sf-"]');
+      if (sf) {
+        sf.style.transition = 'background 0.3s';
+        sf.style.background = '#fff3cd';
+        const hint = document.createElement('div');
+        hint.style.cssText = 'width:100%;color:#856404;font-size:11px;font-weight:700;padding:4px 2px;order:-1;';
+        hint.textContent = '👆 Select a store first';
+        sf.prepend(hint);
+        setTimeout(() => { sf.style.background = '#f8f9fa'; hint.remove(); }, 2000);
+      }
+    }
+    return;
+  }
+  window.location.href = `${path}?store=${window.__navStore}`;
+}
+
 // Update the selected store and refresh all toggle button styles
 function selectNavStore(storeId) {
   window.__navStore = storeId || null;
@@ -46,11 +67,11 @@ function buildNavItems(user) {
   }
 
   // Store toggle pill section — rendered inside each dropdown for multi-store roles
-  function storeFilter(sfId) {
+  function storeFilter(sfId, label = 'Filter by Store') {
     if (!isMultiStore) return '';
     return `
-      <div class="dropdown-header" style="margin-top:4px">Filter by Store</div>
-      <div id="${sfId}" style="display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px;background:#f8f9fa;border-top:1px solid #f0f0f0;">
+      <div class="dropdown-header">${label}</div>
+      <div id="${sfId}" style="display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px;background:#f8f9fa;border-bottom:1px solid #f0f0f0;">
         <div style="color:#bbb;font-size:12px;padding:2px 0">Loading stores…</div>
       </div>`;
   }
@@ -93,14 +114,14 @@ function buildNavItems(user) {
     <div class="nav-item" style="position:relative">
       <button class="nav-btn" onclick="toggleDropdown('invMgmtDropdown', this)">📦 Inventory Management <span style="font-size:10px">▼</span></button>
       <div class="dropdown" id="invMgmtDropdown">
-        <div class="dropdown-header">Inventory Management</div>
-        ${item('/inventory', '📦', 'Inventory')}
+        ${storeFilter('sf-inventory', 'Select Store')}
+        ${isMultiStore ? '<div class="dropdown-header" style="margin-top:0">Navigate</div>' : '<div class="dropdown-header">Inventory Management</div>'}
+        ${isSingle ? item('/inventory', '📦', 'Inventory') : `<button class="dropdown-item" onclick="navGoStore('/inventory')">📦 Inventory</button>`}
         ${item('/stocktake', '📋', 'Stock Take')}
-        ${item('/suggested', '📋', 'Purchase Planner')}
+        ${isSingle ? item('/suggested', '📋', 'Purchase Planner') : `<button class="dropdown-item" onclick="navGoStore('/suggested')">📋 Purchase Planner</button>`}
         ${item('/schedules', '🎯', 'Discount Scheduler')}
         <button class="dropdown-item" onclick="window.location.href='/sale-events'">📅 Sale Events</button>
         <button class="dropdown-item" onclick="window.location.href='/owner-inventory'">🔍 Inventory Lookup</button>
-        ${storeFilter('sf-inventory')}
       </div>
     </div>
 
@@ -108,7 +129,8 @@ function buildNavItems(user) {
     <div class="nav-item" style="position:relative">
       <button class="nav-btn" onclick="toggleDropdown('purchasesDropdown', this)">🛒 Purchases <span style="font-size:10px">▼</span></button>
       <div class="dropdown" id="purchasesDropdown">
-        <div class="dropdown-header">Purchases</div>
+        ${storeFilter('sf-purchases', 'Select Store')}
+        ${isMultiStore ? '<div class="dropdown-header" style="margin-top:0">Navigate</div>' : '<div class="dropdown-header">Purchases</div>'}
         ${item('/pos',         '🛒', 'Purchase Orders')}
         ${item('/budgets',     '📒', 'Budget Report')}
         ${item('/gm-expenses', '💼', 'Expenses')}
@@ -116,7 +138,6 @@ function buildNavItems(user) {
         <div class="dropdown-header" style="margin-top:4px">Suppliers</div>
         <button class="dropdown-item" onclick="window.location.href='/distributors'">🏭 Distributors</button>
         <button class="dropdown-item" onclick="window.location.href='/distributor-prices'">💲 Price Lists</button>` : ''}
-        ${storeFilter('sf-purchases')}
       </div>
     </div>
 
