@@ -1,104 +1,131 @@
+// Global store context for multi-store roles (null = All Stores)
+window.__navStore = null;
+
+// Navigate to a path, appending the currently selected store if one is set
+function navGo(path) {
+  window.location.href = window.__navStore ? `${path}?store=${window.__navStore}` : path;
+}
+
+// Update the selected store and refresh all toggle button styles
+function selectNavStore(storeId) {
+  window.__navStore = storeId || null;
+  document.querySelectorAll('.store-toggle').forEach(el => {
+    const active = (el.getAttribute('data-store-id') || '') === (storeId || '');
+    el.style.background  = active ? '#2f5597' : 'white';
+    el.style.color       = active ? 'white'   : '#555';
+    el.style.borderColor = active ? '#2f5597' : '#ddd';
+  });
+}
+
 function buildNavItems(user) {
-  const role = user.role || '';
+  const role    = user.role     || '';
   const storeId = user.store_id || '';
 
-  // ── Owner role ───────────────────────────────────────────────────────────────
-  if (role === 'owner') {
-    return `
-      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/owner-dashboard'">🏠 Dashboard</button></div>
-      <div class="nav-item" style="position:relative">
-        <button class="nav-btn" onclick="toggleDropdown('reportsDropdown', this)">📊 Reports <span style="font-size:10px">▼</span></button>
-        <div class="dropdown" id="reportsDropdown">
-          <div class="dropdown-header">Reports</div>
-          <button class="dropdown-item" onclick="window.location.href='/owner-pl'">📊 P&L Statements</button>
-          <button class="dropdown-item" onclick="window.location.href='/owner-inventory'">🔍 Inventory Lookup</button>
-          <button class="dropdown-item" onclick="window.location.href='/gm-expenses'">💼 Store Expenses</button>
-        </div>
-      </div>
-      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/sales'">💰 Sales</button></div>`;
+  const isHimRole    = ['him', 'admin', 'regional_manager'].includes(role);
+  const isMultiStore = ['him', 'admin', 'regional_manager', 'owner'].includes(role);
+  const isSingle     = role === 'gm' || role === 'store_user';
+
+  // These paths accept a ?store= query param
+  const STORE_PATHS = new Set([
+    '/sales', '/inventory', '/stocktake', '/suggested',
+    '/pos', '/budgets', '/schedules', '/store-tasks',
+    '/owner-pl', '/gm-expenses'
+  ]);
+
+  // Build a dropdown <button> for a feature link
+  function item(path, emoji, label) {
+    if (isSingle) {
+      const href = (STORE_PATHS.has(path) && storeId) ? `${path}?store=${storeId}` : path;
+      return `<button class="dropdown-item" onclick="window.location.href='${href}'">${emoji} ${label}</button>`;
+    }
+    // Multi-store: store-sensitive paths use navGo so they pick up the selected store
+    if (STORE_PATHS.has(path)) {
+      return `<button class="dropdown-item" onclick="navGo('${path}')">${emoji} ${label}</button>`;
+    }
+    return `<button class="dropdown-item" onclick="window.location.href='${path}'">${emoji} ${label}</button>`;
   }
 
-  // ── IM / GM role ─────────────────────────────────────────────────────────────
-  if (role === 'store_user' || role === 'gm') {
-    const storeParam = storeId ? `?store=${storeId}` : '';
+  // Store toggle pill section — rendered inside each dropdown for multi-store roles
+  function storeFilter(sfId) {
+    if (!isMultiStore) return '';
     return `
-      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/inventory${storeParam}'">📦 Inventory</button></div>
-      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/pos${storeParam}'">🛒 Purchase Orders</button></div>
-      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/suggested${storeParam}'">📋 Purchase Planner</button></div>
-      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/budgets${storeParam}'">📒 Budget Reports</button></div>
-      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/schedules'">🎯 Discounts</button></div>
-      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/sales'">💰 Sales</button></div>
-      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/stocktake'">📋 Stock Take</button></div>
-      <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/store-tasks${storeParam}'">✅ To Do</button></div>
-      ${role === 'gm' ? `<div class="nav-item"><button class="nav-btn" onclick="window.location.href='/gm-expenses'">💼 Expenses</button></div>` : ''}`;
+      <div class="dropdown-header" style="margin-top:4px">Filter by Store</div>
+      <div id="${sfId}" style="display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px;background:#f8f9fa;border-top:1px solid #f0f0f0;">
+        <div style="color:#bbb;font-size:12px;padding:2px 0">Loading stores…</div>
+      </div>`;
   }
 
-  // ── HIM / Regional Manager ───────────────────────────────────────────────────
-  const isHimRole = role === 'him' || role === 'admin' || role === 'regional_manager';
-  if (!isHimRole) return '';
+  // To-Do is a direct nav button (no dropdown)
+  const todoHref = (isSingle && storeId) ? `/store-tasks?store=${storeId}` : '/store-tasks';
 
-  return `
-    <div class="nav-item" style="position:relative">
-      <button class="nav-btn" onclick="toggleDropdown('inventoryDropdown', this)">📦 Inventory <span style="font-size:10px">▼</span></button>
-      <div class="dropdown" id="inventoryDropdown">
-        <div class="dropdown-header">By Store</div>
-        <div id="inventoryStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
-      </div>
-    </div>
-    <div class="nav-item" style="position:relative">
-      <button class="nav-btn" onclick="toggleDropdown('poDropdown', this)">🛒 Purchase Orders <span style="font-size:10px">▼</span></button>
-      <div class="dropdown" id="poDropdown">
-        <div class="dropdown-header">By Store</div>
-        <div id="poStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
-      </div>
-    </div>
-    <div class="nav-item" style="position:relative">
-      <button class="nav-btn" onclick="toggleDropdown('suggestedDropdown', this)">📋 Purchase Planner <span style="font-size:10px">▼</span></button>
-      <div class="dropdown" id="suggestedDropdown">
-        <div class="dropdown-header">By Store</div>
-        <div id="suggestedStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
-        <div class="dropdown-header" style="margin-top:4px">Suppliers</div>
-        <button class="dropdown-item" onclick="window.location.href='/distributors'">🏭 Distributors</button>
-        <button class="dropdown-item" onclick="window.location.href='/distributor-prices'">💲 Distributor Prices</button>
-      </div>
-    </div>
-    <div class="nav-item" style="position:relative">
-      <button class="nav-btn" onclick="toggleDropdown('budgetDropdown', this)">💰 Budget Reports <span style="font-size:10px">▼</span></button>
-      <div class="dropdown" id="budgetDropdown">
-        <div class="dropdown-header">By Store</div>
-        <div id="budgetStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
-      </div>
-    </div>
-    <div class="nav-item" style="position:relative">
-      <button class="nav-btn" onclick="toggleDropdown('salesTasksDropdown', this)">🎯 Discount Scheduler <span style="font-size:10px">▼</span></button>
-      <div class="dropdown" id="salesTasksDropdown">
-        <div class="dropdown-header">Sale Schedule</div>
-        <button class="dropdown-item" onclick="window.location.href='/sale-events'">📅 Manage Sale Events</button>
-        <div class="dropdown-header" style="margin-top:4px">Ad-hoc Discounts</div>
-        <div id="schedulesStoreList"><div style="padding:12px 16px;color:#999;font-size:13px">Loading...</div></div>
-      </div>
-    </div>
-    <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/stocktake'">📋 Stock Take</button></div>
-    <div class="nav-item"><button class="nav-btn" onclick="window.location.href='/sales'">📊 Sales</button></div>
-    <div class="nav-item" style="position:relative">
-      <button class="nav-btn" onclick="toggleDropdown('reportsDropdown', this)">📊 Reports <span style="font-size:10px">▼</span></button>
-      <div class="dropdown" id="reportsDropdown">
-        <div class="dropdown-header">Company Reports</div>
-        <button class="dropdown-item" onclick="window.location.href='/owner-dashboard'">🏠 Overview Dashboard</button>
-        <button class="dropdown-item" onclick="window.location.href='/owner-pl'">📊 P&L Statements</button>
-        <button class="dropdown-item" onclick="window.location.href='/owner-inventory'">🔍 Inventory Lookup</button>
-        <button class="dropdown-item" onclick="window.location.href='/gm-expenses'">💼 Store Expenses</button>
-      </div>
-    </div>
+  // Admin section — conditional on role
+  let adminItems = '';
+  if (isHimRole) {
+    adminItems += `
+      <button class="dropdown-item" onclick="window.location.href='/stores'">🏪 Stores</button>
+      <button class="dropdown-item" onclick="window.location.href='/users'">👥 Users</button>`;
+  }
+  if (isHimRole || role === 'owner') {
+    adminItems += `<button class="dropdown-item" onclick="window.location.href='/activity-log'">📜 Activity Log</button>`;
+  }
+  const adminSection = adminItems ? `
     <div class="nav-item" style="position:relative">
       <button class="nav-btn" onclick="toggleDropdown('adminDropdown', this)">⚙️ Admin <span style="font-size:10px">▼</span></button>
       <div class="dropdown" id="adminDropdown">
-        <div class="dropdown-header">Management</div>
-        <button class="dropdown-item" onclick="window.location.href='/stores'">🏪 Manage Stores</button>
-        <button class="dropdown-item" onclick="window.location.href='/users'">👥 Manage Users</button>
-        <button class="dropdown-item" onclick="window.location.href='/activity-log'">📜 Activity Log</button>
+        <div class="dropdown-header">Admin</div>
+        ${adminItems}
       </div>
-    </div>`;
+    </div>` : '';
+
+  return `
+    <!-- Reports -->
+    <div class="nav-item" style="position:relative">
+      <button class="nav-btn" onclick="toggleDropdown('reportsDropdown', this)">📊 Reports <span style="font-size:10px">▼</span></button>
+      <div class="dropdown" id="reportsDropdown">
+        <div class="dropdown-header">Reports</div>
+        ${item('/sales',    '💰', 'Sales')}
+        ${item('/owner-pl', '📊', 'P&L Statement')}
+        ${storeFilter('sf-reports')}
+      </div>
+    </div>
+
+    <!-- Inventory Management -->
+    <div class="nav-item" style="position:relative">
+      <button class="nav-btn" onclick="toggleDropdown('invMgmtDropdown', this)">📦 Inventory Management <span style="font-size:10px">▼</span></button>
+      <div class="dropdown" id="invMgmtDropdown">
+        <div class="dropdown-header">Inventory Management</div>
+        ${item('/inventory', '📦', 'Inventory')}
+        ${item('/stocktake', '📋', 'Stock Take')}
+        ${item('/suggested', '📋', 'Purchase Planner')}
+        ${item('/schedules', '🎯', 'Discount Scheduler')}
+        <button class="dropdown-item" onclick="window.location.href='/sale-events'">📅 Sale Events</button>
+        <button class="dropdown-item" onclick="window.location.href='/owner-inventory'">🔍 Inventory Lookup</button>
+        ${storeFilter('sf-inventory')}
+      </div>
+    </div>
+
+    <!-- Purchases -->
+    <div class="nav-item" style="position:relative">
+      <button class="nav-btn" onclick="toggleDropdown('purchasesDropdown', this)">🛒 Purchases <span style="font-size:10px">▼</span></button>
+      <div class="dropdown" id="purchasesDropdown">
+        <div class="dropdown-header">Purchases</div>
+        ${item('/pos',         '🛒', 'Purchase Orders')}
+        ${item('/budgets',     '📒', 'Budget Report')}
+        ${item('/gm-expenses', '💼', 'Expenses')}
+        ${isHimRole ? `
+        <div class="dropdown-header" style="margin-top:4px">Suppliers</div>
+        <button class="dropdown-item" onclick="window.location.href='/distributors'">🏭 Distributors</button>
+        <button class="dropdown-item" onclick="window.location.href='/distributor-prices'">💲 Price Lists</button>` : ''}
+        ${storeFilter('sf-purchases')}
+      </div>
+    </div>
+
+    <!-- To-Do (direct link, no dropdown) -->
+    <div class="nav-item">
+      <button class="nav-btn" onclick="window.location.href='${todoHref}'">✅ To-Do</button>
+    </div>
+
+    ${adminSection}`;
 }
 
 function loadNavbar() {
@@ -183,7 +210,7 @@ function loadNavbar() {
       background: white;
       border-radius: 10px;
       box-shadow: 0 8px 32px rgba(0,0,0,0.15);
-      min-width: 200px;
+      min-width: 210px;
       overflow: hidden;
       z-index: 200;
     }
@@ -212,6 +239,20 @@ function loadNavbar() {
       text-align: left;
     }
     .dropdown-item:hover { background: #f0f4ff; color: #2f5597; }
+
+    .store-toggle {
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid #ddd;
+      background: white;
+      color: #555;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .store-toggle:hover { border-color: #2f5597; color: #2f5597; }
 
     .nav-hamburger {
       display: none;
@@ -268,14 +309,15 @@ function loadNavbar() {
   `;
   document.head.appendChild(style);
 
-  if (['admin', 'him', 'regional_manager'].includes(user.role)) loadNavbarStores();
+  // Load store toggles for multi-store roles
+  if (['admin', 'him', 'regional_manager', 'owner'].includes(user.role)) loadNavbarStores();
 
+  // Notifications / tasks polling
   if (['admin', 'him', 'regional_manager', 'owner'].includes(user.role)) {
     loadNotifications();
     if (window.__notifPollInterval) clearInterval(window.__notifPollInterval);
     window.__notifPollInterval = setInterval(loadNotifications, 30000);
   } else if (user.store_id) {
-    // GMs and IMs: show store tasks + their store notifications
     loadStoreTasks(user.store_id);
     if (window.__tasksPollInterval) clearInterval(window.__tasksPollInterval);
     window.__tasksPollInterval = setInterval(() => loadStoreTasks(user.store_id), 60000);
@@ -435,7 +477,6 @@ function closeAllDropdowns() {
 
 async function loadNavbarStores() {
   const token = localStorage.getItem('token');
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
   try {
     const res = await fetch('/api/inventory/stores', {
       headers: { 'Authorization': 'Bearer ' + token }
@@ -443,58 +484,22 @@ async function loadNavbarStores() {
     const data = await res.json();
     const stores = data.stores || [];
 
-    if (stores.length === 1) {
-      const store = stores[0];
+    // Build toggle pill HTML — "All Stores" is active by default
+    const togglesHTML = `
+      <button class="store-toggle" data-store-id="" onclick="selectNavStore('')"
+        style="background:#2f5597;color:white;border-color:#2f5597;">
+        All Stores
+      </button>
+      ${stores.map(s => `
+        <button class="store-toggle" data-store-id="${s.id}" onclick="selectNavStore('${s.id}')">
+          ${s.name}
+        </button>`).join('')}`;
 
-      document.getElementById('inventoryStoreList').closest('.nav-item').outerHTML = `
-        <div class="nav-item" style="position:relative">
-          <button class="nav-btn" onclick="window.location.href='/inventory?store=${store.id}'">📦 Inventory</button>
-        </div>`;
-
-      document.getElementById('poStoreList').closest('.nav-item').outerHTML = `
-        <div class="nav-item" style="position:relative">
-          <button class="nav-btn" onclick="window.location.href='/pos?store=${store.id}'">🛒 Purchase Orders</button>
-        </div>`;
-
-      document.getElementById('suggestedStoreList').closest('.nav-item').outerHTML = `
-        <div class="nav-item" style="position:relative">
-          <button class="nav-btn" onclick="window.location.href='/suggested?store=${store.id}'">📋 Purchase Planner</button>
-        </div>`;
-
-      document.getElementById('budgetStoreList').closest('.nav-item').outerHTML = `
-        <div class="nav-item" style="position:relative">
-          <button class="nav-btn" onclick="window.location.href='/budgets?store=${store.id}'">💰 Budget Reports</button>
-        </div>`;
-
-      document.getElementById('schedulesStoreList').innerHTML = `<button class="dropdown-item" onclick="window.location.href='/schedules?store=${store.id}'">${store.name}</button>`;
-
-    } else {
-      const inventoryLinks = stores.map(s =>
-        `<button class="dropdown-item" onclick="window.location.href='/inventory?store=${s.id}'">${s.name}</button>`
-      ).join('') || '<div style="padding:12px 16px;color:#999;font-size:13px">No stores yet</div>';
-
-      const poLinks = stores.map(s =>
-        `<button class="dropdown-item" onclick="window.location.href='/pos?store=${s.id}'">${s.name}</button>`
-      ).join('') || '<div style="padding:12px 16px;color:#999;font-size:13px">No stores yet</div>';
-
-      const suggestedLinks = stores.map(s =>
-        `<button class="dropdown-item" onclick="window.location.href='/suggested?store=${s.id}'">${s.name}</button>`
-      ).join('') || '<div style="padding:12px 16px;color:#999;font-size:13px">No stores yet</div>';
-
-      const budgetLinks = stores.map(s =>
-        `<button class="dropdown-item" onclick="window.location.href='/budgets?store=${s.id}'">${s.name}</button>`
-      ).join('') || '<div style="padding:12px 16px;color:#999;font-size:13px">No stores yet</div>';
-
-      const schedulesLinks = stores.map(s =>
-        `<button class="dropdown-item" onclick="window.location.href='/schedules?store=${s.id}'">${s.name}</button>`
-      ).join('') || '<div style="padding:12px 16px;color:#999;font-size:13px">No stores yet</div>';
-
-      document.getElementById('inventoryStoreList').innerHTML = inventoryLinks;
-      document.getElementById('poStoreList').innerHTML = poLinks;
-      document.getElementById('suggestedStoreList').innerHTML = suggestedLinks;
-      document.getElementById('budgetStoreList').innerHTML = budgetLinks;
-      document.getElementById('schedulesStoreList').innerHTML = schedulesLinks;
-    }
+    // Populate all three store-filter sections
+    ['sf-reports', 'sf-inventory', 'sf-purchases'].forEach(sfId => {
+      const el = document.getElementById(sfId);
+      if (el) el.innerHTML = togglesHTML;
+    });
   } catch (err) {
     console.error('Navbar stores error:', err);
   }

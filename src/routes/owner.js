@@ -5,16 +5,30 @@ const supabase = require('../lib/supabase');
 
 const { isOwnerLevel } = require('../lib/roles');
 
-function requireOwner(req, res, next) {
-  if (!isOwnerLevel(req.user.role)) return res.status(403).json({ error: 'Owner access required' });
+// Allows owner-level roles AND gm/store_user (with store scoping applied per-endpoint)
+function requireOwnerOrStore(req, res, next) {
+  const role = req.user.role;
+  if (!isOwnerLevel(role) && role !== 'gm' && role !== 'store_user') {
+    return res.status(403).json({ error: 'Access required' });
+  }
   next();
+}
+
+// Returns the effective store_id for the request.
+// gm/store_user are always forced to their own store.
+// Owner-level roles use the query param (or null = all stores).
+function effectiveStore(req, queryStoreId) {
+  const role = req.user.role;
+  if (role === 'gm' || role === 'store_user') return req.user.store_id || null;
+  return queryStoreId || null;
 }
 
 // ── GET /api/owner/inventory-search?q=&store_id= ─────────────────────────────
 // Cross-store product search — fuzzy: matches any word across name/group_name/variant_name/category
-router.get('/inventory-search', auth, requireOwner, async (req, res) => {
+router.get('/inventory-search', auth, requireOwnerOrStore, async (req, res) => {
   try {
-    const { q, store_id } = req.query;
+    const { q, store_id: rawStoreId } = req.query;
+    const store_id = effectiveStore(req, rawStoreId);
     if (!q || q.trim().length < 2) return res.json([]);
 
     const terms = q.trim().split(/\s+/).filter(Boolean);
@@ -69,9 +83,10 @@ router.get('/inventory-search', auth, requireOwner, async (req, res) => {
 });
 
 // ── GET /api/owner/pl?start=&end=&store_id= ───────────────────────────────────
-router.get('/pl', auth, requireOwner, async (req, res) => {
+router.get('/pl', auth, requireOwnerOrStore, async (req, res) => {
   try {
-    const { start, end, store_id } = req.query;
+    const { start, end, store_id: rawStoreId } = req.query;
+    const store_id = effectiveStore(req, rawStoreId);
     if (!start || !end) return res.status(400).json({ error: 'start and end dates required' });
 
     let storeQuery = supabase.from('stores').select('id, name');
@@ -252,9 +267,10 @@ router.get('/pl', auth, requireOwner, async (req, res) => {
 
 // ── GET /api/owner/top-products?start=&end=&store_id=&limit= ─────────────────
 // Top selling items by revenue, cross-store or per store
-router.get('/top-products', auth, requireOwner, async (req, res) => {
+router.get('/top-products', auth, requireOwnerOrStore, async (req, res) => {
   try {
-    const { start, end, store_id, limit = 20 } = req.query;
+    const { start, end, store_id: rawStoreId, limit = 20 } = req.query;
+    const store_id = effectiveStore(req, rawStoreId);
     if (!start || !end) return res.status(400).json({ error: 'start and end dates required' });
 
     let query = supabase
@@ -332,9 +348,10 @@ router.get('/top-products', auth, requireOwner, async (req, res) => {
 
 // ── GET /api/owner/inventory-value?store_id= ─────────────────────────────────
 // Total stock value (cost × qty) per store
-router.get('/inventory-value', auth, requireOwner, async (req, res) => {
+router.get('/inventory-value', auth, requireOwnerOrStore, async (req, res) => {
   try {
-    const { store_id } = req.query;
+    const { store_id: rawStoreId } = req.query;
+    const store_id = effectiveStore(req, rawStoreId);
 
     // Fetch store names explicitly to avoid FK join failures
     const { data: storeList } = await supabase.from('stores').select('id, name');
@@ -383,10 +400,15 @@ router.get('/inventory-value', auth, requireOwner, async (req, res) => {
 });
 
 // ── GET /api/owner/stores ─────────────────────────────────────────────────────
-// List all stores (owner needs this for dropdowns)
-router.get('/stores', auth, requireOwner, async (req, res) => {
+// List stores — gm/store_user only see their own store
+router.get('/stores', auth, requireOwnerOrStore, async (req, res) => {
   try {
-    const { data, error } = await supabase.from('stores').select('id, name').order('name');
+    const role = req.user.role;
+    let query = supabase.from('stores').select('id, name').order('name');
+    if ((role === 'gm' || role === 'store_user') && req.user.store_id) {
+      query = query.eq('id', req.user.store_id);
+    }
+    const { data, error } = await query;
     if (error) throw error;
     res.json(data || []);
   } catch (err) {
@@ -395,15 +417,21 @@ router.get('/stores', auth, requireOwner, async (req, res) => {
 });
 
 // ── POST /api/owner/pl-snapshots — save a P&L snapshot ───────────────────────
-router.post('/pl-snapshots', auth, requireOwner, async (req, res) => {
+router.post('/pl-snapshots', auth, requireOwnerOrStore, async (req, res) => {
   try {
     const { period_type, period_label, start_date, end_date, store_id, data } = req.body;
     if (!period_type || !period_label || !start_date || !end_date || !data) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
+    // gm/store_user can only save snapshots for their own store
+    const role = req.user.role;
+    const effectiveStoreId = (role === 'gm' || role === 'store_user')
+      ? (req.user.store_id || null)
+      : (store_id || null);
+
     const { data: snap, error } = await supabase
       .from('pl_snapshots')
-      .upsert({ period_type, period_label, start_date, end_date, store_id: store_id || null, data },
+      .upsert({ period_type, period_label, start_date, end_date, store_id: effectiveStoreId, data },
                { onConflict: 'period_label,start_date,end_date' })
       .select().single();
     if (error) throw error;
@@ -414,12 +442,18 @@ router.post('/pl-snapshots', auth, requireOwner, async (req, res) => {
 });
 
 // ── GET /api/owner/pl-snapshots — list saved P&L snapshots ───────────────────
-router.get('/pl-snapshots', auth, requireOwner, async (req, res) => {
+router.get('/pl-snapshots', auth, requireOwnerOrStore, async (req, res) => {
   try {
-    const { data, error } = await supabase
+    const role = req.user.role;
+    let query = supabase
       .from('pl_snapshots')
       .select('id, period_type, period_label, start_date, end_date, store_id, created_at')
       .order('start_date', { ascending: false });
+    // gm/store_user only see snapshots for their store (or global snapshots with null store_id)
+    if ((role === 'gm' || role === 'store_user') && req.user.store_id) {
+      query = query.or(`store_id.eq.${req.user.store_id},store_id.is.null`);
+    }
+    const { data, error } = await query;
     if (error) throw error;
     res.json(data || []);
   } catch (err) {
@@ -428,11 +462,16 @@ router.get('/pl-snapshots', auth, requireOwner, async (req, res) => {
 });
 
 // ── GET /api/owner/pl-snapshots/:id — get full snapshot data ─────────────────
-router.get('/pl-snapshots/:id', auth, requireOwner, async (req, res) => {
+router.get('/pl-snapshots/:id', auth, requireOwnerOrStore, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('pl_snapshots').select('*').eq('id', req.params.id).single();
     if (error) throw error;
+    // gm/store_user: only allow if snapshot is theirs or global
+    const role = req.user.role;
+    if ((role === 'gm' || role === 'store_user') && data.store_id && data.store_id !== req.user.store_id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message });
