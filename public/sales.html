@@ -24,36 +24,17 @@
     }
     .page-title { font-size: 24px; font-weight: 700; color: #1a1a2e; }
     .page-subtitle { color: #666; font-size: 14px; margin-top: 4px; }
-    .date-controls {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-.period-tab { padding: 7px 16px; border-radius: 8px; border: 1.5px solid #ddd; background: white; font-size: 13px; font-weight: 600; cursor: pointer; color: #555; transition: all .15s; }
+    /* Period controls — matches P&L */
+    .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 16px; background: white; padding: 16px; border-radius: 12px; border: 1px solid #e5e7eb; }
+    .control-group { display: flex; flex-direction: column; gap: 5px; }
+    .control-group label { font-size: 12px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: .04em; }
+    .controls input, .controls select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: white; }
+    .period-tab { padding: 7px 16px; border-radius: 8px; border: 1.5px solid #ddd; background: white; font-size: 13px; font-weight: 600; cursor: pointer; color: #555; transition: all .15s; }
     .period-tab:hover { border-color: #2563eb; color: #2563eb; }
     .period-tab.active { border-color: #2563eb; background: #2563eb; color: white; }
-    .preset-btn {
-      padding: 7px 16px;
-      border-radius: 8px;
-      border: 1.5px solid #ddd;
-      background: white;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all .15s;
-      color: #555;
-    }
+    .preset-btn { padding: 7px 16px; border-radius: 8px; border: 1.5px solid #ddd; background: white; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; color: #555; }
     .preset-btn:hover { border-color: #2563eb; color: #2563eb; }
     .preset-btn.active { border-color: #2563eb; background: #2563eb; color: white; }
-    .date-input {
-      padding: 8px 12px;
-      border: 2px solid #e0e0e0;
-      border-radius: 8px;
-      font-size: 13px;
-      outline: none;
-    }
-    .date-input:focus { border-color: #2f5597; }
     .stats-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -190,9 +171,9 @@
     </div>
   </div>
   <!-- Controls card (matches P&L) -->
-  <div style="background:white;padding:16px;border-radius:12px;border:1px solid #e5e7eb;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:16px">
-    <div>
-      <div style="font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Period</div>
+  <div class="controls">
+    <div class="control-group">
+      <label>Period</label>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="period-tab active" onclick="setPeriod('daily',this)">Daily</button>
         <button class="period-tab" onclick="setPeriod('weekly',this)">Weekly</button>
@@ -201,21 +182,21 @@
         <button class="period-tab" onclick="setPeriod('custom',this)">Custom</button>
       </div>
     </div>
-    <div id="periodPickerWrap">
-      <label id="periodPickerLabel" style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">Date</label>
-      <input type="date" id="singleDatePicker" class="date-input" onchange="loadFromPicker()">
+    <div class="control-group" id="periodPickerWrap">
+      <label id="periodPickerLabel">Date</label>
+      <input type="date" id="singleDatePicker" onchange="loadFromPicker()">
     </div>
-    <div id="monthPickerWrap" style="display:none">
-      <label style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">Month</label>
-      <input type="month" id="monthPicker" class="date-input" onchange="loadFromPicker()">
+    <div class="control-group" id="monthPickerWrap" style="display:none">
+      <label>Month</label>
+      <input type="month" id="monthPicker" onchange="loadFromPicker()">
     </div>
-    <div id="quarterPickerWrap" style="display:none">
-      <label style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">Quarter</label>
-      <input type="text" id="quarterPicker" class="date-input" placeholder="e.g. 2026-Q2" onchange="loadFromPicker()">
+    <div class="control-group" id="quarterPickerWrap" style="display:none">
+      <label>Quarter</label>
+      <input type="text" id="quarterPicker" placeholder="e.g. 2026-Q2" onchange="loadFromPicker()">
     </div>
-    <div id="customDateWrap" style="display:none;gap:10px;flex-wrap:wrap;align-items:flex-end">
-      <div><label style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">From</label><input type="date" id="startDate" class="date-input" onchange="loadFromPicker()"></div>
-      <div><label style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">To</label><input type="date" id="endDate" class="date-input" onchange="loadFromPicker()"></div>
+    <div class="control-group" id="customDateWrap" style="display:none;flex-direction:row;gap:8px;align-items:flex-end">
+      <div><label style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">From</label><input type="date" id="startDate" onchange="loadFromPicker()"></div>
+      <div><label style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">To</label><input type="date" id="endDate" onchange="loadFromPicker()"></div>
     </div>
   </div>
   <div class="store-filter" id="storeFilter" style="margin-bottom:16px"></div>

@@ -454,14 +454,11 @@ async function openEventReport(id) {
 
 function closeReportModal() { document.getElementById('reportModal').classList.remove('open'); }
 
-document.getElementById('reportModal').addEventListener('click', e => { if (e.target === document.getElementById('reportModal')) closeReportModal(); });
-
-
 init();
 </script>
 
 <!-- Report Modal -->
-<div class="modal-overlay" id="reportModal">
+<div class="modal-overlay" id="reportModal" onclick="if(event.target===this)closeReportModal()">
   <div class="modal" style="max-width:680px">
     <div class="modal-header">
       <h2 id="reportModalTitle">📊 Sale Event Report</h2>
