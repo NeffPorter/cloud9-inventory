@@ -129,6 +129,25 @@
       font-size: 11px;
       font-weight: 600;
     }
+
+    /* Completed accordion — matches budget style */
+    .cb-year { font-size: 17px; font-weight: 800; color: #1e293b; margin: 24px 0 10px; }
+    .cb-quarter { background: white; border: 1px solid #e5e7eb; border-radius: 12px; margin-bottom: 10px; overflow: hidden; }
+    .cb-quarter-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; cursor: pointer; user-select: none; }
+    .cb-quarter-header:hover { background: #f8fafc; }
+    .cb-quarter-title { font-weight: 700; font-size: 15px; color: #1e293b; }
+    .cb-quarter-meta { font-size: 13px; color: #888; margin-top: 2px; }
+    .cb-quarter-chevron { font-size: 16px; color: #888; transition: transform .2s; }
+    .cb-quarter-body { border-top: 1px solid #f0f0f0; }
+    .cb-month-header { padding: 9px 18px 7px 18px; background: #f9fafb; font-size: 12px; font-weight: 700; color: #555; text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+    .cb-item-row { display: flex; align-items: center; gap: 10px; padding: 11px 18px; border-bottom: 1px solid #f7f7f7; cursor: pointer; transition: background .1s; font-size: 13px; }
+    .cb-item-row:last-child { border-bottom: none; }
+    .cb-item-row:hover { background: #f8fafc; }
+    .cb-item-store { font-weight: 600; color: #1a1a1a; min-width: 140px; }
+    .cb-item-date { color: #888; min-width: 120px; }
+    .cb-item-stats { display: flex; gap: 14px; flex: 1; }
+    .cb-stat-pill { font-size: 12px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+    .cb-item-link { color: #2563eb; font-weight: 600; font-size: 12px; margin-left: auto; white-space: nowrap; }
     .section-title {
       font-size: 16px;
       font-weight: 700;
@@ -309,66 +328,89 @@
         html += `</div></div>`;
       }
 
-      // Completed reports
+      // Completed reports — accordion by Year > Quarter > Month
       if (filteredReports.length > 0) {
-        html += `<div>
-          <div class="section-title">✅ Completed</div>
-          <div class="reports-grid">`;
+        const MONTHS = ['January','February','March','April','May','June',
+                        'July','August','September','October','November','December'];
+        const tree = {};
+        filteredReports.forEach(r => {
+          const d = new Date(r.created_at);
+          const yr = d.getFullYear();
+          const mo = d.getMonth();
+          const qn = Math.ceil((mo + 1) / 3);
+          const qk = 'Q' + qn + ' ' + yr;
+          if (!tree[yr]) tree[yr] = {};
+          if (!tree[yr][qk]) tree[yr][qk] = {};
+          if (!tree[yr][qk][mo]) tree[yr][qk][mo] = [];
+          tree[yr][qk][mo].push(r);
+        });
 
-        html += filteredReports.map(report => {
-          const store = allStores.find(s => s.id === report.store_id);
-          const storeName = store?.name || report.stores?.name || 'Unknown Store';
-          const date = new Date(report.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-          const time = new Date(report.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-          const hasIssues = report.total_shortages > 0 || report.total_overages > 0;
-          const cardClass = report.status === 'resolved' ? 'resolved' : hasIssues ? 'has-issues' : '';
-          const cats = (report.categories || []).join(', ') || 'All categories';
+        html += `<div><div class="section-title">✅ Completed</div>`;
 
-          return `
-            <div class="report-card ${cardClass}" onclick="window.location.href='/stocktake/report?id=${report.id}'">
-              <div class="report-header">
+        Object.keys(tree).sort().reverse().forEach(yr => {
+          html += `<div class="cb-year">${yr}</div>`;
+          Object.keys(tree[yr]).sort().reverse().forEach(qk => {
+            const months = tree[yr][qk];
+            let qTotal = 0, qLost = 0;
+            Object.values(months).forEach(items => items.forEach(r => {
+              qTotal += r.total_counted || 0;
+              qLost += r.total_loss_value || 0;
+            }));
+            const qId = 'st_' + qk.replace(/[^a-z0-9]/gi,'_');
+            html += `
+            <div class="cb-quarter">
+              <div class="cb-quarter-header" onclick="toggleSection('${qId}')">
                 <div>
-                  <div class="report-store">${storeName}</div>
-                  <div class="report-date">${date} at ${time}</div>
+                  <div class="cb-quarter-title">${qk}</div>
+                  <div class="cb-quarter-meta">${Object.values(months).flat().length} stocktakes &nbsp;·&nbsp; $${qLost.toFixed(2)} lost</div>
                 </div>
-                <span class="status-badge status-${report.status}">${report.status}</span>
+                <div class="cb-quarter-chevron" id="${qId}_chev">▼</div>
               </div>
-              <div class="report-categories">📁 ${cats.length > 60 ? cats.substring(0, 60) + '...' : cats}</div>
-              <div class="report-stats" style="grid-template-columns: repeat(5, 1fr)">
-                <div class="report-stat">
-                  <div class="report-stat-value">${report.total_counted || 0}</div>
-                  <div class="report-stat-label">Counted</div>
-                </div>
-                <div class="report-stat">
-                  <div class="report-stat-value" style="color:#38761d">${report.total_matches || 0}</div>
-                  <div class="report-stat-label">Matches</div>
-                </div>
-                <div class="report-stat">
-                  <div class="report-stat-value" style="color:#c00">${report.total_shortages || 0}</div>
-                  <div class="report-stat-label">Shortages</div>
-                </div>
-                <div class="report-stat">
-                  <div class="report-stat-value" style="color:#c55a11">${report.total_overages || 0}</div>
-                  <div class="report-stat-label">Overages</div>
-                </div>
-                <div class="report-stat" style="background:#fff0f0">
-                  <div class="report-stat-value" style="color:#c00;font-size:14px">$${(report.total_loss_value || 0).toFixed(2)}</div>
-                  <div class="report-stat-label">$ Lost</div>
-                </div>
-              </div>
-              <div class="report-footer">
-                <span>By: ${report.created_by_name || 'Unknown'}</span>
-                <span class="${report.applied_to_clover ? 'applied-badge' : 'not-applied-badge'}">
-                  ${report.applied_to_clover ? '✅ Applied' : '⏳ Not Applied'}
-                </span>
-              </div>
-            </div>`;
-        }).join('');
+              <div class="cb-quarter-body" id="${qId}">`;
 
-        html += `</div></div>`;
+            Object.keys(months).map(Number).sort().forEach(mo => {
+              const items = months[mo];
+              const mLost = items.reduce((s,r) => s + (r.total_loss_value||0), 0);
+              html += `<div class="cb-month-header"><span>${MONTHS[mo]}</span><span style="font-weight:400;color:#aaa">${items.length} stocktake${items.length!==1?'s':''} &nbsp;·&nbsp; $${mLost.toFixed(2)} lost</span></div>`;
+              items.slice().sort((a,b) => new Date(b.created_at)-new Date(a.created_at)).forEach(r => {
+                const store = allStores.find(s => s.id === r.store_id);
+                const storeName = store?.name || r.stores?.name || 'Unknown';
+                const d = new Date(r.created_at);
+                const dateStr = d.toLocaleDateString('en-US', { month:'short', day:'numeric' }) + ' at ' + d.toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit' });
+                const shortColor = (r.total_shortages||0) > 0 ? '#dc2626' : '#888';
+                html += `
+                <div class="cb-item-row" onclick="window.location.href='/stocktake/report?id=${r.id}'">
+                  <div class="cb-item-store">${storeName}</div>
+                  <div class="cb-item-date">${dateStr}</div>
+                  <div class="cb-item-stats">
+                    <span class="cb-stat-pill" style="background:#f0fdf4;color:#16a34a">${r.total_counted||0} counted</span>
+                    <span class="cb-stat-pill" style="background:#fef2f2;color:${shortColor}">${r.total_shortages||0} short</span>
+                    <span class="cb-stat-pill" style="background:#fff7ed;color:#c55a11">${r.total_overages||0} over</span>
+                    ${(r.total_loss_value||0) > 0 ? `<span class="cb-stat-pill" style="background:#fef2f2;color:#dc2626">$${(r.total_loss_value||0).toFixed(2)} lost</span>` : ''}
+                    <span class="cb-stat-pill" style="background:${r.status==='resolved'?'#dcfce7':'#f3f4f6'};color:${r.status==='resolved'?'#16a34a':'#555'}">${r.status}</span>
+                  </div>
+                  <div class="cb-item-link">View →</div>
+                </div>`;
+              });
+            });
+
+            html += `</div></div>`;
+          });
+        });
+
+        html += `</div>`;
       }
 
       container.innerHTML = html;
+    }
+
+    function toggleSection(id) {
+      const body = document.getElementById(id);
+      const chev = document.getElementById(id + '_chev');
+      if (!body) return;
+      const open = body.style.display !== 'none';
+      body.style.display = open ? 'none' : '';
+      if (chev) chev.style.transform = open ? 'rotate(-90deg)' : '';
     }
 
     loadStores();

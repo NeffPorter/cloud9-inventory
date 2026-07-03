@@ -463,4 +463,173 @@ async function saveSchedule(force = false) {
     store_id: currentStoreId,
     name,
     discount_type: discountType,
-    discou
+    discount_value: value,
+    start_date: start,
+    end_date: end,
+    indefinite,
+    start_time: startTime,
+    end_time: endTime,
+    target_type: targetType,
+    target_ids: selectedTargets.map(t => t.id),
+    force
+  };
+
+  const url = editingId ? `/api/schedules/${editingId}` : '/api/schedules';
+  const method = editingId ? 'PUT' : 'POST';
+  const res = await fetch(url, {
+    method,
+    headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+
+  document.getElementById('saveBtn').disabled = false;
+  document.getElementById('saveBtn').textContent = editingId ? 'Save Changes' : 'Create Schedule';
+
+  if (res.status === 409 && data.conflicts) {
+    const details = data.conflicts.map(c => `"${c.schedule}" (${c.overlappingCount} item${c.overlappingCount !== 1 ? 's' : ''} overlap)`).join(', ');
+    document.getElementById('conflictDetails').textContent = details;
+    document.getElementById('conflictBanner').style.display = 'block';
+    return;
+  }
+
+  if (!res.ok) { alert('Error: ' + (data.error || 'Unknown error')); return; }
+
+  closeModal();
+  loadSchedules();
+}
+
+function openEditSchedule(id) {
+  const schedules = [...document.querySelectorAll('.schedule-card')];
+  // Re-fetch from last loaded data — we need to store them
+  const s = _lastSchedules?.find(x => x.id === id);
+  if (!s) return;
+  editingId = id;
+  document.getElementById('modalTitle').textContent = 'Edit Discount Schedule';
+  document.getElementById('saveBtn').textContent = 'Save Changes';
+  document.getElementById('fName').value = s.name;
+  document.getElementById('fValue').value = s.discount_value;
+  document.getElementById('fStart').value = s.start_date;
+  // End date / indefinite
+  document.getElementById('fIndefinite').checked = !!s.indefinite;
+  document.getElementById('fEnd').value = s.indefinite ? '' : (s.end_date || '');
+  document.getElementById('fEnd').disabled = !!s.indefinite;
+  document.getElementById('fEnd').style.opacity = s.indefinite ? '0.4' : '1';
+  // Time
+  const hasTime = !!(s.start_time || s.end_time);
+  document.getElementById('fAllDay').checked = !hasTime;
+  document.getElementById('fStartTime').value = s.start_time ? s.start_time.slice(0,5) : '';
+  document.getElementById('fEndTime').value = s.end_time ? s.end_time.slice(0,5) : '';
+  document.getElementById('timeInputs').style.display = hasTime ? 'flex' : 'none';
+  document.getElementById('conflictBanner').style.display = 'none';
+  setDiscountType(s.discount_type);
+
+  // Rebuild selectedTargets from stored data
+  selectedTargets = (s.target_ids || []).map(id => ({ id, label: id }));
+  setTargetType(s.target_type); // resets selectedTargets — set after
+  selectedTargets = (s.target_ids || []).map(tid => {
+    if (s.target_type === 'item') {
+      const item = allItems.find(i => i.id === tid);
+      return { id: tid, label: item ? (item.group_name ? item.group_name + ' · ' : '') + (item.variant_name || '') : tid };
+    }
+    return { id: tid, label: tid };
+  });
+  renderChips();
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+async function applyNow(id) {
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = 'Applying...';
+  const res = await fetch(`/api/schedules/${id}/apply`, { method: 'POST', headers: { Authorization: 'Bearer ' + token } });
+  const data = await res.json();
+  if (res.ok) {
+    const count = data.applied?.length || 0;
+    const errors = data.errors || [];
+    const total = data.itemCount || 0;
+    let msg = `✅ Applied to ${count}/${total} items on Clover.`;
+    if (errors.length) msg += `\n\nFailed (${errors.length}):\n` + errors.slice(0, 5).join('\n');
+    alert(msg);
+    loadSchedules();
+  } else {
+    alert('Error: ' + (data.error || 'Failed'));
+    btn.disabled = false; btn.textContent = '⚡ Apply Now';
+  }
+}
+
+async function cancelSchedule(id, name) {
+  if (!confirm(`Cancel the discount schedule "${name}"?\n\nIf it's currently active on Clover, prices will be restored to normal.`)) return;
+  const res = await fetch(`/api/schedules/${id}/cancel`, { method: 'PUT', headers: { Authorization: 'Bearer ' + token } });
+  if (res.ok) { loadSchedules(); } else { alert('Failed to cancel schedule'); }
+}
+
+async function deleteSchedule(id, name) {
+  if (!confirm(`Permanently delete "${name}"?\n\nThis cannot be undone. If it's active on Clover, prices will be restored first.`)) return;
+  const res = await fetch(`/api/schedules/${id}`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
+  if (res.ok) { loadSchedules(); } else { alert('Failed to delete schedule'); }
+}
+
+async function openReport(id) {
+  document.getElementById('reportTitle').textContent = 'Sales Report';
+  document.getElementById('reportBody').innerHTML = '<div style="text-align:center;padding:40px;color:#888">Loading...</div>';
+  document.getElementById('reportOverlay').classList.add('open');
+
+  const res = await fetch(`/api/schedules/${id}/report`, { headers: { Authorization: 'Bearer ' + token } });
+  if (!res.ok) {
+    document.getElementById('reportBody').innerHTML = '<div style="color:#dc2626;padding:20px">Failed to load report.</div>';
+    return;
+  }
+  const data = await res.json();
+  const s = data.schedule;
+  const dateRange = s.indefinite ? `${s.start_date} → No end date` : `${s.start_date} → ${s.end_date}`;
+  const discLabel = s.discount_type === 'percent' ? `${s.discount_value}% off` : `$${Number(s.discount_value).toFixed(2)} off`;
+
+  document.getElementById('reportTitle').textContent = `📊 ${s.name}`;
+
+  const rows = data.items.map(item => `
+    <tr>
+      <td>${item.name}</td>
+      <td style="text-align:right">${item.units_sold}</td>
+      <td style="text-align:right">$${item.orig_price.toFixed(2)}</td>
+      <td style="text-align:right">$${item.sale_price.toFixed(2)}</td>
+      <td style="text-align:right">$${item.revenue.toFixed(2)}</td>
+      <td style="text-align:right;color:#dc2626">-$${item.discount_given.toFixed(2)}</td>
+    </tr>`).join('');
+
+  document.getElementById('reportBody').innerHTML = `
+    <div style="font-size:13px;color:#666;margin-bottom:16px">
+      <strong>${discLabel}</strong> &nbsp;·&nbsp; ${dateRange} &nbsp;·&nbsp;
+      <span class="badge badge-${s.status}">${s.status}</span>
+    </div>
+    <div class="report-totals">
+      <div class="report-stat"><div class="report-stat-val">${data.totals.units}</div><div class="report-stat-lbl">Units sold</div></div>
+      <div class="report-stat"><div class="report-stat-val">$${data.totals.revenue.toFixed(2)}</div><div class="report-stat-lbl">Revenue (at sale price)</div></div>
+      <div class="report-stat"><div class="report-stat-val" style="color:#dc2626">-$${data.totals.discount_given.toFixed(2)}</div><div class="report-stat-lbl">Discount given</div></div>
+    </div>
+    ${data.items.length === 0 ? '<div style="text-align:center;color:#888;padding:20px">No sales data found for this period.</div>' : `
+    <div style="overflow-x:auto">
+      <table class="report-table">
+        <thead><tr>
+          <th>Item</th><th style="text-align:right">Units</th>
+          <th style="text-align:right">Reg. Price</th><th style="text-align:right">Sale Price</th>
+          <th style="text-align:right">Revenue</th><th style="text-align:right">Discount</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`}
+    <div style="font-size:11px;color:#aaa;margin-top:12px">Revenue and discount figures use sale pricing. Sales data pulled from transaction logs for the schedule date range.</div>`;
+}
+
+function closeReport() {
+  document.getElementById('reportOverlay').classList.remove('open');
+}
+
+document.getElementById('modalOverlay').addEventListener('click', e => { if (e.target === document.getElementById('modalOverlay')) closeModal(); });
+document.getElementById('reportOverlay').addEventListener('click', e => { if (e.target === document.getElementById('reportOverlay')) closeReport(); });
+document.addEventListener('click', e => { if (!e.target.closest('.search-picker')) document.querySelectorAll('.search-list').forEach(l => l.classList.remove('open')); });
+
+init();
+</script>
+<script>loadNavbar();</script>
+</body>
+</html>

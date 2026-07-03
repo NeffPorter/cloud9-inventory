@@ -186,24 +186,20 @@
       </div>
     </div>
   </div>
-
-  <!-- Controls card -->
-  <div style="background:white;padding:16px;border-radius:12px;border:1px solid #e5e7eb;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:16px">
-    <div>
-      <div style="font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Period</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="preset-btn active" onclick="setPreset('today', this)">Today</button>
-        <button class="preset-btn" onclick="setPreset('week', this)">This Week</button>
-        <button class="preset-btn" onclick="setPreset('month', this)">This Month</button>
-        <button class="preset-btn" onclick="setPreset('quarter', this)">This Quarter</button>
-      </div>
+  <div style="background:white;padding:14px 16px;border-radius:12px;border:1px solid #e5e7eb;display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px">
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="preset-btn active" onclick="setPreset('today', this)">Today</button>
+      <button class="preset-btn" onclick="setPreset('week', this)">This Week</button>
+      <button class="preset-btn" onclick="setPreset('month', this)">This Month</button>
+      <button class="preset-btn" onclick="setPreset('quarter', this)">This Quarter</button>
     </div>
-    <div style="display:flex;gap:10px;align-items:flex-end">
-      <div><label style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">From</label><input type="date" id="startDate" class="date-input" onchange="setCustom()"></div>
-      <div><label style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">To</label><input type="date" id="endDate" class="date-input" onchange="setCustom()"></div>
+    <div style="display:flex;gap:8px;align-items:center;margin-left:auto">
+      <input type="date" id="startDate" class="date-input" onchange="setCustom()">
+      <span style="color:#999">to</span>
+      <input type="date" id="endDate" class="date-input" onchange="setCustom()">
     </div>
   </div>
-  <div class="store-filter" id="storeFilter" style="margin-bottom:20px"></div>
+  <div class="store-filter" id="storeFilter" style="margin-bottom:16px"></div>
 
     <div class="stats-grid">
       <div class="stat-card">
@@ -651,4 +647,7 @@
 
     loadStoreFilter();
     setPreset('today', document.querySelector('.preset-btn.active'));
-    loadTrend
+    loadTrends('week');
+  </script>
+</body>
+</html>

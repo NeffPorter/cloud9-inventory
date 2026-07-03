@@ -95,23 +95,20 @@ input:checked + .sw-slider:before { transform: translateX(18px); }
     <button class="btn btn-primary" onclick="openAddModal()">+ Add Expense</button>
   </div>
 
-  <!-- Controls card (matches P&L standard) -->
-  <div class="controls" style="background:white;padding:16px;border-radius:12px;border:1px solid #e5e7eb;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:16px">
-    <div>
-      <div style="font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Period</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="period-btn active" data-period="week"   onclick="setPeriod('week',this)">This Week</button>
-        <button class="period-btn"        data-period="month"  onclick="setPeriod('month',this)">This Month</button>
-        <button class="period-btn"        data-period="quarter" onclick="setPeriod('quarter',this)">This Quarter</button>
-        <button class="period-btn"        data-period="custom" onclick="setPeriod('custom',this)">Custom</button>
-      </div>
+  <div id="storeButtonsWrap" style="display:none;flex-wrap:wrap;gap:8px;margin-bottom:16px"></div>
+
+  <div class="filters" style="flex-direction:column;align-items:flex-start;gap:10px">
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+      <button class="period-btn active" data-period="week"   onclick="setPeriod('week',this)">This Week</button>
+      <button class="period-btn"        data-period="month"  onclick="setPeriod('month',this)">This Month</button>
+      <button class="period-btn"        data-period="quarter" onclick="setPeriod('quarter',this)">This Quarter</button>
+      <button class="period-btn"        data-period="custom" onclick="setPeriod('custom',this)">Custom</button>
     </div>
-    <div id="customDateRow" style="display:none;gap:10px;flex-wrap:wrap;align-items:flex-end;display:flex">
-      <div><label style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">From</label><input type="date" id="filterStart" onchange="load()" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;background:white"></div>
-      <div><label style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">To</label><input type="date" id="filterEnd" onchange="load()" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;background:white"></div>
+    <div id="customDateRow" style="display:none;gap:10px;flex-wrap:wrap;align-items:center;display:flex">
+      <div><label style="font-size:12px;color:#888">From</label><br><input type="date" id="filterStart" onchange="load()"></div>
+      <div><label style="font-size:12px;color:#888">To</label><br><input type="date" id="filterEnd" onchange="load()"></div>
     </div>
     <div>
-      <label style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">Category</label>
       <select id="filterCat" onchange="render()" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;background:white">
         <option value="">All categories</option>
         <option value="payroll">Payroll</option>
@@ -124,8 +121,6 @@ input:checked + .sw-slider:before { transform: translateX(18px); }
       </select>
     </div>
   </div>
-  <!-- Store pills (matches P&L standard) -->
-  <div id="storeButtonsWrap" style="display:none;flex-wrap:wrap;gap:8px;margin-bottom:20px"></div>
 
   <div class="summary-grid" id="summaryGrid"></div>
 
@@ -417,4 +412,75 @@ function openAddModal() {
 function closeAddModal() { document.getElementById('addModal').classList.remove('open'); }
 
 async function saveExpense() {
-  const date = document.getE
+  const date = document.getElementById('fDate').value;
+  const amount = document.getElementById('fAmount').value;
+  const category = document.getElementById('fCategory').value;
+  const description = document.getElementById('fDesc').value;
+  const receiptFile = document.getElementById('fReceipt').files[0];
+
+  if (!date || !amount || !category) { alert('Date, amount, and category are required.'); return; }
+
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+
+  try {
+    const formData = new FormData();
+    formData.append('expense_date', date);
+    formData.append('amount', amount);
+    formData.append('category', category);
+    if (description) formData.append('description', description);
+    if (receiptFile) formData.append('receipt', receiptFile);
+
+    const isRecurring = document.getElementById('fRecurring').checked;
+    if (isRecurring) {
+      formData.append('is_recurring', 'true');
+      formData.append('recur_frequency', document.getElementById('fRecurFreq').value);
+      formData.append('recur_day', document.getElementById('fRecurDay').value);
+    }
+
+    const res = await fetch('/api/store-expenses', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token },
+      body: formData
+    });
+
+    if (!res.ok) {
+      const d = await res.json();
+      alert('Error: ' + (d.error || 'Failed to save'));
+      return;
+    }
+
+    closeAddModal();
+    load();
+  } catch (err) {
+    alert('Error: ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save Expense';
+  }
+}
+
+async function deleteExpense(id) {
+  if (!confirm('Delete this expense? This cannot be undone.')) return;
+  const res = await fetch(`/api/store-expenses/${id}`, {
+    method: 'DELETE', headers: { Authorization: 'Bearer ' + token }
+  });
+  if (res.ok) load();
+  else { const d = await res.json(); alert('Error: ' + d.error); }
+}
+
+document.getElementById('addModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('addModal')) closeAddModal();
+});
+
+async function init() {
+  if (!token) { window.location.href = '/'; return; }
+  buildHead();
+  setDefaultDates();
+  await initStoreButtons();
+  await load();
+}
+init();
+</script>
+<script>loadNavbar();</script>
+</body>
+</html>
