@@ -227,37 +227,37 @@ async function loadAllStoreBudgets() {
     mc.innerHTML = results.map(({ store, budget: b }) => {
       if (!b) return `<div class="current-budget-card"><h2>${store.name}</h2><p style="color:#999">No budget this week.</p></div>`;
       const cats = b.categories || [];
-      const totalBudget = cats.reduce((s,c) => s + (parseFloat(c.budget_amount)||0), 0);
-      const totalSpent = cats.reduce((s,c) => s + (parseFloat(c.spent)||0), 0);
-      const pctSpent = totalBudget > 0 ? Math.round(totalSpent/totalBudget*100) : 0;
-      const barColor = pctSpent >= 100 ? '#e53e3e' : pctSpent >= 85 ? '#e65100' : '#2f5597';
-      return \`<div class="current-budget-card" style="margin-bottom:16px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <h2 style="margin:0;font-size:16px;font-weight:700">\${store.name}</h2>
-          <span style="font-size:13px;color:#666">\${b.week_start} → \${b.week_end}</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
-          <div style="flex:1;height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden">
-            <div style="height:100%;width:\${Math.min(pctSpent,100)}%;background:\${barColor};border-radius:4px"></div>
-          </div>
-          <span style="font-size:13px;font-weight:700;color:\${barColor}">\${pctSpent}%</span>
-          <span style="font-size:13px;color:#555">$\${totalSpent.toFixed(0)} / $\${totalBudget.toFixed(0)}</span>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          \${cats.map(cat => {
-            const sp = parseFloat(cat.spent)||0, bu = parseFloat(cat.budget_amount)||0;
-            const p = bu > 0 ? Math.round(sp/bu*100) : 0;
-            const col = p >= 100 ? '#e53e3e' : p >= 85 ? '#e65100' : '#2f5597';
-            return \`<span style="padding:4px 10px;background:#f3f4f6;border-radius:12px;font-size:12px;font-weight:600;color:\${col}">\${cat.category}: \${p}%</span>\`;
-          }).join('')}
-        </div>
-        <div style="margin-top:8px;text-align:right"><a href="/budgets.html?store=\${store.id}" style="font-size:13px;color:#2563eb;text-decoration:none">View details →</a></div>
-      </div>\`;
+      const totalBudget = cats.reduce((sum, c) => sum + (parseFloat(c.budget_amount) || 0), 0);
+      const totalSpent  = cats.reduce((sum, c) => sum + (parseFloat(c.spent) || 0), 0);
+      const pct = totalBudget > 0 ? Math.round(totalSpent / totalBudget * 100) : 0;
+      const barColor = pct >= 100 ? '#e53e3e' : pct >= 85 ? '#e65100' : '#2f5597';
+      const catPills = cats.map(cat => {
+        const sp = parseFloat(cat.spent) || 0, bu = parseFloat(cat.budget_amount) || 0;
+        const p = bu > 0 ? Math.round(sp / bu * 100) : 0;
+        const col = p >= 100 ? '#e53e3e' : p >= 85 ? '#e65100' : '#2f5597';
+        return '<span style="padding:4px 10px;background:#f3f4f6;border-radius:12px;font-size:12px;font-weight:600;color:' + col + '">' + cat.category + ': ' + p + '%</span>';
+      }).join('');
+      return '<div class="current-budget-card" style="margin-bottom:16px">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">'
+        + '<h2 style="margin:0;font-size:16px;font-weight:700">' + store.name + '</h2>'
+        + '<span style="font-size:13px;color:#666">' + b.week_start + ' → ' + b.week_end + '</span>'
+        + '</div>'
+        + '<div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">'
+        + '<div style="flex:1;height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden">'
+        + '<div style="height:100%;width:' + Math.min(pct, 100) + '%;background:' + barColor + ';border-radius:4px"></div>'
+        + '</div>'
+        + '<span style="font-size:13px;font-weight:700;color:' + barColor + '">' + pct + '%</span>'
+        + '<span style="font-size:13px;color:#555">$' + totalSpent.toFixed(0) + ' / $' + totalBudget.toFixed(0) + '</span>'
+        + '</div>'
+        + '<div style="display:flex;gap:8px;flex-wrap:wrap">' + catPills + '</div>'
+        + '<div style="margin-top:8px;text-align:right"><a href="/budgets.html?store=' + store.id + '" style="font-size:13px;color:#2563eb;text-decoration:none">View details →</a></div>'
+        + '</div>';
     }).join('');
   } catch(err) {
-    mc.innerHTML = \`<div class="empty-state"><div class="icon">⚠️</div>Error: \${err.message}</div>\`;
+    mc.innerHTML = '<div class="empty-state"><div class="icon">⚠️</div>Error: ' + err.message + '</div>';
   }
 }
+
 
 async function loadBudgets(storeId) {
   document.getElementById('mainContent').innerHTML = '<div class="loading">Loading budgets…</div>';
