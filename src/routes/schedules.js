@@ -163,10 +163,13 @@ router.get('/', auth, async (req, res) => {
 // POST /api/schedules — create
 router.post('/', auth, async (req, res) => {
   try {
-    const { store_id, name, discount_type, discount_value, start_date, end_date, target_type, target_ids, force } = req.body;
+    const { store_id, name, discount_type, discount_value, start_date, end_date, target_type, target_ids, force, start_time, end_time, indefinite } = req.body;
 
-    if (!store_id || !name || !discount_type || !discount_value || !start_date || !end_date || !target_type || !target_ids?.length) {
+    if (!store_id || !name || !discount_type || !discount_value || !start_date || !target_type || !target_ids?.length) {
       return res.status(400).json({ error: 'Missing required fields' });
+    }
+    if (!indefinite && !end_date) {
+      return res.status(400).json({ error: 'end_date required unless indefinite is true' });
     }
 
     // Conflict check
@@ -179,15 +182,15 @@ router.post('/', auth, async (req, res) => {
 
     const { data: schedule, error } = await supabase
       .from('discount_schedules')
-      .insert({ store_id, name, discount_type, discount_value, start_date, end_date, target_type, target_ids, status: 'scheduled' })
+      .insert({ store_id, name, discount_type, discount_value, start_date, end_date: indefinite ? null : end_date, target_type, target_ids, status: 'scheduled', start_time: start_time || null, end_time: end_time || null, indefinite: !!indefinite })
       .select()
       .single();
 
     if (error) throw error;
 
-    // If start_date is today or in the past and end_date is today or future, activate immediately
+    // Activate immediately if within date range
     const today = new Date().toISOString().split('T')[0];
-    if (start_date <= today && end_date >= today) {
+    if (start_date <= today && (indefinite || end_date >= today)) {
       await activateSchedule(schedule);
     }
 
@@ -197,15 +200,23 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
-// PUT /api/schedules/:id — edit (only name/dates/value if not yet active)
+// PUT /api/schedules/:id — edit
 router.put('/:id', auth, async (req, res) => {
   try {
-    const { name, discount_type, discount_value, start_date, end_date, target_type, target_ids } = req.body;
+    const { name, discount_type, discount_value, start_date, end_date, target_type, target_ids, start_time, end_time, indefinite } = req.body;
 
     const { data: existing } = await supabase.from('discount_schedules').select('*').eq('id', req.params.id).single();
     if (!existing) return res.status(404).json({ error: 'Not found' });
 
-    const updates = { name, discount_type, discount_value, start_date, end_date, target_type, target_ids, updated_at: new Date().toISOString() };
+    const updates = {
+      name, discount_type, discount_value, start_date,
+      end_date: indefinite ? null : end_date,
+      target_type, target_ids,
+      start_time: start_time || null,
+      end_time: end_time || null,
+      indefinite: !!indefinite,
+      updated_at: new Date().toISOString()
+    };
     const { data, error } = await supabase.from('discount_schedules').update(updates).eq('id', req.params.id).select().single();
     if (error) throw error;
 
@@ -349,13 +360,19 @@ async function activateSchedule(schedule) {
       }
     }
 
+    // Track which groups actually got a Clover group ID so we can fall back to item-level rename for the rest
+    const groupsWithCloverGroup = new Set(
+      Object.keys(groupRenames).filter(g => groupRenames[g]?.cloverGroupId)
+    );
+
     for (const item of items) {
       const basePrice = originalPrices[item.id];
       if (basePrice === undefined) { result.errors.push(`Item ${item.id} (${item.variant_name}) skipped — no price set`); continue; }
       const discountedPrice = calcDiscountedPrice(basePrice, schedule.discount_type, schedule.discount_value);
-      // Clover won't allow name changes on grouped items — the group itself was renamed above instead
       const displayName = item.variant_name || item.id;
-      const saleName = item.group_name ? null : `${schedule.name} ${discountLabel} - ${displayName}`;
+      // Use direct item name unless the group was successfully renamed via Clover group rename API
+      const canRenameViaGroup = item.group_name && groupsWithCloverGroup.has(item.group_name);
+      const saleName = canRenameViaGroup ? null : `${schedule.name} ${discountLabel} - ${displayName}`;
       try {
         await setCloverItem(store.merchant_id, apiToken, item.id, saleName, discountedPrice);
         result.applied.push(item.id);
@@ -436,15 +453,145 @@ router.post('/run-cron', auth, async (req, res) => {
   }
 });
 
+// Restore prices for an indefinite schedule but set status back to 'scheduled' (so it re-activates next cycle)
+async function restoreForIndefinite(schedule) {
+  try {
+    if (schedule.applied_item_ids?.length) {
+      const { data: store } = await supabase.from('stores').select('merchant_id, api_token, refresh_token, token_expires_at').eq('id', schedule.store_id).single();
+      if (store?.merchant_id && store?.api_token) {
+        const apiToken = await getValidApiToken(store);
+        await restoreCloverItems(store, schedule.store_id, schedule.applied_item_ids, schedule.original_prices, apiToken);
+        await restoreCloverGroups(store, schedule.group_renames, apiToken);
+      }
+    }
+    await supabase.from('discount_schedules').update({
+      status: 'scheduled',
+      applied_item_ids: [],
+      updated_at: new Date().toISOString()
+    }).eq('id', schedule.id);
+    console.log(`Reset indefinite schedule "${schedule.name}" — prices restored, will re-activate next cycle`);
+  } catch (err) {
+    console.error(`Failed to reset indefinite schedule ${schedule.id}:`, err.message);
+  }
+}
+
 async function runCron() {
-  const today = new Date().toISOString().split('T')[0];
-  const { data: toActivate } = await supabase.from('discount_schedules').select('*').eq('status', 'scheduled').lte('start_date', today).gte('end_date', today);
-  for (const s of toActivate || []) { await activateSchedule(s); }
-  const { data: toRetry } = await supabase.from('discount_schedules').select('*').eq('status', 'active').lte('start_date', today).gte('end_date', today);
-  for (const s of toRetry || []) { if (!s.applied_item_ids || s.applied_item_ids.length === 0) { await activateSchedule(s); } }
-  const { data: toExpire } = await supabase.from('discount_schedules').select('*').eq('status', 'active').lt('end_date', today);
+  const now = new Date();
+  const today = now.toISOString().split('T')[0];
+  const currentTime = now.toTimeString().slice(0, 5); // "HH:MM"
+
+  // Activate scheduled discounts whose date window (and optional time window) has started
+  const { data: toActivate } = await supabase.from('discount_schedules')
+    .select('*').eq('status', 'scheduled').lte('start_date', today)
+    .or(`end_date.gte.${today},indefinite.eq.true`);
+
+  for (const s of toActivate || []) {
+    const st = s.start_time ? s.start_time.slice(0, 5) : null;
+    const et = s.end_time   ? s.end_time.slice(0, 5)   : null;
+    if (st && currentTime < st) continue;  // not yet time
+    if (et && currentTime >= et) continue; // already past window
+    await activateSchedule(s);
+  }
+
+  // Retry active schedules that lost applied items
+  const { data: toRetry } = await supabase.from('discount_schedules')
+    .select('*').eq('status', 'active').lte('start_date', today)
+    .or(`end_date.gte.${today},indefinite.eq.true`);
+
+  for (const s of toRetry || []) {
+    const et = s.end_time ? s.end_time.slice(0, 5) : null;
+    // If past end_time today: restore prices (indefinite → 'scheduled', finite → 'expired')
+    if (et && currentTime >= et) {
+      if (s.indefinite) await restoreForIndefinite(s);
+      else if (s.end_date === today) await expireSchedule(s);
+      continue;
+    }
+    if (!s.applied_item_ids || s.applied_item_ids.length === 0) { await activateSchedule(s); }
+  }
+
+  // Expire non-indefinite active schedules whose end_date has passed
+  const { data: toExpire } = await supabase.from('discount_schedules')
+    .select('*').eq('status', 'active').eq('indefinite', false).lt('end_date', today);
+
   for (const s of toExpire || []) { await expireSchedule(s); }
 }
+
+// GET /api/schedules/:id/report — sales summary for discounted items during the schedule period
+router.get('/:id/report', auth, async (req, res) => {
+  try {
+    const { data: schedule } = await supabase.from('discount_schedules').select('*').eq('id', req.params.id).single();
+    if (!schedule) return res.status(404).json({ error: 'Not found' });
+
+    const items = await getTargetItems(schedule.store_id, schedule.target_type, schedule.target_ids);
+    const itemIdSet = new Set(items.map(i => i.id));
+
+    const startIso = schedule.start_date + 'T00:00:00.000Z';
+    const endIso   = schedule.end_date ? (schedule.end_date + 'T23:59:59.999Z') : new Date().toISOString();
+
+    const { data: sales } = await supabase.from('sales_log')
+      .select('item_summary, type, net')
+      .eq('store_id', schedule.store_id)
+      .gte('created_at', startIso)
+      .lte('created_at', endIso);
+
+    // Parse item_summary: "itemId x qty, ..."
+    const unitsSold = {};
+    (sales || []).forEach(row => {
+      if (!row.item_summary || row.item_summary === 'N/A') return;
+      const sign = row.type === 'Refund' ? -1 : 1;
+      row.item_summary.split(',').forEach(part => {
+        const m = part.trim().match(/^([A-Za-z0-9]+)\s+x(\d+\.?\d*)/i);
+        if (m && itemIdSet.has(m[1])) {
+          unitsSold[m[1]] = (unitsSold[m[1]] || 0) + sign * (parseFloat(m[2]) || 0);
+        }
+      });
+    });
+
+    const originalPrices = schedule.original_prices || {};
+    const discountFn = schedule.discount_type === 'percent'
+      ? (v) => v * (1 - schedule.discount_value / 100)
+      : (v) => Math.max(0, v - schedule.discount_value);
+
+    const itemReport = items.map(item => {
+      const units = Math.max(0, unitsSold[item.id] || 0);
+      const origPrice = parseFloat(originalPrices[item.id] ?? item.price) || 0;
+      const salePrice = Math.round(discountFn(origPrice) * 100) / 100;
+      return {
+        id: item.id,
+        name: (item.group_name ? item.group_name + ' — ' : '') + (item.variant_name || item.id),
+        units_sold: units,
+        orig_price: origPrice,
+        sale_price: salePrice,
+        revenue: Math.round(units * salePrice * 100) / 100,
+        discount_given: Math.round(units * (origPrice - salePrice) * 100) / 100
+      };
+    }).sort((a, b) => b.units_sold - a.units_sold);
+
+    const totals = itemReport.reduce((acc, r) => ({
+      units:          acc.units + r.units_sold,
+      revenue:        acc.revenue + r.revenue,
+      discount_given: acc.discount_given + r.discount_given
+    }), { units: 0, revenue: 0, discount_given: 0 });
+
+    res.json({
+      schedule: {
+        id: schedule.id, name: schedule.name,
+        start_date: schedule.start_date, end_date: schedule.end_date,
+        indefinite: schedule.indefinite, status: schedule.status,
+        discount_type: schedule.discount_type, discount_value: schedule.discount_value
+      },
+      date_range: { from: startIso, to: endIso },
+      items: itemReport,
+      totals: {
+        units: totals.units,
+        revenue: Math.round(totals.revenue * 100) / 100,
+        discount_given: Math.round(totals.discount_given * 100) / 100
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 module.exports = router;
 module.exports.runCron = runCron;

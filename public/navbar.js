@@ -75,8 +75,7 @@ function buildNavItems(user) {
         ${item('/gm-expenses', '💼', 'Expenses')}
         ${isHimRole ? `
         <div class="dropdown-header" style="margin-top:4px">Suppliers</div>
-        <button class="dropdown-item" onclick="window.location.href='/distributors'">🏭 Distributors</button>
-        <button class="dropdown-item" onclick="window.location.href='/distributor-prices'">💲 Price Lists</button>` : ''}
+        <button class="dropdown-item" onclick="window.location.href='/distributor-prices'">🏭 Distributors & Prices</button>` : ''}
       </div>
     </div>
 

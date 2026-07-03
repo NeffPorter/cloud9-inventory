@@ -68,6 +68,16 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .store-checkboxes { display: grid; gap: 6px; }
 .store-check { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; }
+.report-stats { display: grid; grid-template-columns: repeat(auto-fit,minmax(120px,1fr)); gap: 10px; margin-bottom: 20px; }
+.report-stat { background: #f8fafc; border-radius: 10px; padding: 12px 14px; }
+.report-stat-val { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
+.report-stat-lbl { font-size: 12px; color: #666; }
+.report-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.report-table th { background: #f3f4f6; padding: 8px 10px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb; }
+.report-table td { padding: 8px 10px; border-bottom: 1px solid #f3f4f6; }
+.report-table tr:last-child td { border-bottom: none; }
+.vs-up { color: #16a34a; font-weight: 600; }
+.vs-down { color: #dc2626; font-weight: 600; }
 .store-check input { width: 16px; height: 16px; cursor: pointer; }
 .store-check:hover { background: #f9fafb; }
 
@@ -205,6 +215,7 @@ async function loadEvents() {
         </div>
         <div class="event-actions" onclick="event.stopPropagation()">
           <button class="btn btn-ghost btn-sm" onclick="openEditModal('${ev.id}')">Edit</button>
+          <button class="btn btn-ghost btn-sm" onclick="openEventReport('${ev.id}')">&#128202; Report</button>
           <button class="btn btn-danger btn-sm" onclick="deleteEvent('${ev.id}','${ev.name.replace(/'/g,"\\'")}')">Delete</button>
         </div>
       </div>
@@ -398,8 +409,69 @@ async function deleteEvent(id, name) {
 document.getElementById('createModal').addEventListener('click', e => { if (e.target === document.getElementById('createModal')) closeCreateModal(); });
 document.getElementById('reviewModal').addEventListener('click', e => { if (e.target === document.getElementById('reviewModal')) closeReviewModal(); });
 
+async function openEventReport(id) {
+  const ev = events.find(e => e.id === id);
+  document.getElementById('reportModalTitle').textContent = ev ? `📊 ${ev.name} — Report` : '📊 Report';
+  document.getElementById('reportModal').classList.add('open');
+  const body = document.getElementById('reportModalBody');
+  body.innerHTML = '<div class="empty"><div class="empty-icon">⏳</div><div>Loading...</div></div>';
+
+  try {
+    const data = await api(`/api/sale-events/${id}/report`);
+    const t = data.totals || {};
+    const fmt = v => '$' + (v || 0).toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
+    const pct = v => v == null ? '–' : (v >= 0 ? `<span class="vs-up">▲ ${v.toFixed(1)}%</span>` : `<span class="vs-down">▼ ${Math.abs(v).toFixed(1)}%</span>`);
+
+    const storeRows = (data.stores || []).map(s => `
+      <tr>
+        <td>${s.name}</td>
+        <td>${s.orders}</td>
+        <td>${fmt(s.net_sales)}</td>
+        <td>${fmt(s.gross_sales)}</td>
+        <td>${fmt(s.discounts)}</td>
+        <td>${fmt(s.gross_profit)}</td>
+        <td>${s.margin != null ? s.margin.toFixed(1)+'%' : '–'}</td>
+        <td>${pct(s.vs_prior)}</td>
+      </tr>`).join('');
+
+    body.innerHTML = `
+      <div class="report-stats">
+        <div class="report-stat"><div class="report-stat-val">${t.orders||0}</div><div class="report-stat-lbl">Orders</div></div>
+        <div class="report-stat"><div class="report-stat-val">${fmt(t.net_sales)}</div><div class="report-stat-lbl">Net Sales</div></div>
+        <div class="report-stat"><div class="report-stat-val">${fmt(t.gross_sales)}</div><div class="report-stat-lbl">Gross Sales</div></div>
+        <div class="report-stat"><div class="report-stat-val">${fmt(t.discounts)}</div><div class="report-stat-lbl">Discounts</div></div>
+        <div class="report-stat"><div class="report-stat-val">${fmt(t.gross_profit)}</div><div class="report-stat-lbl">Gross Profit</div></div>
+        <div class="report-stat"><div class="report-stat-val">${t.margin!=null?t.margin.toFixed(1)+'%':'–'}</div><div class="report-stat-lbl">Margin</div></div>
+      </div>
+      <table class="report-table">
+        <thead><tr><th>Store</th><th>Orders</th><th>Net Sales</th><th>Gross Sales</th><th>Discounts</th><th>Gross Profit</th><th>Margin</th><th>vs Prior</th></tr></thead>
+        <tbody>${storeRows || '<tr><td colspan="8" style="text-align:center;color:#888">No sales data</td></tr>'}</tbody>
+      </table>`;
+  } catch(e) {
+    body.innerHTML = '<div class="empty"><div class="empty-icon">❌</div><div>Failed to load report</div></div>';
+  }
+}
+
+function closeReportModal() { document.getElementById('reportModal').classList.remove('open'); }
+
+document.getElementById('reportModal').addEventListener('click', e => { if (e.target === document.getElementById('reportModal')) closeReportModal(); });
+
+
 init();
 </script>
+
+<!-- Report Modal -->
+<div class="modal-overlay" id="reportModal">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-header">
+      <h2 id="reportModalTitle">📊 Sale Event Report</h2>
+      <button class="modal-close" onclick="closeReportModal()">×</button>
+    </div>
+    <div class="modal-body" id="reportModalBody" style="display:block">
+      <div class="empty"><div class="empty-icon">⏳</div><div>Loading report...</div></div>
+    </div>
+  </div>
+</div>
 <script>loadNavbar();</script>
 </body>
 </html>

@@ -12,7 +12,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .page { max-width: 860px; margin: 0 auto; padding: 24px 16px; }
 .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
 .page-title { font-size: 22px; font-weight: 600; }
-.store-select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: white; }
+.store-pills { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.store-pill { padding: 6px 16px; border: 1.5px solid #ddd; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; background: white; color: #555; transition: all .15s; white-space: nowrap; }
+.store-pill:hover { border-color: #2563eb; color: #2563eb; }
+.store-pill.active { background: #2563eb; color: white; border-color: #2563eb; }
 .btn { padding: 8px 16px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: opacity .15s; }
 .btn:hover { opacity: .85; }
 .btn-primary { background: #2563eb; color: white; }
@@ -49,9 +52,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
   <div class="page-header">
     <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
       <h1 class="page-title">✅ Store To-Do</h1>
-      <select class="store-select" id="storeSelect" onchange="loadTasks()">
-        <option value="">Select store...</option>
-      </select>
+      <div class="store-pills" id="storePills"></div>
     </div>
     <button class="btn btn-ghost btn-sm" onclick="loadTasks()">↻ Refresh</button>
   </div>
@@ -74,25 +75,34 @@ async function init() {
   if (!token) { window.location.href = '/'; return; }
   const data = await api('/api/inventory/stores');
   stores = data.stores || [];
-  const sel = document.getElementById('storeSelect');
-  sel.innerHTML = '<option value="">Select store...</option>' + stores.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
 
   const params = new URLSearchParams(location.search);
   const urlStore = params.get('store');
+  const defaultStore = urlStore || (stores.length === 1 ? stores[0].id : null);
 
-  if (stores.length === 1) {
-    sel.value = stores[0].id;
-    sel.style.display = 'none';
-    loadTasks();
-  } else if (urlStore) {
-    sel.value = urlStore;
+  const pills = document.getElementById('storePills');
+  if (stores.length <= 1) {
+    pills.style.display = 'none';
+  } else {
+    pills.innerHTML = stores.map(s =>
+      `<button class="store-pill${s.id === defaultStore ? ' active' : ''}" onclick="selectStore('${s.id}', this)">${s.name}</button>`
+    ).join('');
+  }
+
+  if (defaultStore) {
+    currentStoreId = defaultStore;
     loadTasks();
   }
 }
 
+function selectStore(storeId, btn) {
+  document.querySelectorAll('#storePills .store-pill').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  currentStoreId = storeId;
+  loadTasks();
+}
+
 async function loadTasks() {
-  const sel = document.getElementById('storeSelect');
-  currentStoreId = sel.value;
   const content = document.getElementById('taskContent');
   if (!currentStoreId) { content.innerHTML = '<div class="empty"><div class="empty-icon">✅</div><div>Select a store to see its to-do list</div></div>'; return; }
 

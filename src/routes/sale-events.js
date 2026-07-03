@@ -674,5 +674,99 @@ async function assignStoresToEvent(ev, storeIds) {
   }
 }
 
+// GET /api/sale-events/:id/report — sales performance report for a sale event
+router.get('/:id/report', auth, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Get the sale event
+    const { data: ev, error: evErr } = await supabase
+      .from('sale_events').select('*, sale_event_stores(store_id)').eq('id', id).single();
+    if (evErr || !ev) return res.status(404).json({ error: 'Event not found' });
+
+    const storeIds = (ev.sale_event_stores || []).map(s => s.store_id);
+    const startDate = ev.start_date;
+    const endDate = ev.end_date || new Date().toISOString().split('T')[0];
+
+    // Calculate prior period (same duration before start)
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const durationMs = end - start;
+    const priorEnd = new Date(start.getTime() - 86400000); // day before start
+    const priorStart = new Date(priorEnd.getTime() - durationMs);
+    const priorStartStr = priorStart.toISOString().split('T')[0];
+    const priorEndStr = priorEnd.toISOString().split('T')[0];
+
+    // Query current period
+    const { data: current } = await supabase.from('sales_log')
+      .select('store_id, net_total, gross_total, discount_amount, cost_of_goods, order_count')
+      .in('store_id', storeIds)
+      .gte('sale_date', startDate).lte('sale_date', endDate);
+
+    // Query prior period
+    const { data: prior } = await supabase.from('sales_log')
+      .select('store_id, net_total, gross_total, discount_amount, cost_of_goods, order_count')
+      .in('store_id', storeIds)
+      .gte('sale_date', priorStartStr).lte('sale_date', priorEndStr);
+
+    // Get store names
+    const { data: storeRows } = await supabase.from('stores').select('id, name').in('id', storeIds);
+    const storeMap = Object.fromEntries((storeRows || []).map(s => [s.id, s.name]));
+
+    const sumRows = rows => rows.reduce((acc, r) => {
+      acc.net += r.net_total || 0;
+      acc.gross += r.gross_total || 0;
+      acc.discounts += r.discount_amount || 0;
+      acc.cost += r.cost_of_goods || 0;
+      acc.orders += r.order_count || 0;
+      return acc;
+    }, { net: 0, gross: 0, discounts: 0, cost: 0, orders: 0 });
+
+    const storeResults = storeIds.map(sid => {
+      const curRows = (current || []).filter(r => r.store_id === sid);
+      const priRows = (prior || []).filter(r => r.store_id === sid);
+      const cur = sumRows(curRows);
+      const pri = sumRows(priRows);
+      const profit = cur.net - cur.cost;
+      const margin = cur.net > 0 ? (profit / cur.net) * 100 : null;
+      const vsPrior = pri.net > 0 ? ((cur.net - pri.net) / pri.net) * 100 : null;
+      return {
+        store_id: sid,
+        name: storeMap[sid] || sid,
+        orders: cur.orders,
+        net_sales: cur.net,
+        gross_sales: cur.gross,
+        discounts: cur.discounts,
+        gross_profit: profit,
+        margin,
+        vs_prior: vsPrior
+      };
+    });
+
+    const allCur = sumRows(current || []);
+    const allPri = sumRows(prior || []);
+    const totalProfit = allCur.net - allCur.cost;
+    const totalMargin = allCur.net > 0 ? (totalProfit / allCur.net) * 100 : null;
+    const totalVsPrior = allPri.net > 0 ? ((allCur.net - allPri.net) / allPri.net) * 100 : null;
+
+    res.json({
+      event: { id: ev.id, name: ev.name, start_date: startDate, end_date: endDate },
+      stores: storeResults,
+      totals: {
+        orders: allCur.orders,
+        net_sales: allCur.net,
+        gross_sales: allCur.gross,
+        discounts: allCur.discounts,
+        gross_profit: totalProfit,
+        margin: totalMargin,
+        vs_prior: totalVsPrior
+      }
+    });
+  } catch (err) {
+    console.error('sale-events report error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
 module.exports.runSaleEventCron = runSaleEventCron;

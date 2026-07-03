@@ -246,7 +246,8 @@
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <span class="autosave-indicator" id="autosaveIndicator2">✅ Saved</span>
         <button class="collapse-btn" id="collapseBtn" onclick="toggleCollapseAll()">📂 Collapse All</button>
-        <button class="btn btn-gray" onclick="showScreen('screen-print')">← Back</button>
+        <button class="btn btn-gray" onclick="doPrint()">🖨️ Print Sheet</button>
+        <button class="btn btn-gray" onclick="showScreen('screen-select')">← Back</button>
         <button class="btn btn-green" onclick="finishCategory()">✅ Done →</button>
       </div>
     </div>
@@ -287,8 +288,7 @@
     <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:20px" class="no-print">
       <button class="btn btn-gray" onclick="showScreen('screen-select')">← Back</button>
       <button class="btn btn-blue" onclick="window.print()">🖨️ Print / Save PDF</button>
-      <button class="btn btn-green" id="applyBtn" onclick="applyToClover()">✅ Apply to Clover</button>
-      <button class="btn btn-orange" onclick="saveAndFinish()">💾 Save & Finish</button>
+      <button class="btn btn-green" onclick="saveAndFinish()">💾 Save & Finish</button>
     </div>
   </div>
 
@@ -423,7 +423,7 @@
   function selectCategory(cat) {
     currentCat = cat;
     document.getElementById('printCatName').textContent = `Print: ${cat}`;
-    showScreen('screen-print');
+    showScreen('screen-count');
   }
 
   function doPrint() {
@@ -641,8 +641,7 @@ async function pushCategoryToClover(discrepancies) {
     const allCats = [...new Set(allItems.map(i => i.category || 'No Category'))];
     const uncounted = allCats.filter(c => !catStatus[c]);
     if (uncounted.length > 0) {
-      alert(`Please count all categories before viewing the report.\n\nNot yet counted:\n• ${uncounted.join('\n• ')}`);
-      return;
+      if (!confirm(`Some categories haven't been counted yet:\n• ${uncounted.join('\n• ')}\n\nView report with what's been counted so far?`)) return;
     }
     const allCatItems = allItems.filter(i => catStatus[i.category || 'No Category']);
     const allDiscrepancies = allCatItems
@@ -739,13 +738,11 @@ async function pushCategoryToClover(discrepancies) {
   }
 
   async function saveAndFinish() {
-    // Guard: all categories must be counted
     const allCats = [...new Set(allItems.map(i => i.category || 'No Category'))];
     const countedCats = Object.keys(catStatus);
     const uncounted = allCats.filter(c => !countedCats.includes(c));
     if (uncounted.length > 0) {
-      alert(`Please count all categories before finalizing.\n\nNot yet counted:\n• ${uncounted.join('\n• ')}`);
-      return;
+      if (!confirm(`Some categories haven't been counted:\n• ${uncounted.join('\n• ')}\n\nSave the report with what's been counted so far?`)) return;
     }
 
     const btn = document.querySelector('[onclick="saveAndFinish()"]');
@@ -755,59 +752,62 @@ async function pushCategoryToClover(discrepancies) {
     const allCatItems = allItems.filter(i => catStatus[i.category || 'No Category']);
     const allDiscrepancies = allCatItems
       .filter(i => counts[i.id] !== undefined && counts[i.id] !== i._originalQty)
-      .map(i => ({ item: i, counted: counts[i.id], system: i._originalQty, diff: counts[i.id] - i._originalQty }));
+      .map(i => ({
+        item_id:    i.id,
+        item_name:  i.variant_name,
+        group_name: i.group_name,
+        category:   i.category,
+        expected:   i._originalQty,          // original system qty before any adjustments
+        counted:    counts[i.id],            // physically counted
+        diff:       counts[i.id] - i._originalQty,
+        cost:       i.cost || 0
+      }));
 
-    const totalCounted = Object.keys(counts).length;
-    const totalMatches = allCatItems.filter(i => counts[i.id] !== undefined && counts[i.id] === i._originalQty).length;
+    const totalCounted  = Object.keys(counts).length;
+    const totalMatches  = allCatItems.filter(i => counts[i.id] !== undefined && counts[i.id] === i._originalQty).length;
     const totalShortages = allDiscrepancies.filter(d => d.diff < 0).length;
-    const totalOverages = allDiscrepancies.filter(d => d.diff > 0).length;
-    const totalShortQty = allDiscrepancies.filter(d => d.diff < 0).reduce((a, d) => a + Math.abs(d.diff), 0);
-    const totalOverQty = allDiscrepancies.filter(d => d.diff > 0).reduce((a, d) => a + d.diff, 0);
-    const totalLossValue = allDiscrepancies.filter(d => d.diff < 0).reduce((a, d) => a + (Math.abs(d.diff) * (d.item.cost || 0)), 0);
-    const wasApplied = document.getElementById('applyBtn').textContent.includes('Applied');
+    const totalOverages  = allDiscrepancies.filter(d => d.diff > 0).length;
+    const totalShortQty  = allDiscrepancies.filter(d => d.diff < 0).reduce((a, d) => a + Math.abs(d.diff), 0);
+    const totalOverQty   = allDiscrepancies.filter(d => d.diff > 0).reduce((a, d) => a + d.diff, 0);
 
     try {
-      await fetch('/api/inventory/stocktake/reports', {
+      const res = await fetch('/api/inventory/stocktake/reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
         body: JSON.stringify({
           store_id: storeId,
-          categories: Object.keys(catStatus),
+          categories: countedCats,
           total_counted: totalCounted,
-          total_matches: totalCounted - Object.keys(counts).filter(id => counts[id] !== (allItems.find(i => i.id === id)?.clover_qty || 0)).length,
+          total_matches: totalMatches,
           total_shortages: totalShortages,
           total_overages: totalOverages,
           total_short_qty: totalShortQty,
           total_over_qty: totalOverQty,
-          total_loss_value: Math.round(totalLossValue * 100) / 100,
-          discrepancies: allDiscrepancies.map(d => ({
-            item_id: d.item.id,
-            item_name: d.item.variant_name,
-            group_name: d.item.group_name,
-            category: d.item.category,
-            system_qty: d.item.clover_qty || 0,
-            counted_qty: d.counted,
-            difference: d.diff,
-            cost: d.item.cost || 0
-          })),
-          applied_to_clover: wasApplied
+          discrepancies: allDiscrepancies,
+          applied_to_clover: true   // auto-push happens on each category finish
         })
       });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Server error ${res.status}`);
+      }
 
       // Delete draft
       if (draftId) {
         await fetch(`/api/inventory/stocktake/drafts/${draftId}`, {
           method: 'DELETE',
           headers: { 'Authorization': 'Bearer ' + token }
-        });
+        }).catch(() => {});
       }
 
-      console.log('Report saved successfully!');
-// window.location.href = '/stocktake';
+      btn.textContent = '✅ Saved!';
+      btn.style.background = '#38761d';
+      setTimeout(() => { window.location.href = '/stocktake'; }, 1000);
     } catch (err) {
       btn.disabled = false;
       btn.textContent = '💾 Save & Finish';
-      alert('Error saving report. Please try again.');
+      alert('Error saving report: ' + err.message);
     }
   }
 

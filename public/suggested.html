@@ -13,8 +13,10 @@
     .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
     .page-title { font-size: 24px; font-weight: 700; color: #1a1a2e; }
     .page-subtitle { color: #666; font-size: 14px; margin-top: 4px; }
-    .store-select { padding: 8px 14px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; font-weight: 600; color: #1a1a2e; background: white; cursor: pointer; outline: none; }
-    .store-select:focus { border-color: #2f5597; }
+    .store-pills { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .store-pill { padding: 6px 16px; border: 1.5px solid #ddd; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; background: white; color: #555; transition: all .15s; white-space: nowrap; }
+    .store-pill:hover { border-color: #2563eb; color: #2563eb; }
+    .store-pill.active { background: #2563eb; color: white; border-color: #2563eb; }
 
     /* Summary bar */
     .summary-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 28px; }
@@ -89,9 +91,7 @@
       <div class="page-title">🗒️ Purchase Planner</div>
       <div class="page-subtitle">Per-category lead times and reorder planning</div>
     </div>
-    <select id="storeSel" class="store-select" onchange="onStoreChange()">
-      <option value="">Select store...</option>
-    </select>
+    <div class="store-pills" id="storePills"></div>
   </div>
 
   <div id="setupBanner" style="display:none"></div>
@@ -155,21 +155,20 @@
       allStores = data.stores || [];
     } catch (e) { allStores = []; }
 
-    const sel = document.getElementById('storeSel');
-    if (!allStores.length) {
-      sel.innerHTML = '<option value="">No stores</option>';
-      return;
-    }
+    if (!allStores.length) return;
 
     const urlStore = new URLSearchParams(window.location.search).get('store');
     const isStoreUser = ['gm', 'store_user'].includes(user.role);
     let defaultStore = urlStore || (isStoreUser ? user.store_id : allStores[0]?.id);
 
-    sel.innerHTML = allStores.map(s =>
-      `<option value="${s.id}" ${s.id === defaultStore ? 'selected' : ''}>${s.name}</option>`
-    ).join('');
-
-    if (allStores.length <= 1 || isStoreUser) sel.style.display = 'none';
+    const pills = document.getElementById('storePills');
+    if (allStores.length <= 1 || isStoreUser) {
+      pills.style.display = 'none';
+    } else {
+      pills.innerHTML = allStores.map(s =>
+        `<button class="store-pill${s.id === defaultStore ? ' active' : ''}" onclick="selectStore('${s.id}', this)">${s.name}</button>`
+      ).join('');
+    }
 
     // Load global distributor list (names/reps)
     await loadDists();
@@ -180,8 +179,9 @@
     }
   }
 
-  function onStoreChange() {
-    const storeId = document.getElementById('storeSel').value;
+  function selectStore(storeId, btn) {
+    document.querySelectorAll('#storePills .store-pill').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
     if (!storeId) return;
     currentStoreId = storeId;
     loadAll(storeId);

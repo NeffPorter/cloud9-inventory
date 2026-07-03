@@ -18,13 +18,14 @@ body > nav { position: sticky; top: 0; z-index: 100; }
 .control-group { display: flex; flex-direction: column; gap: 5px; }
 .control-group label { font-size: 12px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: .04em; }
 .controls input, .controls select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: white; }
-.period-tabs { display: flex; gap: 2px; background: #f3f4f6; border-radius: 8px; padding: 3px; }
-.period-tab { padding: 6px 14px; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; background: transparent; color: #555; transition: all .15s; }
-.period-tab.active { background: white; color: #1a1a1a; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+.period-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.period-tab { padding: 7px 16px; border-radius: 8px; border: 1.5px solid #ddd; background: white; font-size: 13px; font-weight: 600; cursor: pointer; color: #555; transition: all .15s; }
+.period-tab:hover { border-color: #2563eb; color: #2563eb; }
+.period-tab.active { border-color: #2563eb; background: #2563eb; color: white; }
 .btn { padding: 9px 18px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
 .btn-primary { background: #2563eb; color: white; }
 .btn:hover { opacity: .85; }
-.store-btn { padding: 7px 16px; border: 1px solid #ddd; border-radius: 20px; font-size: 13px; font-weight: 500; cursor: pointer; background: white; color: #555; transition: all .15s; }
+.store-btn { padding: 6px 16px; border: 1.5px solid #ddd; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; background: white; color: #555; transition: all .15s; }
 .store-btn:hover { border-color: #2563eb; color: #2563eb; }
 .store-btn.active { background: #2563eb; color: white; border-color: #2563eb; }
 .shortage-banner { display:flex; align-items:center; gap:16px; background:#fff8f0; border:1px solid #f97316; border-radius:10px; padding:12px 18px; margin-bottom:20px; }

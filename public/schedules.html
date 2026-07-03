@@ -12,7 +12,10 @@
   .page { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
   .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
   .page-title { font-size: 22px; font-weight: 600; }
-  .store-select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: white; }
+  .store-pills { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .store-pill { padding: 6px 16px; border: 1.5px solid #ddd; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; background: white; color: #555; transition: all .15s; white-space: nowrap; }
+  .store-pill:hover { border-color: #2563eb; color: #2563eb; }
+  .store-pill.active { background: #2563eb; color: white; border-color: #2563eb; }
   .btn { padding: 9px 18px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: opacity .15s; }
   .btn:hover { opacity: .85; }
   .btn-primary { background: #2563eb; color: white; }
@@ -75,6 +78,18 @@
 
   .conflict-banner { background: #fef9c3; border: 1px solid #fde047; border-radius: 8px; padding: 12px 14px; font-size: 13px; color: #854d0e; }
   .conflict-banner strong { display: block; margin-bottom: 4px; }
+  .toggle-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .time-inputs { display: flex; gap: 8px; align-items: center; }
+  .time-inputs input[type="time"] { padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+  .inline-label { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 400; cursor: pointer; white-space: nowrap; }
+  .report-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }
+  .report-table th { background: #f3f4f6; padding: 8px 10px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb; }
+  .report-table td { padding: 7px 10px; border-bottom: 1px solid #f3f4f6; }
+  .report-table tr:last-child td { border-bottom: none; }
+  .report-totals { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+  .report-stat { flex: 1; min-width: 100px; background: #f3f4f6; border-radius: 10px; padding: 12px 14px; }
+  .report-stat-val { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
+  .report-stat-lbl { font-size: 12px; color: #666; }
 
   @media (max-width: 600px) {
     .field-row { grid-template-columns: 1fr; }
@@ -88,9 +103,7 @@
   <div class="page-header">
     <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
       <h1 class="page-title">🏷️ Discount Schedules</h1>
-      <select class="store-select" id="storeSelect" onchange="loadSchedules()">
-        <option value="">Select store...</option>
-      </select>
+      <div class="store-pills" id="storePills"></div>
     </div>
     <button class="btn btn-primary" onclick="openCreateModal()">+ New Schedule</button>
   </div>
@@ -133,7 +146,22 @@
         </div>
         <div class="field">
           <label>End date</label>
-          <input type="date" id="fEnd">
+          <div class="toggle-row">
+            <input type="date" id="fEnd" style="flex:1">
+            <label class="inline-label"><input type="checkbox" id="fIndefinite" onchange="toggleIndefinite()"> No end date</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Time</label>
+        <div class="toggle-row">
+          <label class="inline-label"><input type="checkbox" id="fAllDay" checked onchange="toggleAllDay()"> All day</label>
+          <div class="time-inputs" id="timeInputs" style="display:none">
+            <input type="time" id="fStartTime">
+            <span style="color:#888">to</span>
+            <input type="time" id="fEndTime">
+          </div>
         </div>
       </div>
 
@@ -174,6 +202,22 @@
   </div>
 </div>
 
+<!-- Report Modal -->
+<div class="modal-overlay" id="reportOverlay">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-header">
+      <h2 id="reportTitle">Sales Report</h2>
+      <button class="modal-close" onclick="closeReport()">×</button>
+    </div>
+    <div class="modal-body" id="reportBody">
+      <div style="text-align:center;padding:40px;color:#888">Loading...</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeReport()">Close</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const token = localStorage.getItem('token');
 let stores = [], currentStoreId = null;
@@ -181,6 +225,19 @@ let discountType = 'percent', targetType = 'category';
 let selectedTargets = []; // [{id, label}]
 let allItems = [], allCategories = [], allGroups = [];
 let editingId = null, _lastSchedules = [];
+
+function toggleAllDay() {
+  const allDay = document.getElementById('fAllDay').checked;
+  document.getElementById('timeInputs').style.display = allDay ? 'none' : 'flex';
+}
+
+function toggleIndefinite() {
+  const indef = document.getElementById('fIndefinite').checked;
+  const fEnd = document.getElementById('fEnd');
+  fEnd.disabled = indef;
+  fEnd.style.opacity = indef ? '0.4' : '1';
+  if (indef) fEnd.value = '';
+}
 
 async function api(path, opts = {}) {
   const res = await fetch(path, { headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, ...opts });
@@ -192,26 +249,33 @@ async function init() {
   const data = await api('/api/inventory/stores');
   stores = data.stores || [];
 
-  const sel = document.getElementById('storeSelect');
-  sel.innerHTML = '<option value="">Select store...</option>' + stores.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
-
   const params = new URLSearchParams(location.search);
   const urlStore = params.get('store');
+  const defaultStore = urlStore || (stores.length === 1 ? stores[0].id : null);
 
-  if (stores.length === 1) {
-    // Single-store user — auto-select and hide the dropdown
-    sel.value = stores[0].id;
-    sel.style.display = 'none';
-    loadSchedules();
-  } else if (urlStore) {
-    sel.value = urlStore;
+  const pills = document.getElementById('storePills');
+  if (stores.length <= 1) {
+    pills.style.display = 'none';
+  } else {
+    pills.innerHTML = stores.map(s =>
+      `<button class="store-pill${s.id === defaultStore ? ' active' : ''}" onclick="selectStore('${s.id}', this)">${s.name}</button>`
+    ).join('');
+  }
+
+  if (defaultStore) {
+    currentStoreId = defaultStore;
     loadSchedules();
   }
 }
 
+function selectStore(storeId, btn) {
+  document.querySelectorAll('#storePills .store-pill').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  currentStoreId = storeId;
+  loadSchedules();
+}
+
 async function loadSchedules() {
-  const sel = document.getElementById('storeSelect');
-  currentStoreId = sel.value;
   const grid = document.getElementById('scheduleGrid');
   if (!currentStoreId) { grid.innerHTML = '<div class="empty"><div class="empty-icon">🏷️</div><div>Select a store to view discount schedules</div></div>'; return; }
 
@@ -235,6 +299,12 @@ async function loadSchedules() {
     const canEdit = s.status === 'scheduled';
     const canCancel = s.status === 'scheduled' || s.status === 'active';
     const safeName = s.name.replace(/'/g,"\\'");
+    const dateLabel = s.indefinite
+      ? `📅 ${s.start_date} → No end date`
+      : `📅 ${s.start_date} → ${s.end_date}`;
+    const timeLabel = (!s.start_time && !s.end_time)
+      ? ''
+      : `<span>🕐 ${(s.start_time||'').slice(0,5)} – ${(s.end_time||'').slice(0,5)}</span>`;
     return `
     <div class="schedule-card">
       <div class="schedule-info">
@@ -242,12 +312,14 @@ async function loadSchedules() {
         <div class="schedule-meta">
           <span><span class="badge ${statusClass}">${s.status}</span></span>
           <span>🏷️ ${typeLabel}</span>
-          <span>📅 ${s.start_date} → ${s.end_date}</span>
+          <span>${dateLabel}</span>
+          ${timeLabel}
           <span>🎯 ${targetLabel}: ${targets || '—'}</span>
           ${s.status === 'active' && s.applied_item_ids?.length ? `<span>✅ ${s.applied_item_ids.length} items on Clover</span>` : ''}
         </div>
       </div>
       <div class="schedule-actions">
+        <button class="btn btn-ghost btn-sm" onclick="openReport('${s.id}')">📊 Report</button>
         ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick="openEditSchedule('${s.id}')">Edit</button>` : ''}
         ${s.status === 'active' ? `<button class="btn btn-primary btn-sm" onclick="applyNow('${s.id}')">⚡ Apply Now</button>` : ''}
         ${canCancel ? `<button class="btn btn-ghost btn-sm" style="color:#d97706;border-color:#d97706" onclick="cancelSchedule('${s.id}','${safeName}')">Cancel</button>` : ''}
@@ -277,6 +349,13 @@ function openCreateModal() {
   document.getElementById('fValue').value = '';
   document.getElementById('fStart').value = '';
   document.getElementById('fEnd').value = '';
+  document.getElementById('fEnd').disabled = false;
+  document.getElementById('fEnd').style.opacity = '1';
+  document.getElementById('fIndefinite').checked = false;
+  document.getElementById('fAllDay').checked = true;
+  document.getElementById('fStartTime').value = '';
+  document.getElementById('fEndTime').value = '';
+  document.getElementById('timeInputs').style.display = 'none';
   document.getElementById('conflictBanner').style.display = 'none';
   selectedTargets = [];
   setDiscountType('percent');
@@ -366,13 +445,18 @@ async function saveSchedule(force = false) {
   const name = document.getElementById('fName').value.trim();
   const value = parseFloat(document.getElementById('fValue').value);
   const start = document.getElementById('fStart').value;
-  const end = document.getElementById('fEnd').value;
+  const indefinite = document.getElementById('fIndefinite').checked;
+  const end = indefinite ? null : document.getElementById('fEnd').value;
+  const allDay = document.getElementById('fAllDay').checked;
+  const startTime = allDay ? null : document.getElementById('fStartTime').value || null;
+  const endTime   = allDay ? null : document.getElementById('fEndTime').value   || null;
 
-  if (!name || !value || !start || !end || selectedTargets.length === 0) {
+  if (!name || !value || !start || selectedTargets.length === 0) {
     alert('Please fill in all fields and add at least one target.');
     return;
   }
-  if (end < start) { alert('End date must be after start date.'); return; }
+  if (!indefinite && !end) { alert('Enter an end date or check "No end date".'); return; }
+  if (!indefinite && end < start) { alert('End date must be after start date.'); return; }
 
   document.getElementById('saveBtn').disabled = true;
   document.getElementById('saveBtn').textContent = 'Saving...';
@@ -384,6 +468,9 @@ async function saveSchedule(force = false) {
     discount_value: value,
     start_date: start,
     end_date: end,
+    indefinite,
+    start_time: startTime,
+    end_time: endTime,
     target_type: targetType,
     target_ids: selectedTargets.map(t => t.id),
     force
@@ -425,7 +512,17 @@ function openEditSchedule(id) {
   document.getElementById('fName').value = s.name;
   document.getElementById('fValue').value = s.discount_value;
   document.getElementById('fStart').value = s.start_date;
-  document.getElementById('fEnd').value = s.end_date;
+  // End date / indefinite
+  document.getElementById('fIndefinite').checked = !!s.indefinite;
+  document.getElementById('fEnd').value = s.indefinite ? '' : (s.end_date || '');
+  document.getElementById('fEnd').disabled = !!s.indefinite;
+  document.getElementById('fEnd').style.opacity = s.indefinite ? '0.4' : '1';
+  // Time
+  const hasTime = !!(s.start_time || s.end_time);
+  document.getElementById('fAllDay').checked = !hasTime;
+  document.getElementById('fStartTime').value = s.start_time ? s.start_time.slice(0,5) : '';
+  document.getElementById('fEndTime').value = s.end_time ? s.end_time.slice(0,5) : '';
+  document.getElementById('timeInputs').style.display = hasTime ? 'flex' : 'none';
   document.getElementById('conflictBanner').style.display = 'none';
   setDiscountType(s.discount_type);
 
@@ -474,7 +571,63 @@ async function deleteSchedule(id, name) {
   if (res.ok) { loadSchedules(); } else { alert('Failed to delete schedule'); }
 }
 
+async function openReport(id) {
+  document.getElementById('reportTitle').textContent = 'Sales Report';
+  document.getElementById('reportBody').innerHTML = '<div style="text-align:center;padding:40px;color:#888">Loading...</div>';
+  document.getElementById('reportOverlay').classList.add('open');
+
+  const res = await fetch(`/api/schedules/${id}/report`, { headers: { Authorization: 'Bearer ' + token } });
+  if (!res.ok) {
+    document.getElementById('reportBody').innerHTML = '<div style="color:#dc2626;padding:20px">Failed to load report.</div>';
+    return;
+  }
+  const data = await res.json();
+  const s = data.schedule;
+  const dateRange = s.indefinite ? `${s.start_date} → No end date` : `${s.start_date} → ${s.end_date}`;
+  const discLabel = s.discount_type === 'percent' ? `${s.discount_value}% off` : `$${Number(s.discount_value).toFixed(2)} off`;
+
+  document.getElementById('reportTitle').textContent = `📊 ${s.name}`;
+
+  const rows = data.items.map(item => `
+    <tr>
+      <td>${item.name}</td>
+      <td style="text-align:right">${item.units_sold}</td>
+      <td style="text-align:right">$${item.orig_price.toFixed(2)}</td>
+      <td style="text-align:right">$${item.sale_price.toFixed(2)}</td>
+      <td style="text-align:right">$${item.revenue.toFixed(2)}</td>
+      <td style="text-align:right;color:#dc2626">-$${item.discount_given.toFixed(2)}</td>
+    </tr>`).join('');
+
+  document.getElementById('reportBody').innerHTML = `
+    <div style="font-size:13px;color:#666;margin-bottom:16px">
+      <strong>${discLabel}</strong> &nbsp;·&nbsp; ${dateRange} &nbsp;·&nbsp;
+      <span class="badge badge-${s.status}">${s.status}</span>
+    </div>
+    <div class="report-totals">
+      <div class="report-stat"><div class="report-stat-val">${data.totals.units}</div><div class="report-stat-lbl">Units sold</div></div>
+      <div class="report-stat"><div class="report-stat-val">$${data.totals.revenue.toFixed(2)}</div><div class="report-stat-lbl">Revenue (at sale price)</div></div>
+      <div class="report-stat"><div class="report-stat-val" style="color:#dc2626">-$${data.totals.discount_given.toFixed(2)}</div><div class="report-stat-lbl">Discount given</div></div>
+    </div>
+    ${data.items.length === 0 ? '<div style="text-align:center;color:#888;padding:20px">No sales data found for this period.</div>' : `
+    <div style="overflow-x:auto">
+      <table class="report-table">
+        <thead><tr>
+          <th>Item</th><th style="text-align:right">Units</th>
+          <th style="text-align:right">Reg. Price</th><th style="text-align:right">Sale Price</th>
+          <th style="text-align:right">Revenue</th><th style="text-align:right">Discount</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`}
+    <div style="font-size:11px;color:#aaa;margin-top:12px">Revenue and discount figures use sale pricing. Sales data pulled from transaction logs for the schedule date range.</div>`;
+}
+
+function closeReport() {
+  document.getElementById('reportOverlay').classList.remove('open');
+}
+
 document.getElementById('modalOverlay').addEventListener('click', e => { if (e.target === document.getElementById('modalOverlay')) closeModal(); });
+document.getElementById('reportOverlay').addEventListener('click', e => { if (e.target === document.getElementById('reportOverlay')) closeReport(); });
 document.addEventListener('click', e => { if (!e.target.closest('.search-picker')) document.querySelectorAll('.search-list').forEach(l => l.classList.remove('open')); });
 
 init();

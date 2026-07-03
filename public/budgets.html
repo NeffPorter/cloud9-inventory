@@ -18,12 +18,10 @@
     .page-title { font-size: 26px; font-weight: 800; }
     .page-title span { color: #2f5597; }
 
-    .store-select-wrap { display: flex; align-items: center; gap: 10px; }
-    .store-select-wrap label { font-size: 13px; font-weight: 600; color: #555; }
-    #storeSelect {
-      padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px;
-      font-size: 14px; background: white; cursor: pointer;
-    }
+    .store-pills { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .store-pill { padding: 6px 16px; border: 1.5px solid #ddd; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; background: white; color: #555; transition: all .15s; white-space: nowrap; }
+    .store-pill:hover { border-color: #2563eb; color: #2563eb; }
+    .store-pill.active { background: #2563eb; color: white; border-color: #2563eb; }
 
     /* Current week card */
     .current-card {
@@ -160,10 +158,7 @@
 <div class="page-wrap">
   <div class="page-header">
     <div class="page-title">💰 <span>Budget</span> Reports</div>
-    <div class="store-select-wrap" id="storeSelectWrap" style="display:none">
-      <label>Store:</label>
-      <select id="storeSelect" onchange="onStoreChange()"></select>
-    </div>
+    <div class="store-pills" id="storePills" style="display:none"></div>
   </div>
 
   <div id="mainContent"><div class="loading">Loading budgets…</div></div>
@@ -189,18 +184,14 @@ async function init() {
     const data = await res.json();
     stores = data.stores || [];
 
+    currentStoreId = urlStore || stores[0]?.id;
     if (stores.length > 1) {
-      document.getElementById('storeSelectWrap').style.display = 'flex';
-      const sel = document.getElementById('storeSelect');
-      stores.forEach(s => {
-        const opt = document.createElement('option');
-        opt.value = s.id; opt.textContent = s.name;
-        sel.appendChild(opt);
-      });
-      currentStoreId = urlStore || stores[0]?.id;
-      sel.value = currentStoreId;
+      const pills = document.getElementById('storePills');
+      pills.style.display = 'flex';
+      pills.innerHTML = stores.map(s =>
+        `<button class="store-pill${s.id === currentStoreId ? ' active' : ''}" onclick="selectBudgetStore('${s.id}', this)">${s.name}</button>`
+      ).join('');
     } else {
-      currentStoreId = urlStore || stores[0]?.id;
     }
   } else {
     currentStoreId = user.store_id || urlStore;
@@ -214,9 +205,11 @@ async function init() {
   }
 }
 
-function onStoreChange() {
-  currentStoreId = document.getElementById('storeSelect').value;
-  loadBudgets(currentStoreId);
+function selectBudgetStore(storeId, btn) {
+  document.querySelectorAll('#storePills .store-pill').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  currentStoreId = storeId;
+  loadBudgets(storeId);
 }
 
 async function loadBudgets(storeId) {
