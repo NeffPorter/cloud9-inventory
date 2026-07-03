@@ -158,8 +158,8 @@
 <div class="page-wrap">
   <div class="page-header">
     <div class="page-title">💰 <span>Budget</span> Reports</div>
-    <div class="store-pills" id="storePills" style="display:none"></div>
   </div>
+  <div class="store-pills" id="storePills" style="display:none;margin-bottom:20px"></div>
 
   <div id="mainContent"><div class="loading">Loading budgets…</div></div>
 </div>
@@ -184,20 +184,23 @@ async function init() {
     const data = await res.json();
     stores = data.stores || [];
 
-    currentStoreId = urlStore || stores[0]?.id;
-    if (stores.length > 1) {
+    currentStoreId = urlStore || '';
+    if (stores.length > 0) {
       const pills = document.getElementById('storePills');
       pills.style.display = 'flex';
-      pills.innerHTML = stores.map(s =>
-        `<button class="store-pill${s.id === currentStoreId ? ' active' : ''}" onclick="selectBudgetStore('${s.id}', this)">${s.name}</button>`
-      ).join('');
-    } else {
+      pills.innerHTML =
+        `<button class="store-pill${!currentStoreId ? ' active' : ''}" onclick="selectBudgetStore('', this)">All Stores</button>` +
+        stores.map(s =>
+          `<button class="store-pill${s.id === currentStoreId ? ' active' : ''}" onclick="selectBudgetStore('${s.id}', this)">${s.name}</button>`
+        ).join('');
     }
   } else {
     currentStoreId = user.store_id || urlStore;
   }
 
-  if (currentStoreId) {
+  if (currentStoreId === '') {
+    loadAllStoreBudgets();
+  } else if (currentStoreId) {
     loadBudgets(currentStoreId);
   } else {
     document.getElementById('mainContent').innerHTML =
@@ -209,7 +212,51 @@ function selectBudgetStore(storeId, btn) {
   document.querySelectorAll('#storePills .store-pill').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
   currentStoreId = storeId;
-  loadBudgets(storeId);
+  if (!storeId) loadAllStoreBudgets();
+  else loadBudgets(storeId);
+}
+
+async function loadAllStoreBudgets() {
+  const mc = document.getElementById('mainContent');
+  mc.innerHTML = '<div class="loading">Loading budgets…</div>';
+  try {
+    const results = await Promise.all(stores.map(s =>
+      fetch(`/api/budgets/current/${s.id}`, { headers: { Authorization: 'Bearer ' + token } })
+        .then(r => r.json()).then(d => ({ store: s, budget: d.budget }))
+    ));
+    mc.innerHTML = results.map(({ store, budget: b }) => {
+      if (!b) return `<div class="current-budget-card"><h2>${store.name}</h2><p style="color:#999">No budget this week.</p></div>`;
+      const cats = b.categories || [];
+      const totalBudget = cats.reduce((s,c) => s + (parseFloat(c.budget_amount)||0), 0);
+      const totalSpent = cats.reduce((s,c) => s + (parseFloat(c.spent)||0), 0);
+      const pctSpent = totalBudget > 0 ? Math.round(totalSpent/totalBudget*100) : 0;
+      const barColor = pctSpent >= 100 ? '#e53e3e' : pctSpent >= 85 ? '#e65100' : '#2f5597';
+      return \`<div class="current-budget-card" style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h2 style="margin:0;font-size:16px;font-weight:700">\${store.name}</h2>
+          <span style="font-size:13px;color:#666">\${b.week_start} → \${b.week_end}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+          <div style="flex:1;height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden">
+            <div style="height:100%;width:\${Math.min(pctSpent,100)}%;background:\${barColor};border-radius:4px"></div>
+          </div>
+          <span style="font-size:13px;font-weight:700;color:\${barColor}">\${pctSpent}%</span>
+          <span style="font-size:13px;color:#555">$\${totalSpent.toFixed(0)} / $\${totalBudget.toFixed(0)}</span>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          \${cats.map(cat => {
+            const sp = parseFloat(cat.spent)||0, bu = parseFloat(cat.budget_amount)||0;
+            const p = bu > 0 ? Math.round(sp/bu*100) : 0;
+            const col = p >= 100 ? '#e53e3e' : p >= 85 ? '#e65100' : '#2f5597';
+            return \`<span style="padding:4px 10px;background:#f3f4f6;border-radius:12px;font-size:12px;font-weight:600;color:\${col}">\${cat.category}: \${p}%</span>\`;
+          }).join('')}
+        </div>
+        <div style="margin-top:8px;text-align:right"><a href="/budgets.html?store=\${store.id}" style="font-size:13px;color:#2563eb;text-decoration:none">View details →</a></div>
+      </div>\`;
+    }).join('');
+  } catch(err) {
+    mc.innerHTML = \`<div class="empty-state"><div class="icon">⚠️</div>Error: \${err.message}</div>\`;
+  }
 }
 
 async function loadBudgets(storeId) {
