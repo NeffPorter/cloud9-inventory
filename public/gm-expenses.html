@@ -97,18 +97,35 @@ input:checked + .sw-slider:before { transform: translateX(18px); }
 
   <div id="storeButtonsWrap" style="display:none;flex-wrap:wrap;gap:8px;margin-bottom:16px"></div>
 
-  <div class="filters" style="flex-direction:column;align-items:flex-start;gap:10px">
-    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-      <button class="period-btn active" data-period="week"   onclick="setPeriod('week',this)">This Week</button>
-      <button class="period-btn"        data-period="month"  onclick="setPeriod('month',this)">This Month</button>
-      <button class="period-btn"        data-period="quarter" onclick="setPeriod('quarter',this)">This Quarter</button>
-      <button class="period-btn"        data-period="custom" onclick="setPeriod('custom',this)">Custom</button>
+  <!-- Controls card (P&L style) -->
+  <div style="background:white;padding:16px;border-radius:12px;border:1px solid #e5e7eb;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:16px">
+    <div>
+      <div style="font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Period</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="period-btn active" onclick="setPeriod('weekly',this)">Weekly</button>
+        <button class="period-btn"        onclick="setPeriod('monthly',this)">Monthly</button>
+        <button class="period-btn"        onclick="setPeriod('quarterly',this)">Quarterly</button>
+        <button class="period-btn"        onclick="setPeriod('custom',this)">Custom</button>
+      </div>
     </div>
-    <div id="customDateRow" style="display:none;gap:10px;flex-wrap:wrap;align-items:center;display:flex">
-      <div><label style="font-size:12px;color:#888">From</label><br><input type="date" id="filterStart" onchange="load()"></div>
-      <div><label style="font-size:12px;color:#888">To</label><br><input type="date" id="filterEnd" onchange="load()"></div>
+    <div id="periodPickerWrap">
+      <label id="periodPickerLabel" style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">Week of</label>
+      <input type="date" id="weekDatePicker" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;background:white" onchange="loadFromPicker()">
+    </div>
+    <div id="monthPickerWrap" style="display:none">
+      <label style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">Month</label>
+      <input type="month" id="monthPicker" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;background:white" onchange="loadFromPicker()">
+    </div>
+    <div id="quarterPickerWrap" style="display:none">
+      <label style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">Quarter</label>
+      <input type="text" id="quarterPicker" placeholder="e.g. 2026-Q2" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;background:white;width:120px" onchange="loadFromPicker()">
+    </div>
+    <div id="customDateRow" style="display:none;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div><label style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">From</label><input type="date" id="filterStart" onchange="loadFromPicker()" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;background:white"></div>
+      <div><label style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">To</label><input type="date" id="filterEnd" onchange="loadFromPicker()" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;background:white"></div>
     </div>
     <div>
+      <label style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">Category</label>
       <select id="filterCat" onchange="render()" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;background:white">
         <option value="">All categories</option>
         <option value="payroll">Payroll</option>
@@ -212,6 +229,8 @@ const user = JSON.parse(localStorage.getItem('user') || '{}');
 const isElevated = ['him', 'regional_manager', 'admin', 'owner'].includes(user.role);
 let expenses = [];
 let currentStoreId = '';  // '' = all stores
+let currentPeriod = 'weekly';
+let filterStart = '', filterEnd = '';
 
 // Build thead dynamically so isElevated JS var can control columns
 function buildHead() {
@@ -252,15 +271,57 @@ function setPeriod(period, btn) {
   currentPeriod = period;
   document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');
-  const customRow = document.getElementById('customDateRow');
-  if (period === 'custom') {
-    customRow.style.display = 'flex';
-    return; // Don't auto-load — wait for user to set dates
+
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const todayStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+
+  document.getElementById('periodPickerWrap').style.display  = 'none';
+  document.getElementById('monthPickerWrap').style.display   = 'none';
+  document.getElementById('quarterPickerWrap').style.display = 'none';
+  document.getElementById('customDateRow').style.display     = 'none';
+
+  if (period === 'weekly') {
+    document.getElementById('periodPickerWrap').style.display = '';
+    const picker = document.getElementById('weekDatePicker');
+    if (!picker.value) picker.value = todayStr;
+    const d = new Date(picker.value + 'T00:00:00');
+    const day = d.getDay();
+    const weekStart = new Date(d); weekStart.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+    const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+    filterStart = weekStart.toISOString().split('T')[0];
+    filterEnd   = weekEnd.toISOString().split('T')[0];
+  } else if (period === 'monthly') {
+    document.getElementById('monthPickerWrap').style.display = '';
+    const picker = document.getElementById('monthPicker');
+    if (!picker.value) picker.value = `${now.getFullYear()}-${pad(now.getMonth()+1)}`;
+    const [y, m] = picker.value.split('-');
+    const lastDay = new Date(y, m, 0).getDate();
+    filterStart = `${y}-${m}-01`;
+    filterEnd   = `${y}-${m}-${pad(lastDay)}`;
+  } else if (period === 'quarterly') {
+    document.getElementById('quarterPickerWrap').style.display = '';
+    const picker = document.getElementById('quarterPicker');
+    if (!picker.value) { const q = Math.ceil((now.getMonth()+1)/3); picker.value = `${now.getFullYear()}-Q${q}`; }
+    const match = picker.value.match(/(\d{4})-Q(\d)/);
+    if (!match) return;
+    const [, y, q] = match;
+    const sm = (parseInt(q)-1)*3+1; const em = sm+2;
+    filterStart = `${y}-${pad(sm)}-01`;
+    filterEnd   = `${y}-${pad(em)}-${pad(new Date(y,em,0).getDate())}`;
+  } else if (period === 'custom') {
+    document.getElementById('customDateRow').style.display = 'flex';
+    filterStart = document.getElementById('filterStart').value;
+    filterEnd   = document.getElementById('filterEnd').value;
+    if (!filterStart || !filterEnd) return;
   }
-  customRow.style.display = 'none';
-  applyPeriodDates(period);
+
+  document.getElementById('filterStart').value = filterStart;
+  document.getElementById('filterEnd').value   = filterEnd;
   load();
 }
+
+function loadFromPicker() { setPeriod(currentPeriod, document.querySelector('.period-btn.active')); }
 
 function applyPeriodDates(period) {
   const now = new Date();
@@ -286,9 +347,11 @@ function applyPeriodDates(period) {
 
 function setDefaultDates() {
   const now = new Date();
-  const y = now.getFullYear(), m = String(now.getMonth() + 1).padStart(2, '0');
-  document.getElementById('fDate').value = `${y}-${m}-${String(now.getDate()).padStart(2, '0')}`;
-  applyPeriodDates('week');
+  const y = now.getFullYear(), m = String(now.getMonth() + 1).padStart(2, '0'), d = String(now.getDate()).padStart(2, '0');
+  if (document.getElementById('fDate')) document.getElementById('fDate').value = `${y}-${m}-${d}`;
+  // Seed the week picker with today then trigger setPeriod
+  document.getElementById('weekDatePicker').value = `${y}-${m}-${d}`;
+  setPeriod('weekly', document.querySelector('.period-btn.active'));
 }
 
 async function api(path, opts = {}) {
@@ -475,9 +538,8 @@ document.getElementById('addModal').addEventListener('click', e => {
 async function init() {
   if (!token) { window.location.href = '/'; return; }
   buildHead();
-  setDefaultDates();
   await initStoreButtons();
-  await load();
+  setDefaultDates();
 }
 init();
 </script>

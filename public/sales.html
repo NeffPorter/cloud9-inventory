@@ -30,6 +30,9 @@
       align-items: center;
       flex-wrap: wrap;
     }
+.period-tab { padding: 7px 16px; border-radius: 8px; border: 1.5px solid #ddd; background: white; font-size: 13px; font-weight: 600; cursor: pointer; color: #555; transition: all .15s; }
+    .period-tab:hover { border-color: #2563eb; color: #2563eb; }
+    .period-tab.active { border-color: #2563eb; background: #2563eb; color: white; }
     .preset-btn {
       padding: 7px 16px;
       border-radius: 8px;
@@ -186,17 +189,33 @@
       </div>
     </div>
   </div>
-  <div style="background:white;padding:14px 16px;border-radius:12px;border:1px solid #e5e7eb;display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px">
-    <div style="display:flex;gap:6px;flex-wrap:wrap">
-      <button class="preset-btn active" onclick="setPreset('today', this)">Today</button>
-      <button class="preset-btn" onclick="setPreset('week', this)">This Week</button>
-      <button class="preset-btn" onclick="setPreset('month', this)">This Month</button>
-      <button class="preset-btn" onclick="setPreset('quarter', this)">This Quarter</button>
+  <!-- Controls card (matches P&L) -->
+  <div style="background:white;padding:16px;border-radius:12px;border:1px solid #e5e7eb;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:16px">
+    <div>
+      <div style="font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px">Period</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="period-tab active" onclick="setPeriod('daily',this)">Daily</button>
+        <button class="period-tab" onclick="setPeriod('weekly',this)">Weekly</button>
+        <button class="period-tab" onclick="setPeriod('monthly',this)">Monthly</button>
+        <button class="period-tab" onclick="setPeriod('quarterly',this)">Quarterly</button>
+        <button class="period-tab" onclick="setPeriod('custom',this)">Custom</button>
+      </div>
     </div>
-    <div style="display:flex;gap:8px;align-items:center;margin-left:auto">
-      <input type="date" id="startDate" class="date-input" onchange="setCustom()">
-      <span style="color:#999">to</span>
-      <input type="date" id="endDate" class="date-input" onchange="setCustom()">
+    <div id="periodPickerWrap">
+      <label id="periodPickerLabel" style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">Date</label>
+      <input type="date" id="singleDatePicker" class="date-input" onchange="loadFromPicker()">
+    </div>
+    <div id="monthPickerWrap" style="display:none">
+      <label style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">Month</label>
+      <input type="month" id="monthPicker" class="date-input" onchange="loadFromPicker()">
+    </div>
+    <div id="quarterPickerWrap" style="display:none">
+      <label style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">Quarter</label>
+      <input type="text" id="quarterPicker" class="date-input" placeholder="e.g. 2026-Q2" onchange="loadFromPicker()">
+    </div>
+    <div id="customDateWrap" style="display:none;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div><label style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">From</label><input type="date" id="startDate" class="date-input" onchange="loadFromPicker()"></div>
+      <div><label style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">To</label><input type="date" id="endDate" class="date-input" onchange="loadFromPicker()"></div>
     </div>
   </div>
   <div class="store-filter" id="storeFilter" style="margin-bottom:16px"></div>
@@ -301,43 +320,71 @@
       el.className = `stat-change ${up ? colorUp : colorDown}`;
     }
 
-    function setPreset(preset, btnEl) {
-      document.querySelectorAll('.preset-btn').forEach(b => { if (!b.classList.contains('trend-toggle-btn')) b.classList.remove('active'); });
-      if (btnEl) btnEl.classList.add('active');
+    let currentPeriod = 'daily';
+
+    function setPeriod(period, btn) {
+      currentPeriod = period;
+      document.querySelectorAll('.period-tab').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
 
       const now = new Date();
-      let start, end;
+      const pad = n => String(n).padStart(2,'0');
+      const todayStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
 
-      if (preset === 'today') {
-        start = new Date(now); start.setHours(0,0,0,0);
-        end = new Date(now); end.setHours(23,59,59,999);
-      } else if (preset === 'week') {
-        start = new Date(now); start.setDate(now.getDate() - now.getDay()); start.setHours(0,0,0,0);
-        end = new Date(now); end.setHours(23,59,59,999);
-      } else if (preset === 'month') {
-        start = new Date(now.getFullYear(), now.getMonth(), 1);
-        end = new Date(now); end.setHours(23,59,59,999);
-      } else if (preset === 'quarter') {
-        const q = Math.floor(now.getMonth() / 3);
-        start = new Date(now.getFullYear(), q * 3, 1);
-        end = new Date(now); end.setHours(23,59,59,999);
+      document.getElementById('periodPickerWrap').style.display  = 'none';
+      document.getElementById('monthPickerWrap').style.display   = 'none';
+      document.getElementById('quarterPickerWrap').style.display = 'none';
+      document.getElementById('customDateWrap').style.display    = 'none';
+
+      if (period === 'daily') {
+        document.getElementById('periodPickerWrap').style.display = '';
+        document.getElementById('periodPickerLabel').textContent = 'Date';
+        const picker = document.getElementById('singleDatePicker');
+        if (!picker.value) picker.value = todayStr;
+        const d = new Date(picker.value + 'T00:00:00');
+        currentStart = new Date(d); currentStart.setHours(0,0,0,0);
+        currentEnd   = new Date(d); currentEnd.setHours(23,59,59,999);
+      } else if (period === 'weekly') {
+        document.getElementById('periodPickerWrap').style.display = '';
+        document.getElementById('periodPickerLabel').textContent = 'Week of';
+        const picker = document.getElementById('singleDatePicker');
+        if (!picker.value) picker.value = todayStr;
+        const d = new Date(picker.value + 'T00:00:00');
+        const day = d.getDay();
+        currentStart = new Date(d); currentStart.setDate(d.getDate() - day); currentStart.setHours(0,0,0,0);
+        currentEnd   = new Date(currentStart); currentEnd.setDate(currentStart.getDate() + 6); currentEnd.setHours(23,59,59,999);
+      } else if (period === 'monthly') {
+        document.getElementById('monthPickerWrap').style.display = '';
+        const picker = document.getElementById('monthPicker');
+        if (!picker.value) picker.value = `${now.getFullYear()}-${pad(now.getMonth()+1)}`;
+        const [y, m] = picker.value.split('-');
+        const lastDay = new Date(y, m, 0).getDate();
+        currentStart = new Date(`${y}-${m}-01T00:00:00`);
+        currentEnd   = new Date(`${y}-${m}-${pad(lastDay)}T23:59:59`);
+      } else if (period === 'quarterly') {
+        document.getElementById('quarterPickerWrap').style.display = '';
+        const picker = document.getElementById('quarterPicker');
+        if (!picker.value) { const q = Math.ceil((now.getMonth()+1)/3); picker.value = `${now.getFullYear()}-Q${q}`; }
+        const match = picker.value.match(/(\d{4})-Q(\d)/);
+        if (!match) return;
+        const [, y, q] = match;
+        const sm = (parseInt(q)-1)*3+1; const em = sm+2;
+        currentStart = new Date(`${y}-${pad(sm)}-01T00:00:00`);
+        currentEnd   = new Date(`${y}-${pad(em)}-${pad(new Date(y,em,0).getDate())}T23:59:59`);
+      } else if (period === 'custom') {
+        document.getElementById('customDateWrap').style.display = 'flex';
+        const s = document.getElementById('startDate').value;
+        const e = document.getElementById('endDate').value;
+        if (!s || !e) return;
+        currentStart = new Date(s + 'T00:00:00');
+        currentEnd   = new Date(e + 'T23:59:59');
       }
 
-      currentStart = start;
-      currentEnd = end;
       loadSales();
     }
 
-    function setCustom() {
-      const s = document.getElementById('startDate').value;
-      const e = document.getElementById('endDate').value;
-      if (!s || !e) return;
-      document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
-      // Append T00:00:00 so the browser parses as local midnight, not UTC midnight
-      currentStart = new Date(s + 'T00:00:00');
-      currentEnd = new Date(e + 'T00:00:00'); currentEnd.setHours(23,59,59,999);
-      loadSales();
-    }
+    function loadFromPicker() { setPeriod(currentPeriod, document.querySelector('.period-tab.active')); }
+    function setCustom() { loadFromPicker(); }
 
     async function loadStoreFilter() {
       if (!['admin', 'him', 'regional_manager', 'owner'].includes(user.role)) return;
@@ -646,7 +693,7 @@
     }
 
     loadStoreFilter();
-    setPreset('today', document.querySelector('.preset-btn.active'));
+    setPeriod('daily', document.querySelector('.period-tab.active'));
     loadTrends('week');
   </script>
 </body>

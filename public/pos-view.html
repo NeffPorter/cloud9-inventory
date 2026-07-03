@@ -605,9 +605,9 @@ function printPOSReport() {
     hdr.id = 'print-brand-header';
     document.body.prepend(hdr);
   }
-  const storeName = document.querySelector('.store-name, h1, .page-title')?.textContent?.trim() || 'Cloud 9 Vapor';
-  const period = document.querySelector('.week-label, .period-label, h2')?.textContent?.trim() || '';
-  hdr.innerHTML = buildPrintHeader('Sales / POS Report', [storeName, period].filter(Boolean).join(' · '));
+  const poTitle = po ? 'PO ' + po.po_number : 'Purchase Order';
+  const poMeta = po ? po.distributor + (po.store_name ? ' · ' + po.store_name : '') : '';
+  hdr.innerHTML = buildPrintHeader(poTitle, poMeta);
   hdr.style.display = 'block';
   window.print();
   setTimeout(() => { hdr.style.display = 'none'; }, 500);
