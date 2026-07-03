@@ -260,11 +260,12 @@ async function updateInventoryItem(store, itemId) {
     });
 
     const dailyRate = Math.max(0, unitsSold) / 14;
-    // At or below low stock threshold: always suggest enough to cover lead + buffer (min 1)
+    // At or below low stock threshold: restock to threshold + cover demand during lead + buffer
     // Above threshold: order only the projected shortfall
+    const coverage = leadTime + bufferDays;
     const suggested = cloverQty <= lowStockThreshold
-      ? Math.max(1, Math.ceil(dailyRate * (leadTime + bufferDays)))
-      : Math.max(0, Math.ceil(dailyRate * (leadTime + bufferDays) - cloverQty));
+      ? Math.max(1, Math.max(0, lowStockThreshold - cloverQty) + Math.ceil(dailyRate * coverage))
+      : Math.max(0, Math.ceil(dailyRate * coverage - cloverQty));
 
     // Check if item already exists - if so preserve existing metadata
 const { data: existingItem } = await supabase

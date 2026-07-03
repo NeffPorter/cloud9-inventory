@@ -704,12 +704,13 @@ router.post('/category-settings/recalculate', auth, async (req, res) => {
         ? leadTimeMap[cheapest.distributor_id]
         : 7;
 
-      // At or below low stock threshold: always suggest enough to cover lead + buffer (min 1)
+      // At or below low stock threshold: restock to threshold + cover demand during lead + buffer
       // Above threshold: order only the projected shortfall
       const qty = item.clover_qty || 0;
+      const coverage = leadTime + buffer;
       const suggestedQty = qty <= lowStockThreshold
-        ? Math.max(1, Math.ceil(dailyRate * (leadTime + buffer)))
-        : Math.max(0, Math.ceil(dailyRate * (leadTime + buffer) - qty));
+        ? Math.max(1, Math.max(0, lowStockThreshold - qty) + Math.ceil(dailyRate * coverage))
+        : Math.max(0, Math.ceil(dailyRate * coverage - qty));
 
       const { error: updateErr } = await supabase
         .from('inventory_items')
