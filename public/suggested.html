@@ -428,7 +428,7 @@
       const calcRes = await fetch('/api/inventory/category-settings/recalculate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ store_id: currentStoreId, category: cat, buffer_days: buf, lookback_days: 14 })
+        body: JSON.stringify({ store_id: currentStoreId, category: cat, buffer_days: buf, lookback_days: 14, low_stock_threshold: isNaN(lowStock) ? 5 : lowStock })
       });
       const calcData = await calcRes.json();
       if (!calcRes.ok) throw new Error(calcData.error);

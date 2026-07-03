@@ -627,7 +627,7 @@ router.post('/category-settings/recalculate', auth, async (req, res) => {
 
     const buffer = parseInt(buffer_days) || 3;
     const lookback = parseInt(lookback_days) || 14;
-    const lowStockThreshold = parseInt(low_stock_threshold) ?? 5;
+    const lowStockThreshold = parseInt(low_stock_threshold) || 5;
 
     // Get all items in this category
     const { data: items, error: itemsError } = await supabase

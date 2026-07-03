@@ -281,6 +281,18 @@
       return setting && setting.low_stock_threshold != null ? setting.low_stock_threshold : 5;
     }
 
+    // Returns the suggested order to display — uses stored value if set, otherwise
+    // calculates the restock-to-threshold amount for any active low-stock item
+    const NO_ORDER_STATUSES = new Set(['Dropping', 'Not Tracking', 'discontinued']);
+    function getSuggestedDisplay(item) {
+      if (NO_ORDER_STATUSES.has(item.status)) return 0;
+      if (item.suggested_order > 0) return item.suggested_order;
+      const threshold = getLowStockThreshold(item.category);
+      const qty = item.clover_qty || 0;
+      if (qty <= threshold) return Math.max(1, threshold - qty);
+      return 0;
+    }
+
     async function loadCategorySettings() {
       try {
         const res = await fetch(`/api/inventory/category-settings?store_id=${storeId}`, {
@@ -341,7 +353,7 @@
       const total = items.length;
       const lowStock = items.filter(i => i.clover_qty > 0 && i.clover_qty <= getLowStockThreshold(i.category) && i.status === 'Active').length;
       const outOfStock = items.filter(i => i.clover_qty <= 0 && i.status === 'Active').length;
-      const suggested = items.filter(i => i.suggested_order > 0 && i.status === 'Active').length;
+      const suggested = items.filter(i => getSuggestedDisplay(i) > 0).length;
 
       document.getElementById('statsRow').innerHTML = `
         <div class="mini-stat">
@@ -405,7 +417,7 @@
               <td>$${(item.cost || 0).toFixed(2)}</td>
               <td>$${(item.price || 0).toFixed(2)}</td>
               <td class="${qtyClass}">${qty}</td>
-              <td>${item.suggested_order > 0 ? `<span class="suggested-badge">Order ${item.suggested_order}</span>` : '—'}</td>
+              <td>${getSuggestedDisplay(item) > 0 ? `<span class="suggested-badge">Order ${getSuggestedDisplay(item)}</span>` : '—'}</td>
             </tr>`;
         }).join('');
 
@@ -536,7 +548,7 @@
                     <input type="number" class="edit-input" data-field="clover_qty" data-item="${item.id}" data-original="${qty}"
                       value="${qty}" onchange="markChanged(this)">
                   </td>
-                  <td>${item.suggested_order > 0 ? `<span class="suggested-badge">Order ${item.suggested_order}</span><button class="clear-suggested-btn" onclick="clearSuggestedOrder('${item.id}')" title="Clear suggested order">✕</button>` : '—'}</td>
+                  <td>${getSuggestedDisplay(item) > 0 ? `<span class="suggested-badge">Order ${getSuggestedDisplay(item)}</span>${item.suggested_order > 0 ? `<button class="clear-suggested-btn" onclick="clearSuggestedOrder('${item.id}')" title="Clear suggested order">✕</button>` : ''}` : '—'}</td>
                   <td>
                     <select class="status-select" onchange="updateStatus('${item.id}', this.value)">
                       <option value="Active" ${item.status === 'Active' ? 'selected' : ''}>Active</option>
@@ -553,7 +565,7 @@
                   <td>$${(item.cost || 0).toFixed(2)}</td>
                   <td>$${(item.price || 0).toFixed(2)}</td>
                   <td class="${qtyClass}">${qty}</td>
-                  <td>${item.suggested_order > 0 ? `<span class="suggested-badge">Order ${item.suggested_order}</span><button class="clear-suggested-btn" onclick="clearSuggestedOrder('${item.id}')" title="Clear suggested order">✕</button>` : '—'}</td>
+                  <td>${getSuggestedDisplay(item) > 0 ? `<span class="suggested-badge">Order ${getSuggestedDisplay(item)}</span>${item.suggested_order > 0 ? `<button class="clear-suggested-btn" onclick="clearSuggestedOrder('${item.id}')" title="Clear suggested order">✕</button>` : ''}` : '—'}</td>
                   <td>
                     <select class="status-select" onchange="updateStatus('${item.id}', this.value)">
                       <option value="Active" ${item.status === 'Active' ? 'selected' : ''}>Active</option>
