@@ -265,8 +265,8 @@
     if (!token) window.location.href = '/';
 
     const params = new URLSearchParams(window.location.search);
-    const storeId = params.get('store');
-    if (!storeId) window.location.href = '/dashboard';
+    let storeId = params.get('store');
+    const isMultiStoreRole = ['him', 'admin', 'regional_manager', 'owner'].includes(user.role);
 
     let allItems = [];
     let storeName = '';
@@ -771,13 +771,49 @@
       }
     }
 
-    loadStoreName();
-    loadCategorySettings().then(loadInventory);
+    async function init() {
+      if (!storeId) {
+        if (!isMultiStoreRole) { window.location.href = '/dashboard'; return; }
 
-    // Auto-refresh inventory every 30s so stock changes from sales show up
-    // without the user needing to click Refresh — but pause while editing.
+        // Multi-store role with no store: inject a store selector and wait
+        document.getElementById('pageTitle').textContent = '📦 Inventory';
+        document.getElementById('pageSubtitle').textContent = 'Select a store to get started';
+        document.getElementById('inventoryContainer').innerHTML = `
+          <div style="text-align:center;padding:80px 20px;color:#999;">
+            <div style="font-size:52px;margin-bottom:16px">📦</div>
+            <div style="font-size:17px;font-weight:600;color:#666;">Select a store above to view inventory</div>
+          </div>`;
+
+        try {
+          const res = await fetch('/api/inventory/stores', { headers: { 'Authorization': 'Bearer ' + token } });
+          const data = await res.json();
+          const stores = data.stores || [];
+          const sel = document.createElement('select');
+          sel.id = 'storeSelectEl';
+          sel.style.cssText = 'padding:9px 14px;border:2px solid #e0e0e0;border-radius:8px;font-size:14px;font-weight:600;color:#1a1a2e;background:white;cursor:pointer;outline:none;';
+          sel.innerHTML = `<option value="">Select Store…</option>` +
+            stores.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+          sel.onchange = function() {
+            storeId = this.value;
+            if (!storeId) return;
+            history.replaceState(null, '', `/inventory?store=${storeId}`);
+            loadStoreName();
+            loadCategorySettings().then(loadInventory);
+          };
+          document.querySelector('.header-actions').prepend(sel);
+        } catch (e) { console.error('Store list error:', e); }
+        return;
+      }
+
+      loadStoreName();
+      loadCategorySettings().then(loadInventory);
+    }
+
+    init();
+
+    // Auto-refresh every 30s — only when a store is selected and not in edit mode
     setInterval(() => {
-      if (!editMode) loadInventory();
+      if (!editMode && storeId) loadInventory();
     }, 30000);
   </script>
   <script>loadNavbar();</script>

@@ -1,82 +1,24 @@
-// Global store context for multi-store roles (null = All Stores)
-window.__navStore = null;
-
-// Navigate to a path, appending the currently selected store if one is set
-function navGo(path) {
-  window.location.href = window.__navStore ? `${path}?store=${window.__navStore}` : path;
-}
-
-// Navigate to a path that REQUIRES a store — flash a hint if none is selected
-function navGoStore(path) {
-  if (!window.__navStore) {
-    const openDropdown = document.querySelector('.dropdown.open');
-    if (openDropdown) {
-      const sf = openDropdown.querySelector('[id^="sf-"]');
-      if (sf) {
-        sf.style.transition = 'background 0.3s';
-        sf.style.background = '#fff3cd';
-        const hint = document.createElement('div');
-        hint.style.cssText = 'width:100%;color:#856404;font-size:11px;font-weight:700;padding:4px 2px;order:-1;';
-        hint.textContent = '👆 Select a store first';
-        sf.prepend(hint);
-        setTimeout(() => { sf.style.background = '#f8f9fa'; hint.remove(); }, 2000);
-      }
-    }
-    return;
-  }
-  window.location.href = `${path}?store=${window.__navStore}`;
-}
-
-// Update the selected store and refresh all toggle button styles
-function selectNavStore(storeId) {
-  window.__navStore = storeId || null;
-  document.querySelectorAll('.store-toggle').forEach(el => {
-    const active = (el.getAttribute('data-store-id') || '') === (storeId || '');
-    el.style.background  = active ? '#2f5597' : 'white';
-    el.style.color       = active ? 'white'   : '#555';
-    el.style.borderColor = active ? '#2f5597' : '#ddd';
-  });
-}
-
 function buildNavItems(user) {
   const role    = user.role     || '';
   const storeId = user.store_id || '';
 
-  const isHimRole    = ['him', 'admin', 'regional_manager'].includes(role);
-  const isMultiStore = ['him', 'admin', 'regional_manager', 'owner'].includes(role);
-  const isSingle     = role === 'gm' || role === 'store_user';
+  const isHimRole = ['him', 'admin', 'regional_manager'].includes(role);
+  const isSingle  = role === 'gm' || role === 'store_user';
 
-  // These paths accept a ?store= query param
+  // Paths that carry a ?store= param for single-store users
   const STORE_PATHS = new Set([
     '/sales', '/inventory', '/stocktake', '/suggested',
     '/pos', '/budgets', '/schedules', '/store-tasks',
     '/owner-pl', '/gm-expenses'
   ]);
 
-  // Build a dropdown <button> for a feature link
+  // Build a dropdown button — single-store users get ?store= appended, multi-store navigate to the page directly
   function item(path, emoji, label) {
-    if (isSingle) {
-      const href = (STORE_PATHS.has(path) && storeId) ? `${path}?store=${storeId}` : path;
-      return `<button class="dropdown-item" onclick="window.location.href='${href}'">${emoji} ${label}</button>`;
-    }
-    // Multi-store: store-sensitive paths use navGo so they pick up the selected store
-    if (STORE_PATHS.has(path)) {
-      return `<button class="dropdown-item" onclick="navGo('${path}')">${emoji} ${label}</button>`;
-    }
-    return `<button class="dropdown-item" onclick="window.location.href='${path}'">${emoji} ${label}</button>`;
+    const href = (isSingle && STORE_PATHS.has(path) && storeId) ? `${path}?store=${storeId}` : path;
+    return `<button class="dropdown-item" onclick="window.location.href='${href}'">${emoji} ${label}</button>`;
   }
 
-  // Store toggle pill section — rendered inside each dropdown for multi-store roles
-  function storeFilter(sfId, label = 'Filter by Store') {
-    if (!isMultiStore) return '';
-    return `
-      <div class="dropdown-header">${label}</div>
-      <div id="${sfId}" style="display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px;background:#f8f9fa;border-bottom:1px solid #f0f0f0;">
-        <div style="color:#bbb;font-size:12px;padding:2px 0">Loading stores…</div>
-      </div>`;
-  }
-
-  // To-Do is a direct nav button (no dropdown)
+  // To-Do direct link
   const todoHref = (isSingle && storeId) ? `/store-tasks?store=${storeId}` : '/store-tasks';
 
   // Admin section — conditional on role
@@ -106,7 +48,6 @@ function buildNavItems(user) {
         <div class="dropdown-header">Reports</div>
         ${item('/sales',    '💰', 'Sales')}
         ${item('/owner-pl', '📊', 'P&L Statement')}
-        ${storeFilter('sf-reports')}
       </div>
     </div>
 
@@ -114,12 +55,11 @@ function buildNavItems(user) {
     <div class="nav-item" style="position:relative">
       <button class="nav-btn" onclick="toggleDropdown('invMgmtDropdown', this)">📦 Inventory Management <span style="font-size:10px">▼</span></button>
       <div class="dropdown" id="invMgmtDropdown">
-        ${storeFilter('sf-inventory', 'Select Store')}
-        ${isMultiStore ? '<div class="dropdown-header" style="margin-top:0">Navigate</div>' : '<div class="dropdown-header">Inventory Management</div>'}
-        ${isSingle ? item('/inventory', '📦', 'Inventory') : `<button class="dropdown-item" onclick="navGoStore('/inventory')">📦 Inventory</button>`}
-        ${item('/stocktake', '📋', 'Stock Take')}
-        ${isSingle ? item('/suggested', '📋', 'Purchase Planner') : `<button class="dropdown-item" onclick="navGoStore('/suggested')">📋 Purchase Planner</button>`}
-        ${item('/schedules', '🎯', 'Discount Scheduler')}
+        <div class="dropdown-header">Inventory Management</div>
+        ${item('/inventory',       '📦', 'Inventory')}
+        ${item('/stocktake',       '📋', 'Stock Take')}
+        ${item('/suggested',       '📋', 'Purchase Planner')}
+        ${item('/schedules',       '🎯', 'Discount Scheduler')}
         <button class="dropdown-item" onclick="window.location.href='/sale-events'">📅 Sale Events</button>
         <button class="dropdown-item" onclick="window.location.href='/owner-inventory'">🔍 Inventory Lookup</button>
       </div>
@@ -129,8 +69,7 @@ function buildNavItems(user) {
     <div class="nav-item" style="position:relative">
       <button class="nav-btn" onclick="toggleDropdown('purchasesDropdown', this)">🛒 Purchases <span style="font-size:10px">▼</span></button>
       <div class="dropdown" id="purchasesDropdown">
-        ${storeFilter('sf-purchases', 'Select Store')}
-        ${isMultiStore ? '<div class="dropdown-header" style="margin-top:0">Navigate</div>' : '<div class="dropdown-header">Purchases</div>'}
+        <div class="dropdown-header">Purchases</div>
         ${item('/pos',         '🛒', 'Purchase Orders')}
         ${item('/budgets',     '📒', 'Budget Report')}
         ${item('/gm-expenses', '💼', 'Expenses')}
@@ -261,20 +200,6 @@ function loadNavbar() {
     }
     .dropdown-item:hover { background: #f0f4ff; color: #2f5597; }
 
-    .store-toggle {
-      padding: 4px 10px;
-      border-radius: 12px;
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      border: 1px solid #ddd;
-      background: white;
-      color: #555;
-      white-space: nowrap;
-      transition: all 0.15s;
-    }
-    .store-toggle:hover { border-color: #2f5597; color: #2f5597; }
-
     .nav-hamburger {
       display: none;
       background: transparent;
@@ -329,9 +254,6 @@ function loadNavbar() {
     }
   `;
   document.head.appendChild(style);
-
-  // Load store toggles for multi-store roles
-  if (['admin', 'him', 'regional_manager', 'owner'].includes(user.role)) loadNavbarStores();
 
   // Notifications / tasks polling
   if (['admin', 'him', 'regional_manager', 'owner'].includes(user.role)) {
@@ -494,36 +416,6 @@ function toggleDropdown(id, btn) {
 function closeAllDropdowns() {
   document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('open'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-}
-
-async function loadNavbarStores() {
-  const token = localStorage.getItem('token');
-  try {
-    const res = await fetch('/api/inventory/stores', {
-      headers: { 'Authorization': 'Bearer ' + token }
-    });
-    const data = await res.json();
-    const stores = data.stores || [];
-
-    // Build toggle pill HTML — "All Stores" is active by default
-    const togglesHTML = `
-      <button class="store-toggle" data-store-id="" onclick="selectNavStore('')"
-        style="background:#2f5597;color:white;border-color:#2f5597;">
-        All Stores
-      </button>
-      ${stores.map(s => `
-        <button class="store-toggle" data-store-id="${s.id}" onclick="selectNavStore('${s.id}')">
-          ${s.name}
-        </button>`).join('')}`;
-
-    // Populate all three store-filter sections
-    ['sf-reports', 'sf-inventory', 'sf-purchases'].forEach(sfId => {
-      const el = document.getElementById(sfId);
-      if (el) el.innerHTML = togglesHTML;
-    });
-  } catch (err) {
-    console.error('Navbar stores error:', err);
-  }
 }
 
 function logout() {
