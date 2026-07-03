@@ -184,6 +184,7 @@
     <div class="control-group" id="periodPickerWrap">
       <label id="periodPickerLabel">Date</label>
       <input type="date" id="singleDatePicker" onchange="loadFromPicker()">
+      <select id="weekSelectPicker" style="display:none;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;background:white;cursor:pointer" onchange="loadFromPicker()"></select>
     </div>
     <div class="control-group" id="monthPickerWrap" style="display:none">
       <label>Month</label>
@@ -319,6 +320,8 @@
       if (period === 'daily') {
         document.getElementById('periodPickerWrap').style.display = '';
         document.getElementById('periodPickerLabel').textContent = 'Date';
+        document.getElementById('singleDatePicker').style.display = '';
+        document.getElementById('weekSelectPicker').style.display = 'none';
         const picker = document.getElementById('singleDatePicker');
         if (!picker.value) picker.value = todayStr;
         const d = new Date(picker.value + 'T00:00:00');
@@ -327,11 +330,13 @@
       } else if (period === 'weekly') {
         document.getElementById('periodPickerWrap').style.display = '';
         document.getElementById('periodPickerLabel').textContent = 'Week of';
-        const picker = document.getElementById('singleDatePicker');
-        if (!picker.value) picker.value = todayStr;
-        const d = new Date(picker.value + 'T00:00:00');
-        const day = d.getDay();
-        currentStart = new Date(d); currentStart.setDate(d.getDate() - day); currentStart.setHours(0,0,0,0);
+        document.getElementById('singleDatePicker').style.display = 'none';
+        const weekSel = document.getElementById('weekSelectPicker');
+        weekSel.style.display = '';
+        if (!weekSel.options.length) buildWeekOptions(weekSel);
+        const d = new Date(weekSel.value + 'T00:00:00');
+        const diff2 = d.getDay() === 0 ? -6 : 1 - d.getDay();
+        currentStart = new Date(d); currentStart.setDate(d.getDate() + diff2); currentStart.setHours(0,0,0,0);
         currentEnd   = new Date(currentStart); currentEnd.setDate(currentStart.getDate() + 6); currentEnd.setHours(23,59,59,999);
       } else if (period === 'monthly') {
         document.getElementById('monthPickerWrap').style.display = '';
@@ -670,6 +675,24 @@
             </tr>
           </tbody>
         </table>`;
+    }
+
+    function buildWeekOptions(sel) {
+      const now = new Date();
+      const day = now.getDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      const thisMonday = new Date(now); thisMonday.setDate(now.getDate() + diff); thisMonday.setHours(0,0,0,0);
+      let html = '';
+      // 4 weeks ahead, 52 weeks back
+      for (let i = -4; i <= 52; i++) {
+        const mon = new Date(thisMonday); mon.setDate(thisMonday.getDate() - i * 7);
+        const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+        const val = mon.toISOString().split('T')[0];
+        const label = mon.toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'})
+                    + ' – ' + sun.toLocaleDateString('en-US', {month:'short',day:'numeric'});
+        html += `<option value="${val}"${i === 0 ? ' selected' : ''}>${label}</option>`;
+      }
+      sel.innerHTML = html;
     }
 
     loadStoreFilter();

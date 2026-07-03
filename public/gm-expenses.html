@@ -95,8 +95,6 @@ input:checked + .sw-slider:before { transform: translateX(18px); }
     <button class="btn btn-primary" onclick="openAddModal()">+ Add Expense</button>
   </div>
 
-  <div id="storeButtonsWrap" style="display:none;flex-wrap:wrap;gap:8px;margin-bottom:16px"></div>
-
   <!-- Controls card (P&L style) -->
   <div style="background:white;padding:16px;border-radius:12px;border:1px solid #e5e7eb;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:16px">
     <div>
@@ -110,7 +108,7 @@ input:checked + .sw-slider:before { transform: translateX(18px); }
     </div>
     <div id="periodPickerWrap">
       <label id="periodPickerLabel" style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">Week of</label>
-      <input type="date" id="weekDatePicker" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;background:white" onchange="loadFromPicker()">
+      <select id="weekDatePicker" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;background:white;cursor:pointer" onchange="loadFromPicker()"></select>
     </div>
     <div id="monthPickerWrap" style="display:none">
       <label style="display:block;font-size:12px;font-weight:600;color:#555;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px">Month</label>
@@ -138,6 +136,8 @@ input:checked + .sw-slider:before { transform: translateX(18px); }
       </select>
     </div>
   </div>
+
+  <div id="storeButtonsWrap" style="display:none;flex-wrap:wrap;gap:8px;margin-bottom:16px"></div>
 
   <div class="summary-grid" id="summaryGrid"></div>
 
@@ -344,12 +344,26 @@ function applyPeriodDates(period) {
   document.getElementById('filterEnd').value   = end;
 }
 
-function setDefaultDates() {
+function buildWeekOptions(sel) {
   const now = new Date();
-  const y = now.getFullYear(), m = String(now.getMonth() + 1).padStart(2, '0'), d = String(now.getDate()).padStart(2, '0');
-  if (document.getElementById('fDate')) document.getElementById('fDate').value = `${y}-${m}-${d}`;
-  // Seed the week picker with today then trigger setPeriod
-  document.getElementById('weekDatePicker').value = `${y}-${m}-${d}`;
+  const day = now.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const thisMonday = new Date(now); thisMonday.setDate(now.getDate() + diff); thisMonday.setHours(0,0,0,0);
+  let html = '';
+  for (let i = -4; i <= 52; i++) {
+    const mon = new Date(thisMonday); mon.setDate(thisMonday.getDate() - i * 7);
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    const val = mon.toISOString().split('T')[0];
+    const label = mon.toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'})
+                + ' – ' + sun.toLocaleDateString('en-US', {month:'short',day:'numeric'});
+    html += `<option value="${val}"${i === 0 ? ' selected' : ''}>${label}</option>`;
+  }
+  sel.innerHTML = html;
+}
+
+function setDefaultDates() {
+  const sel = document.getElementById('weekDatePicker');
+  if (sel.tagName === 'SELECT' && !sel.options.length) buildWeekOptions(sel);
   setPeriod('weekly', document.querySelector('.period-btn.active'));
 }
 

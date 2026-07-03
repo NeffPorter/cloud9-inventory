@@ -136,8 +136,8 @@ tr:last-child td { border-bottom: none; }
     </div>
     <div class="control-group" id="periodPickerWrap">
       <label id="periodPickerLabel">Week of</label>
-      <input type="date" id="weekDatePicker" onchange="load()" style="display:none">
-      <input type="month" id="monthPicker" onchange="load()">
+      <select id="weekDatePicker" onchange="load()" style="padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;background:white;cursor:pointer"></select>
+      <input type="month" id="monthPicker" onchange="load()" style="display:none">
     </div>
     <div class="control-group" id="customDateWrap" style="display:none;flex-direction:row;gap:8px;align-items:flex-end">
       <div>
@@ -185,6 +185,23 @@ async function api(path) {
 
 let currentStoreId = '';
 
+function buildWeekOptions(sel) {
+  const now = new Date();
+  const day = now.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const thisMonday = new Date(now); thisMonday.setDate(now.getDate() + diff); thisMonday.setHours(0,0,0,0);
+  let html = '';
+  for (let i = -4; i <= 52; i++) {
+    const mon = new Date(thisMonday); mon.setDate(thisMonday.getDate() - i * 7);
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    const v = mon.toISOString().split('T')[0];
+    const label = mon.toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'})
+                + ' – ' + sun.toLocaleDateString('en-US', {month:'short',day:'numeric'});
+    html += `<option value="${v}"${i === 0 ? ' selected' : ''}>${label}</option>`;
+  }
+  sel.innerHTML = html;
+}
+
 async function init() {
   if (!token) { window.location.href = '/'; return; }
   stores = await api('/api/owner/stores');
@@ -199,9 +216,8 @@ async function init() {
   // Default to current week using date picker
   const now = new Date();
   const pad = n => String(n).padStart(2, '0');
-  document.getElementById('weekDatePicker').value = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
-  document.getElementById('weekDatePicker').style.display = '';
-  document.getElementById('monthPicker').style.display = 'none';
+  const _wSel = document.getElementById('weekDatePicker');
+  if (!_wSel.options.length) buildWeekOptions(_wSel);
   document.getElementById('periodPickerLabel').textContent = 'Week of';
   await load();
 }
@@ -233,14 +249,10 @@ function setPeriod(period, btn) {
     pickerWrap.style.display = '';
     customWrap.style.display = 'none';
     if (period === 'weekly') {
+      if (!weekPicker.options.length) buildWeekOptions(weekPicker);
       weekPicker.style.display = '';
       monthPicker.style.display = 'none';
       label.textContent = 'Week of';
-      if (!weekPicker.value) {
-        const now = new Date();
-        const pad = n => String(n).padStart(2, '0');
-        weekPicker.value = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
-      }
     } else if (period === 'quarterly') {
       weekPicker.style.display = 'none';
       monthPicker.style.display = '';
@@ -272,10 +284,11 @@ function getDateRange() {
     return { start: `${y}-${m}-01`, end: `${y}-${m}-${String(lastDay).padStart(2,'0')}` };
   }
   if (currentPeriod === 'weekly') {
-    const val = document.getElementById('weekDatePicker').value;
+    const weekSel = document.getElementById('weekDatePicker');
+    const val = weekSel.value;
     if (!val) return null;
     const d = new Date(val + 'T00:00:00');
-    // Get Monday of the week containing this date
+    // Already a Monday (from select), but recalc to be safe
     const day = d.getDay(); // 0=Sun
     const diff = day === 0 ? -6 : 1 - day; // Mon = start
     const weekStart = new Date(d);
@@ -935,5 +948,3 @@ function loadCompletedPeriod(period, start, end, label) {
 init();
 renderCompletedPeriods();
 </script>
-</body>
-</html>
