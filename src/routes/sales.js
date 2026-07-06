@@ -314,10 +314,6 @@ await supabase.from('inventory_items').upsert([{
   }
 }
 
-router.get('/test', (req, res) => {
-  res.json({ message: 'Sales routes working!' });
-});
-
 router.get('/overview', auth, async (req, res) => {
   try {
     const { start, end, store_id } = req.query;
