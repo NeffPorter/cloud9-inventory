@@ -31,6 +31,9 @@ function buildNavItems(user) {
   if (isHimRole || role === 'owner') {
     adminItems += `<button class="dropdown-item" onclick="window.location.href='/activity-log'">📜 Activity Log</button>`;
   }
+  if (role === 'admin') {
+    adminItems += `<button class="dropdown-item" onclick="window.location.href='/system-status'">🛰️ System Status</button>`;
+  }
   const adminSection = adminItems ? `
     <div class="nav-item" style="position:relative">
       <button class="nav-btn" onclick="toggleDropdown('adminDropdown', this)">⚙️ Admin <span style="font-size:10px">▼</span></button>

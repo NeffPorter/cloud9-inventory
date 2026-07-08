@@ -338,7 +338,7 @@
                 <tr>
                   <td><strong>${u.name}</strong>${isMe ? ' <span style="color:#999;font-size:11px">(you)</span>' : ''}</td>
                   <td>${u.email}</td>
-                  <td><span class="role-badge role-${u.role}">${{regional_manager:'Regional Manager',him:'HIM',admin:'HIM (legacy)',owner:'Owner',gm:'GM',store_user:'IM'}[u.role] || u.role}</span></td>
+                  <td><span class="role-badge role-${u.role}">${{regional_manager:'Regional Manager',him:'HIM',admin:'Admin',owner:'Owner',gm:'GM',store_user:'IM'}[u.role] || u.role}</span></td>
                   <td>${store ? store.name : ['admin','him','regional_manager','owner'].includes(u.role) ? 'All Stores' : '—'}</td>
                   <td>
                     <div class="action-btns">
