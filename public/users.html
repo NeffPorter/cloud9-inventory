@@ -306,12 +306,39 @@
       });
     }
 
+    function presenceStatus(lastSeen) {
+      if (!lastSeen) return 'offline';
+      const mins = (Date.now() - new Date(lastSeen).getTime()) / 60000;
+      if (mins < 2)  return 'online';
+      if (mins < 10) return 'idle';
+      return 'offline';
+    }
+
+    function presenceDot(lastSeen) {
+      const status = presenceStatus(lastSeen);
+      if (status === 'online') {
+        return '<span title="Online" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#22c55e;margin-right:6px;vertical-align:middle;flex-shrink:0"></span>';
+      }
+      if (status === 'idle') {
+        // half-moon via CSS clip
+        return '<span title="Idle" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#f59e0b;margin-right:6px;vertical-align:middle;flex-shrink:0;clip-path:polygon(0 0,50% 0,50% 100%,0 100%)"></span>';
+      }
+      return '<span title="Offline" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:#d1d5db;margin-right:6px;vertical-align:middle;flex-shrink:0"></span>';
+    }
+
     async function loadUsers() {
-      const res = await fetch('/api/auth/users', {
-        headers: { 'Authorization': 'Bearer ' + token }
-      });
-      const data = await res.json();
+      const [usersRes, presenceRes] = await Promise.all([
+        fetch('/api/auth/users', { headers: { 'Authorization': 'Bearer ' + token } }),
+        fetch('/api/auth/presence', { headers: { 'Authorization': 'Bearer ' + token } })
+      ]);
+      const data = await usersRes.json();
       users = data.users || [];
+
+      const presenceMap = {};
+      if (presenceRes.ok) {
+        const pd = await presenceRes.json();
+        (pd.presence || []).forEach(p => { presenceMap[p.id] = p.last_seen; });
+      }
 
       const table = document.getElementById('usersTable');
       if (users.length === 0) {
@@ -334,9 +361,10 @@
             ${users.map(u => {
               const store = stores.find(s => s.id === u.store_id);
               const isMe = u.id === user.id;
+              const dot = presenceDot(presenceMap[u.id]);
               return `
                 <tr>
-                  <td><strong>${u.name}</strong>${isMe ? ' <span style="color:#999;font-size:11px">(you)</span>' : ''}</td>
+                  <td><div style="display:flex;align-items:center">${dot}<strong>${u.name}</strong>${isMe ? ' <span style="color:#999;font-size:11px;margin-left:4px">(you)</span>' : ''}</div></td>
                   <td>${u.email}</td>
                   <td><span class="role-badge role-${u.role}">${{regional_manager:'Regional Manager',him:'HIM',admin:'Admin',owner:'Owner',gm:'GM',store_user:'IM'}[u.role] || u.role}</span></td>
                   <td>${store ? store.name : ['admin','him','regional_manager','owner'].includes(u.role) ? 'All Stores' : '—'}</td>

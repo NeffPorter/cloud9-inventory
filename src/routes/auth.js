@@ -218,4 +218,30 @@ router.get('/test-email', auth, async (req, res) => {
   }
 });
 
+// Heartbeat — updates last_seen for presence tracking
+router.put('/heartbeat', auth, async (req, res) => {
+  try {
+    await supabase.from('users').update({ last_seen: new Date().toISOString() }).eq('id', req.user.id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Heartbeat failed' });
+  }
+});
+
+// Get all users with presence (admin/him/rm only)
+router.get('/presence', auth, async (req, res) => {
+  try {
+    if (!['admin', 'him', 'regional_manager'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, last_seen');
+    if (error) throw error;
+    res.json({ presence: data });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch presence' });
+  }
+});
+
 module.exports = router;

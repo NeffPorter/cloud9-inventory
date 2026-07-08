@@ -271,6 +271,28 @@ function loadNavbar() {
   document.addEventListener('click', (e) => {
     if (!e.target.closest('.nav-item')) closeAllDropdowns();
   });
+
+  // Presence heartbeat — ping every 60s, track idle after 5min inactivity
+  if (token) {
+    let lastActivity = Date.now();
+    const trackActivity = () => { lastActivity = Date.now(); };
+    document.addEventListener('mousemove', trackActivity, { passive: true });
+    document.addEventListener('keydown', trackActivity, { passive: true });
+    document.addEventListener('click', trackActivity, { passive: true });
+
+    function sendHeartbeat() {
+      const idleMs = Date.now() - lastActivity;
+      if (idleMs > 5 * 60 * 1000) return; // idle — skip, server will age out naturally
+      fetch('/api/auth/heartbeat', {
+        method: 'PUT',
+        headers: { 'Authorization': 'Bearer ' + token }
+      }).catch(() => {});
+    }
+
+    sendHeartbeat();
+    if (window.__heartbeatInterval) clearInterval(window.__heartbeatInterval);
+    window.__heartbeatInterval = setInterval(sendHeartbeat, 60000);
+  }
 }
 
 function timeAgo(dateStr) {
