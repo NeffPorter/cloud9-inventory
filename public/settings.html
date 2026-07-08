@@ -100,8 +100,8 @@ let currentPrefs = {};
 const MANDATORY = {
   proposal_assigned:  { label: 'Sale Proposal Assigned',       desc: 'When your store is assigned a new sale proposal task',        roles: ['store_user', 'gm'] },
   proposal_revision:  { label: 'Sale Proposal Needs Revision', desc: 'When your proposal is sent back with revision notes',          roles: ['store_user', 'gm'] },
-  proposal_submitted: { label: 'Sale Proposal Submitted',      desc: 'When a store submits their proposal for review',              roles: ['him', 'admin', 'regional_manager'] },
-  po_approval:        { label: 'PO Approval Needed',           desc: 'When a purchase order requires your approval',                roles: ['him', 'admin', 'regional_manager'] },
+  proposal_submitted: { label: 'Sale Proposal Submitted',      desc: 'When a store submits their proposal for review',              roles: ['him', 'regional_manager'] },
+  po_approval:        { label: 'PO Approval Needed',           desc: 'When a purchase order requires your approval',                roles: ['him', 'regional_manager'] },
 };
 
 const OPTIONAL = {
