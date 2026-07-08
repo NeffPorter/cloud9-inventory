@@ -112,17 +112,17 @@ async function processOrderEvent(store, orderId) {
       tips += (p.tipAmount || 0) / 100;
     });
 
-    // Sum actual discounts from Clover (order-level + line-item-level)
-    let cloverDiscounts = 0;
-    (fullOrder.discounts?.elements || []).forEach(d => { cloverDiscounts += (d.amount || 0) / 100; });
-    (fullOrder.lineItems?.elements || []).forEach(li => {
-      (li.discounts?.elements || []).forEach(d => { cloverDiscounts += (d.amount || 0) / 100; });
-    });
+    // Gross from line item prices (may include tax in tax-inclusive setups)
+    let gross = 0;
+    (fullOrder.lineItems?.elements || []).forEach(li => { gross += (li.price || 0) / 100; });
+    if (gross === 0) gross = amount;
 
-    // Pre-tax net = total charged minus tax (reliable regardless of tax-inclusive line item pricing)
     const preTaxNet = amount - tax;
-    // Gross = what items would have cost without discounts
-    const gross = preTaxNet + cloverDiscounts;
+
+    // Compute discount from price difference — but if the result equals the tax amount
+    // it's a tax-inclusive pricing artifact, not a real discount
+    const rawDiscount = Math.max(0, gross - preTaxNet);
+    const isTaxInclusiveArtifact = tax > 0 && Math.abs(rawDiscount - tax) < 0.02;
 
     let itemMap = {};
     let restockThisRefund = true;
@@ -142,11 +142,11 @@ async function processOrderEvent(store, orderId) {
       itemMap = extractLineItems(fullOrder);
     }
 
-    const finalGross = isRefund ? -Math.abs(amount - tax) : gross;
-    const finalNet   = isRefund ? -(Math.abs(amount) - tax) : preTaxNet;
-    const finalTax   = isRefund ? -Math.abs(tax) : tax;
-    const finalTips  = isRefund ? 0 : tips;
-    const finalDiscounts = isRefund ? 0 : cloverDiscounts;
+    const finalGross     = isRefund ? -Math.abs(amount) : gross;
+    const finalNet       = isRefund ? -(Math.abs(amount) - tax) : preTaxNet;
+    const finalTax       = isRefund ? -Math.abs(tax) : tax;
+    const finalTips      = isRefund ? 0 : tips;
+    const finalDiscounts = isRefund ? 0 : (isTaxInclusiveArtifact ? 0 : rawDiscount);
     const type = isRefund ? 'Refund' : 'Sale';
     const itemIds = Object.keys(itemMap);
     const itemSummary = itemIds.map(id => `${id} x${itemMap[id].qty}`).join(', ') || 'N/A';
