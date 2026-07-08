@@ -35,6 +35,7 @@ const storeExpensesRouter = require('./routes/store-expenses');
 app.use('/api/store-expenses', storeExpensesRouter);
 const ownerRouter = require('./routes/owner');
 app.use('/api/owner', ownerRouter);
+app.use('/api/system', require('./routes/system'));
 
 // Static files
 app.use(express.static(path.join(__dirname, '../public')));
@@ -63,6 +64,9 @@ app.get('/', (req, res) => {
 });
 app.get('/stocktake', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/stocktake.html'));
+});
+app.get('/system-status', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/system-status.html'));
 });
 
 const PORT = process.env.PORT || 3000;

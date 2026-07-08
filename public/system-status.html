@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System Status — Cloud 9</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  body { background:#f4f6fb; color:#222; }
+  .page { max-width:1000px; margin:0 auto; padding:24px 16px; }
+  .page-header { margin-bottom:24px; }
+  .page-title { font-size:22px; font-weight:800; }
+  .page-subtitle { color:#888; font-size:13px; margin-top:4px; }
+
+  .card { background:white; border-radius:12px; border:1px solid #e5e7eb; padding:20px; margin-bottom:16px; }
+  .card-title { font-size:14px; font-weight:700; color:#555; text-transform:uppercase; letter-spacing:.5px; margin-bottom:14px; }
+
+  .service-name { font-size:16px; font-weight:700; margin-bottom:12px; }
+
+  .deploy-row {
+    display:flex; align-items:center; gap:12px; padding:10px 0;
+    border-bottom:1px solid #f0f0f0; cursor:pointer;
+  }
+  .deploy-row:last-child { border-bottom:none; }
+  .deploy-row:hover { background:#fafafa; margin:0 -20px; padding:10px 20px; border-radius:8px; }
+
+  .status-dot {
+    width:10px; height:10px; border-radius:50%; flex-shrink:0;
+  }
+  .status-dot.SUCCESS  { background:#22c55e; }
+  .status-dot.FAILED   { background:#ef4444; }
+  .status-dot.BUILDING { background:#f59e0b; animation:pulse 1s infinite; }
+  .status-dot.DEPLOYING{ background:#3b82f6; animation:pulse 1s infinite; }
+  .status-dot.CRASHED  { background:#ef4444; }
+  .status-dot.REMOVED  { background:#d1d5db; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  .status-badge {
+    font-size:11px; font-weight:700; padding:2px 8px; border-radius:20px;
+  }
+  .status-badge.SUCCESS  { background:#dcfce7; color:#166534; }
+  .status-badge.FAILED   { background:#fee2e2; color:#991b1b; }
+  .status-badge.BUILDING { background:#fef3c7; color:#92400e; }
+  .status-badge.DEPLOYING{ background:#dbeafe; color:#1e40af; }
+  .status-badge.CRASHED  { background:#fee2e2; color:#991b1b; }
+  .status-badge.REMOVED  { background:#f3f4f6; color:#6b7280; }
+
+  .deploy-info { flex:1; }
+  .deploy-id { font-size:12px; color:#888; font-family:monospace; }
+  .deploy-time { font-size:12px; color:#aaa; }
+  .deploy-meta { font-size:12px; color:#666; margin-top:2px; }
+
+  .logs-panel {
+    background:#0f1117; border-radius:8px; padding:16px;
+    font-family:'SF Mono', 'Fira Code', monospace; font-size:12px;
+    line-height:1.6; color:#e2e8f0; max-height:400px; overflow-y:auto;
+    margin-top:12px;
+  }
+  .log-line { display:flex; gap:12px; }
+  .log-ts { color:#64748b; flex-shrink:0; white-space:nowrap; }
+  .log-msg { white-space:pre-wrap; word-break:break-all; }
+  .log-msg.ERROR { color:#f87171; }
+  .log-msg.WARNING { color:#fbbf24; }
+  .log-msg.INFO { color:#e2e8f0; }
+
+  .btn {
+    padding:7px 14px; border-radius:8px; border:1px solid #ddd;
+    font-size:13px; cursor:pointer; background:white; color:#333;
+  }
+  .btn:hover { background:#f5f5f5; }
+  .btn-primary { background:#2563eb; color:white; border-color:#2563eb; }
+  .btn-primary:hover { background:#1d4ed8; }
+
+  .refresh-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .last-updated { font-size:12px; color:#aaa; }
+  .empty { color:#999; font-size:14px; padding:20px 0; text-align:center; }
+  .error-msg { color:#ef4444; font-size:13px; padding:10px 0; }
+</style>
+</head>
+<body>
+<div id="navbar-container"></div>
+<div class="page">
+  <div class="page-header">
+    <div class="page-title">🛰️ System Status</div>
+    <div class="page-subtitle">Railway deployment status and logs</div>
+  </div>
+
+  <div id="statusContent">
+    <div class="empty">Loading...</div>
+  </div>
+</div>
+
+<script src="/navbar.js?v=2"></script>
+<script>
+const token = localStorage.getItem('token');
+const user  = JSON.parse(localStorage.getItem('user') || '{}');
+
+if (!token) window.location.href = '/';
+if (user.role !== 'admin') window.location.href = '/dashboard';
+
+let lastUpdated = null;
+
+function timeAgo(dateStr) {
+  if (!dateStr) return '—';
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1)  return 'just now';
+  if (m < 60) return m + 'm ago';
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + 'h ago';
+  return Math.floor(h / 24) + 'd ago';
+}
+
+function formatTime(dateStr) {
+  if (!dateStr) return '—';
+  return new Date(dateStr).toLocaleString('en-US', {
+    month:'short', day:'numeric', hour:'numeric', minute:'2-digit', hour12:true
+  });
+}
+
+async function loadStatus() {
+  try {
+    const r = await fetch('/api/system/status', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Failed to load');
+    renderStatus(data.project);
+    lastUpdated = new Date();
+  } catch (err) {
+    document.getElementById('statusContent').innerHTML =
+      '<div class="card"><div class="error-msg">⚠️ ' + err.message + '</div></div>';
+  }
+}
+
+function renderStatus(project) {
+  if (!project) {
+    document.getElementById('statusContent').innerHTML = '<div class="card"><div class="empty">No project data</div></div>';
+    return;
+  }
+
+  const services = (project.services?.edges || []).map(e => e.node);
+  let html = '<div class="refresh-row">';
+  html += '<div class="last-updated">Last updated: ' + (lastUpdated ? lastUpdated.toLocaleTimeString() : '—') + '</div>';
+  html += '<button class="btn btn-primary" onclick="loadStatus()">↻ Refresh</button>';
+  html += '</div>';
+
+  for (const svc of services) {
+    const deployments = (svc.deployments?.edges || []).map(e => e.node);
+    const latest = deployments[0];
+
+    html += '<div class="card">';
+    html += '<div class="service-name">⚙️ ' + svc.name + '</div>';
+
+    if (latest) {
+      const statusClass = latest.status || 'UNKNOWN';
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">';
+      html += '<span class="status-dot ' + statusClass + '"></span>';
+      html += '<span style="font-weight:600;font-size:15px;">' + statusClass + '</span>';
+      html += '<span style="color:#aaa;font-size:13px;">— ' + timeAgo(latest.updatedAt) + '</span>';
+      html += '</div>';
+    }
+
+    html += '<div class="card-title">Recent Deployments</div>';
+
+    if (!deployments.length) {
+      html += '<div class="empty">No deployments found</div>';
+    } else {
+      for (const d of deployments) {
+        const status = d.status || 'UNKNOWN';
+        const branch = d.meta?.branch || '';
+        const commitMsg = d.meta?.commitMessage || '';
+        html += '<div class="deploy-row" onclick="loadLogs(\'' + d.id + '\', this)">';
+        html += '<span class="status-dot ' + status + '"></span>';
+        html += '<div class="deploy-info">';
+        html += '<div style="display:flex;align-items:center;gap:8px;">';
+        html += '<span class="status-badge ' + status + '">' + status + '</span>';
+        if (branch) html += '<span class="deploy-id">' + branch + '</span>';
+        html += '</div>';
+        if (commitMsg) html += '<div class="deploy-meta">' + commitMsg.slice(0, 80) + '</div>';
+        html += '</div>';
+        html += '<div class="deploy-time">' + formatTime(d.createdAt) + '</div>';
+        html += '</div>';
+      }
+    }
+
+    html += '</div>';
+  }
+
+  document.getElementById('statusContent').innerHTML = html;
+}
+
+async function loadLogs(deploymentId, rowEl) {
+  // toggle: if logs already open, close them
+  const existing = rowEl.parentElement.querySelector('.logs-panel');
+  if (existing) { existing.remove(); return; }
+
+  const panel = document.createElement('div');
+  panel.className = 'logs-panel';
+  panel.innerHTML = '<div class="log-line"><span class="log-msg INFO">Loading logs...</span></div>';
+  rowEl.insertAdjacentElement('afterend', panel);
+
+  try {
+    const r = await fetch('/api/system/logs/' + deploymentId, {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Failed to load logs');
+
+    const logs = data.deploymentLogs || [];
+    if (!logs.length) {
+      panel.innerHTML = '<div class="log-line"><span class="log-msg INFO">No logs available</span></div>';
+      return;
+    }
+
+    panel.innerHTML = logs.map(l => {
+      const ts = l.timestamp ? new Date(l.timestamp).toLocaleTimeString() : '';
+      const sev = (l.severity || 'INFO').toUpperCase();
+      const msg = (l.message || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return '<div class="log-line"><span class="log-ts">' + ts + '</span><span class="log-msg ' + sev + '">' + msg + '</span></div>';
+    }).join('');
+
+    // scroll to bottom
+    panel.scrollTop = panel.scrollHeight;
+  } catch (err) {
+    panel.innerHTML = '<div class="log-line"><span class="log-msg ERROR">Error: ' + err.message + '</span></div>';
+  }
+}
+
+loadStatus();
+</script>
+</body>
+</html>

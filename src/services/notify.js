@@ -41,9 +41,10 @@ async function notify({ type, title, message, link = null, store_id = null, targ
     if (target_role && (HIM_ROLES.includes(target_role) || target_role === 'admin')) {
       const { data } = await supabase
         .from('users')
-        .select('email, notification_prefs')
+        .select('email, notification_prefs, role')
         .in('role', ['regional_manager', 'him', 'admin']);
-      users = data || [];
+      // admin sees in-app notifications but not emails
+      users = (data || []).filter(u => u.role !== 'admin');
 
     } else if (target_store_id) {
       const { data } = await supabase
