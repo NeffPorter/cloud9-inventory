@@ -62,10 +62,13 @@ router.post('/webhook', async (req, res) => {
             const payment = await fetchPayment(store.merchant_id, apiToken, objectId);
             const orderId = payment?.order?.id;
             const payResult = (payment?.result || '').toUpperCase();
+            const isRefundPayment = payResult === 'VOID' ||
+                                    (payment?.refundAmount || 0) > 0 ||
+                                    (payment?.refunds?.elements?.length || 0) > 0;
             if (orderId) {
-              console.log(`[Webhook] Payment ${objectId} → order ${orderId} result=${payResult}`);
+              console.log(`[Webhook] Payment ${objectId} → order ${orderId} result=${payResult} refund=${isRefundPayment}`);
               await sleep(2000); // wait for Clover order state to update
-              await processOrderEvent(store, orderId);
+              await processOrderEvent(store, orderId, isRefundPayment);
             } else {
               console.log('[Webhook] Payment event, no order id:', JSON.stringify(event));
             }
@@ -83,7 +86,7 @@ router.post('/webhook', async (req, res) => {
 });
 
 
-async function processOrderEvent(store, orderId) {
+async function processOrderEvent(store, orderId, forceRefund = false) {
   try {
     const cleanId = orderId.replace(/^O:/, '');
     console.log(`[processOrderEvent] store=${store.name} orderId=${cleanId}`);
@@ -99,14 +102,21 @@ async function processOrderEvent(store, orderId) {
     const fullOrder = await fetchFullOrder(store.merchant_id, apiToken, cleanId);
     console.log(`[processOrderEvent] order state=${fullOrder.state} paymentState=${fullOrder.paymentState} total=${fullOrder.total}`);
 
-    // Always fetch refunds — Clover often fires the order webhook before updating
-    // paymentState to REFUNDED, so we can't rely on paymentState alone.
-    const refundsData = await fetchOrderRefunds(store.merchant_id, apiToken, cleanId);
-    const hasRefunds = (refundsData?.elements?.length || 0) > 0;
-    console.log(`[processOrderEvent] refunds found=${hasRefunds} count=${refundsData?.elements?.length || 0}`);
+    // Try to fetch refunds — some Clover setups return 405, so we handle gracefully.
+    // Primary refund detection comes from forceRefund (set by payment webhook) or paymentState.
+    let refundsData = null;
+    let hasRefunds = false;
+    try {
+      refundsData = await fetchOrderRefunds(store.merchant_id, apiToken, cleanId);
+      hasRefunds = (refundsData?.elements?.length || 0) > 0;
+    } catch (e) {
+      console.log('[processOrderEvent] refunds fetch skipped:', e.message);
+    }
+    console.log(`[processOrderEvent] forceRefund=${forceRefund} hasRefunds=${hasRefunds}`);
 
     const payState = (fullOrder.paymentState || '').toUpperCase();
-    const isRefund = fullOrder.state === 'refunded' ||
+    const isRefund = forceRefund ||
+                     fullOrder.state === 'refunded' ||
                      payState === 'REFUNDED' ||
                      payState === 'CREDITED' ||
                      payState === 'PARTIALLY_REFUNDED' ||
@@ -144,7 +154,7 @@ async function processOrderEvent(store, orderId) {
     let restockThisRefund = true;
 
     if (isRefund) {
-      const latestRefund = refundsData?.elements?.length > 0
+      const latestRefund = (refundsData?.elements?.length || 0) > 0
         ? refundsData.elements[refundsData.elements.length - 1]
         : null;
       if (latestRefund) {

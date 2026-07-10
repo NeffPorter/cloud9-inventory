@@ -172,7 +172,7 @@ async function createCashSale(merchantId, apiToken, lineItems, cachedCashTenderI
 
 async function fetchPayment(merchantId, apiToken, paymentId) {
   const cleanId = paymentId.replace(/^P:/, '');
-  return cloverFetch(`payments/${cleanId}`, merchantId, apiToken);
+  return cloverFetch(`payments/${cleanId}?expand=refunds`, merchantId, apiToken);
 }
 
 async function getCashTenderId(merchantId, apiToken) {
@@ -248,5 +248,4 @@ module.exports = {
   extractRefundedItems,
   createCashSale,
   getCashTenderId,
-  getValidApiToken
-};
+  getVal
