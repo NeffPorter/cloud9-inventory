@@ -91,9 +91,11 @@ async function processOrderEvent(store, orderId) {
     const fullOrder = await fetchFullOrder(store.merchant_id, apiToken, cleanId);
     console.log(`[processOrderEvent] order state=${fullOrder.state} paymentState=${fullOrder.paymentState} total=${fullOrder.total}`);
 
+    const payState = (fullOrder.paymentState || '').toUpperCase();
     const isRefund = fullOrder.state === 'refunded' ||
-                     fullOrder.paymentState === 'credited' ||
-                     fullOrder.paymentState === 'PARTIALLY_REFUNDED' ||
+                     payState === 'REFUNDED' ||
+                     payState === 'CREDITED' ||
+                     payState === 'PARTIALLY_REFUNDED' ||
                      (fullOrder.refundAmount || 0) > 0 ||
                      (fullOrder.refunds?.elements?.length > 0);
 
