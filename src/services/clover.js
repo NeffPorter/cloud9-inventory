@@ -239,4 +239,14 @@ module.exports = {
   cloverFetch,
   fetchFullOrder,
   fetchOrderRefunds,
-  fetc
+  fetchPayment,
+  fetchItem,
+  pushStockToClover,
+  setStockInClover,
+  updateItemPriceAndCost,
+  extractLineItems,
+  extractRefundedItems,
+  createCashSale,
+  getCashTenderId,
+  getValidApiToken
+};
