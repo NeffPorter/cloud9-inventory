@@ -13,7 +13,7 @@ async function cloverFetch(endpoint, merchantId, apiToken) {
 async function fetchFullOrder(merchantId, apiToken, orderId) {
   const cleanId = orderId.replace(/^O:/, '');
   return cloverFetch(
-    `orders/${cleanId}?expand=lineItems,lineItems.elements,lineItems.elements.item,lineItems.elements.refunds,lineItems.elements.discounts,discounts,refunds,refunds.elements,credits,payments`,
+    `orders/${cleanId}?expand=lineItems,lineItems.elements,lineItems.elements.item,discounts,refunds,refunds.elements,credits,payments`,
     merchantId, apiToken
   );
 }
@@ -244,3 +244,4 @@ module.exports = {
   getCashTenderId,
   getValidApiToken
 };
+                                                        
