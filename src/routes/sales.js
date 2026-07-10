@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const { fetchFullOrder, fetchOrderRefunds, fetchItem, pushStockToClover, extractLineItems, extractRefundedItems, createCashSale, getCashTenderId, getValidApiToken } = require('../services/clover');
+const { fetchFullOrder, fetchOrderRefunds, fetchPayment, fetchItem, pushStockToClover, extractLineItems, extractRefundedItems, createCashSale, getCashTenderId, getValidApiToken } = require('../services/clover');
 const { calculateSuggestedOrder } = require('../services/suggested');
 const { notify } = require('../services/notify');
 const supabase = require('../lib/supabase');
@@ -57,12 +57,22 @@ router.post('/webhook', async (req, res) => {
           continue;
         }
         if (isPaymentEvent) {
-          const isRefund = eventType.includes('REFUND') || eventType.includes('CREDIT');
-          if (isRefund && event.data?.order?.id) {
-            await processOrderEvent(store, event.data.order.id);
-          } else if (!isRefund) {
-            // Payment event — treat as order event to catch paid orders
-            console.log('[Webhook] Payment event, no order id in data:', JSON.stringify(event));
+          try {
+            const apiToken = await getValidApiToken(store);
+            const payment = await fetchPayment(store.merchant_id, apiToken, objectId);
+            const orderId = payment?.order?.id;
+            const payResult = (payment?.result || '').toUpperCase();
+            const isRefundPayment = payResult === 'VOID' || payResult === 'REFUND' || (payment?.refunds?.elements?.length > 0);
+            if (orderId) {
+              console.log(`[Webhook] Payment ${objectId} → order ${orderId} result=${payResult}`);
+              // Small delay so Clover order state is updated before we fetch it
+              await sleep(2000);
+              await processOrderEvent(store, orderId);
+            } else {
+              console.log('[Webhook] Payment event, no order id:', JSON.stringify(event));
+            }
+          } catch (err) {
+            console.error('[Webhook] Payment lookup error:', err.message);
           }
         }
       }
@@ -573,19 +583,4 @@ router.get('/item-performance', auth, async (req, res) => {
       byCategory[g.category].push(g);
     });
 
-    const result = Object.keys(byCategory).sort().map(category => {
-      const list = byCategory[category];
-      const sorted = [...list].sort((a, b) => b.units - a.units);
-      const top = sorted.slice(0, 5);
-      const bottom = sorted.slice(-5).reverse().filter(g => !top.includes(g));
-      return { category, top, bottom };
-    }).filter(c => c.top.length > 0);
-
-    res.json({ categories: result });
-  } catch (err) {
-    console.error('Item performance error:', err);
-    res.status(500).json({ error: 'Failed to load item performance' });
-  }
-});
-
-module.exports = router;
+    const result = Object.keys(byCategory).sort(

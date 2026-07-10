@@ -170,6 +170,11 @@ async function createCashSale(merchantId, apiToken, lineItems, cachedCashTenderI
   return { orderId, total, cashTenderId };
 }
 
+async function fetchPayment(merchantId, apiToken, paymentId) {
+  const cleanId = paymentId.replace(/^P:/, '');
+  return cloverFetch(`payments/${cleanId}`, merchantId, apiToken);
+}
+
 async function getCashTenderId(merchantId, apiToken) {
   const headers = { Authorization: 'Bearer ' + apiToken, 'Content-Type': 'application/json' };
   const tendersRes = await axios.get(`${CLOVER_BASE}${merchantId}/tenders`, { headers });
@@ -234,13 +239,4 @@ module.exports = {
   cloverFetch,
   fetchFullOrder,
   fetchOrderRefunds,
-  fetchItem,
-  pushStockToClover,
-  setStockInClover,
-  updateItemPriceAndCost,
-  extractLineItems,
-  extractRefundedItems,
-  createCashSale,
-  getCashTenderId,
-  getValidApiToken
-};
+  fetc
