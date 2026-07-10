@@ -248,4 +248,5 @@ module.exports = {
   extractRefundedItems,
   createCashSale,
   getCashTenderId,
-  getVal
+  getValidApiToken
+};
