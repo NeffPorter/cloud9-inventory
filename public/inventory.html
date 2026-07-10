@@ -815,4 +815,97 @@
     async function confirmAddStock(itemId) {
       const input = document.getElementById('addStockInput_' + itemId);
       const qty = parseInt(input?.value);
-      if (!qty || qty === 0) retur
+      if (!qty || qty === 0) return;
+
+      const wrap = input?.closest('.add-stock-inline');
+      const addBtn = wrap?.previousElementSibling;
+      if (wrap) wrap.innerHTML = '<span style="font-size:11px;color:#888">Saving...</span>';
+
+      try {
+        const r = await fetch('/api/inventory/add-stock', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ store_id: storeId, item_id: itemId, qty_received: qty })
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Failed');
+
+        // Update local item
+        const item = allItems.find(i => i.id === itemId);
+        if (item) {
+          item.clover_qty = data.new_qty;
+          item.suggested_order = data.new_suggested;
+        }
+        if (wrap) wrap.remove();
+        if (addBtn && addBtn.classList.contains('add-stock-btn')) addBtn.style.display = '';
+        updateStats(allItems);
+        renderInventory(allItems);
+      } catch (err) {
+        if (wrap) wrap.innerHTML = '<span style="color:red;font-size:11px">' + err.message + '</span>';
+      }
+    }
+
+    async function clearSuggestedOrder(itemId) {
+      try {
+        await fetch(`/api/inventory/items/${itemId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ suggested_order: 0 })
+        });
+        const item = allItems.find(i => i.id === itemId);
+        if (item) item.suggested_order = 0;
+        updateStats(allItems);
+        renderInventory(allItems);
+      } catch (err) {
+        console.error('Error clearing suggested order:', err);
+      }
+    }
+
+    async function init() {
+      if (!storeId) {
+        if (!isMultiStoreRole) { window.location.href = '/dashboard'; return; }
+
+        // Multi-store role with no store: inject a store selector and wait
+        document.getElementById('pageTitle').textContent = '📦 Inventory';
+        document.getElementById('pageSubtitle').textContent = 'Select a store to get started';
+        document.getElementById('inventoryContainer').innerHTML = `
+          <div style="text-align:center;padding:80px 20px;color:#999;">
+            <div style="font-size:52px;margin-bottom:16px">📦</div>
+            <div style="font-size:17px;font-weight:600;color:#666;">Select a store above to view inventory</div>
+          </div>`;
+
+        try {
+          const res = await fetch('/api/inventory/stores', { headers: { 'Authorization': 'Bearer ' + token } });
+          const data = await res.json();
+          const stores = data.stores || [];
+          const pills = document.getElementById('storePills');
+          pills.innerHTML = stores.map(s =>
+            `<button class="store-pill" onclick="selectInventoryStore('${s.id}', this)">${s.name}</button>`
+          ).join('');
+        } catch (e) { console.error('Store list error:', e); }
+        return;
+      }
+
+      loadStoreName();
+      loadCategorySettings().then(loadInventory);
+    }
+
+    function selectInventoryStore(id, btn) {
+      document.querySelectorAll('#storePills .store-pill').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      storeId = id;
+      history.replaceState(null, '', `/inventory?store=${storeId}`);
+      loadStoreName();
+      loadCategorySettings().then(loadInventory);
+    }
+
+    init();
+
+    // Auto-refresh every 30s — only when a store is selected and not in edit mode
+    setInterval(() => {
+      if (!editMode && storeId) loadInventory();
+    }, 30000);
+  </script>
+  <script>loadNavbar();</script>
+</body>
+</html>
