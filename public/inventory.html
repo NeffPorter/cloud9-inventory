@@ -150,6 +150,13 @@
     .stock-low { color: #c55a11; font-weight: 700; }
     .stock-out { color: #c00; font-weight: 700; }
     .stock-negative { color: #800; font-weight: 700; }
+    .add-stock-btn { background:none; border:1px solid #d1d5db; border-radius:6px; padding:1px 6px; font-size:11px; color:#2563eb; cursor:pointer; margin-left:6px; line-height:1.6; }
+    .add-stock-btn:hover { background:#eff6ff; }
+    .add-stock-inline { display:inline-flex; align-items:center; gap:4px; margin-left:6px; }
+    .add-stock-inline input { width:52px; padding:2px 4px; border:1px solid #2563eb; border-radius:5px; font-size:12px; text-align:center; }
+    .add-stock-inline button { padding:2px 7px; border-radius:5px; font-size:11px; cursor:pointer; border:none; }
+    .add-stock-confirm { background:#2563eb; color:white; }
+    .add-stock-cancel { background:#f3f4f6; color:#555; }
     .suggested-badge {
       background: #fff2cc;
       color: #c55a11;
@@ -553,6 +560,7 @@
                   <td>
                     <input type="number" class="edit-input" data-field="clover_qty" data-item="${item.id}" data-original="${qty}"
                       value="${qty}" onchange="markChanged(this)">
+                    <button class="add-stock-btn" onclick="showAddStock('${item.id}', this)" title="Receive stock">+</button>
                   </td>
                   <td>${getSuggestedDisplay(item) > 0 ? `<span class="suggested-badge">Order ${getSuggestedDisplay(item)}</span>${item.suggested_order > 0 ? `<button class="clear-suggested-btn" onclick="clearSuggestedOrder('${item.id}')" title="Clear suggested order">✕</button>` : ''}` : '—'}</td>
                   <td>
@@ -570,7 +578,10 @@
                   <td class="item-name">${item.variant_name}</td>
                   <td>$${(item.cost || 0).toFixed(2)}</td>
                   <td>$${(item.price || 0).toFixed(2)}</td>
-                  <td class="${qtyClass}">${qty}</td>
+                  <td class="${qtyClass}">
+                    ${qty}
+                    <button class="add-stock-btn" onclick="showAddStock('${item.id}', this)" title="Receive stock">+</button>
+                  </td>
                   <td>${getSuggestedDisplay(item) > 0 ? `<span class="suggested-badge">Order ${getSuggestedDisplay(item)}</span>${item.suggested_order > 0 ? `<button class="clear-suggested-btn" onclick="clearSuggestedOrder('${item.id}')" title="Clear suggested order">✕</button>` : ''}` : '—'}</td>
                   <td>
                     <select class="status-select" onchange="updateStatus('${item.id}', this.value)">
@@ -771,6 +782,67 @@
         }
       }
       renderInventory(allItems);
+    }
+
+    function showAddStock(itemId, btn) {
+      // Close any other open add-stock inputs
+      document.querySelectorAll('.add-stock-inline').forEach(el => el.remove());
+      document.querySelectorAll('.add-stock-btn').forEach(el => el.style.display = '');
+
+      btn.style.display = 'none';
+      const wrap = document.createElement('span');
+      wrap.className = 'add-stock-inline';
+      wrap.innerHTML = `
+        <input type="number" min="1" placeholder="qty" id="addStockInput_${itemId}" autofocus>
+        <button class="add-stock-confirm" onclick="confirmAddStock('${itemId}')">✓</button>
+        <button class="add-stock-cancel" onclick="cancelAddStock('${itemId}', this)">✕</button>
+      `;
+      btn.insertAdjacentElement('afterend', wrap);
+      wrap.querySelector('input').focus();
+      wrap.querySelector('input').addEventListener('keydown', e => {
+        if (e.key === 'Enter') confirmAddStock('${itemId}');
+        if (e.key === 'Escape') cancelAddStock('${itemId}', wrap.querySelector('.add-stock-cancel'));
+      });
+    }
+
+    function cancelAddStock(itemId, btn) {
+      const wrap = btn.closest('.add-stock-inline');
+      const addBtn = wrap ? wrap.previousElementSibling : null;
+      if (wrap) wrap.remove();
+      if (addBtn && addBtn.classList.contains('add-stock-btn')) addBtn.style.display = '';
+    }
+
+    async function confirmAddStock(itemId) {
+      const input = document.getElementById('addStockInput_' + itemId);
+      const qty = parseInt(input?.value);
+      if (!qty || qty <= 0) return;
+
+      const wrap = input?.closest('.add-stock-inline');
+      const addBtn = wrap?.previousElementSibling;
+      if (wrap) wrap.innerHTML = '<span style="font-size:11px;color:#888">Saving...</span>';
+
+      try {
+        const r = await fetch('/api/inventory/add-stock', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+          body: JSON.stringify({ store_id: storeId, item_id: itemId, qty_received: qty })
+        });
+        const data = await r.json();
+        if (!r.ok) throw new Error(data.error || 'Failed');
+
+        // Update local item
+        const item = allItems.find(i => i.id === itemId);
+        if (item) {
+          item.clover_qty = data.new_qty;
+          item.suggested_order = data.new_suggested;
+        }
+        if (wrap) wrap.remove();
+        if (addBtn && addBtn.classList.contains('add-stock-btn')) addBtn.style.display = '';
+        updateStats(allItems);
+        renderInventory(allItems);
+      } catch (err) {
+        if (wrap) wrap.innerHTML = '<span style="color:red;font-size:11px">' + err.message + '</span>';
+      }
     }
 
     async function clearSuggestedOrder(itemId) {

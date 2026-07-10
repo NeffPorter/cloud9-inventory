@@ -728,5 +728,40 @@ router.post('/category-settings/recalculate', auth, async (req, res) => {
   }
 });
 
+// POST /api/inventory/add-stock — manually receive stock for an item (no PO)
+router.post('/add-stock', auth, async (req, res) => {
+  try {
+    const { store_id, item_id, qty_received } = req.body;
+    const qty = parseInt(qty_received);
+    if (!store_id || !item_id || isNaN(qty) || qty <= 0) {
+      return res.status(400).json({ error: 'store_id, item_id and qty_received are required' });
+    }
+
+    const { data: store } = await supabase.from('stores').select('*').eq('id', store_id).single();
+    if (!store) return res.status(404).json({ error: 'Store not found' });
+
+    const { data: item } = await supabase.from('inventory_items').select('*').eq('id', item_id).eq('store_id', store_id).single();
+    if (!item) return res.status(404).json({ error: 'Item not found' });
+
+    const newQty = (item.clover_qty || 0) + qty;
+
+    // Push to Clover
+    const apiToken = await getValidApiToken(store);
+    await setStockInClover(store.merchant_id, apiToken, item_id, newQty);
+
+    // Update DB
+    const newSuggested = Math.max(0, (item.suggested_order || 0) - qty);
+    await supabase.from('inventory_items')
+      .update({ clover_qty: newQty, suggested_order: newSuggested })
+      .eq('id', item_id).eq('store_id', store_id);
+
+    console.log(`[add-stock] ${store.name} — ${item.variant_name}: +${qty} → ${newQty} (suggested: ${newSuggested})`);
+    res.json({ ok: true, new_qty: newQty, new_suggested: newSuggested });
+  } catch (err) {
+    console.error('add-stock error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
 module.exports.triggerBackgroundSync = triggerBackgroundSync;
