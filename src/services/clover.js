@@ -13,14 +13,14 @@ async function cloverFetch(endpoint, merchantId, apiToken) {
 async function fetchFullOrder(merchantId, apiToken, orderId) {
   const cleanId = orderId.replace(/^O:/, '');
   return cloverFetch(
-    `orders/${cleanId}?expand=lineItems,lineItems.elements,lineItems.elements.item,lineItems.elements.refunds,lineItems.elements.discounts,discounts,refunds,refunds.elements,credits,payments`,
+    `orders/${cleanId}?expand=lineItems,lineItems.elements,lineItems.elements.item,payments`,
     merchantId, apiToken
   );
 }
 
 async function fetchOrderRefunds(merchantId, apiToken, orderId) {
   const cleanId = orderId.replace(/^O:/, '');
-  return cloverFetch(`orders/${cleanId}/refunds?expand=lineItems`, merchantId, apiToken);
+  return cloverFetch(`orders/${cleanId}/refunds`, merchantId, apiToken);
 }
 
 async function fetchItem(merchantId, apiToken, itemId) {
@@ -170,6 +170,11 @@ async function createCashSale(merchantId, apiToken, lineItems, cachedCashTenderI
   return { orderId, total, cashTenderId };
 }
 
+async function fetchPayment(merchantId, apiToken, paymentId) {
+  const cleanId = paymentId.replace(/^P:/, '');
+  return cloverFetch(`payments/${cleanId}`, merchantId, apiToken);
+}
+
 async function getCashTenderId(merchantId, apiToken) {
   const headers = { Authorization: 'Bearer ' + apiToken, 'Content-Type': 'application/json' };
   const tendersRes = await axios.get(`${CLOVER_BASE}${merchantId}/tenders`, { headers });
@@ -234,6 +239,7 @@ module.exports = {
   cloverFetch,
   fetchFullOrder,
   fetchOrderRefunds,
+  fetchPayment,
   fetchItem,
   pushStockToClover,
   setStockInClover,
