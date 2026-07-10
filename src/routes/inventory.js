@@ -733,7 +733,7 @@ router.post('/add-stock', auth, async (req, res) => {
   try {
     const { store_id, item_id, qty_received } = req.body;
     const qty = parseInt(qty_received);
-    if (!store_id || !item_id || isNaN(qty) || qty <= 0) {
+    if (!store_id || !item_id || isNaN(qty) || qty === 0) {
       return res.status(400).json({ error: 'store_id, item_id and qty_received are required' });
     }
 
@@ -749,8 +749,10 @@ router.post('/add-stock', auth, async (req, res) => {
     const apiToken = await getValidApiToken(store);
     await setStockInClover(store.merchant_id, apiToken, item_id, newQty);
 
-    // Update DB
-    const newSuggested = Math.max(0, (item.suggested_order || 0) - qty);
+    // Receiving stock → suggested order goes down; removing → goes up
+    const newSuggested = qty > 0
+      ? Math.max(0, (item.suggested_order || 0) - qty)
+      : (item.suggested_order || 0) + Math.abs(qty);
     await supabase.from('inventory_items')
       .update({ clover_qty: newQty, suggested_order: newSuggested })
       .eq('id', item_id).eq('store_id', store_id);

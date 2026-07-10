@@ -793,7 +793,7 @@
       const wrap = document.createElement('span');
       wrap.className = 'add-stock-inline';
       wrap.innerHTML = `
-        <input type="number" min="1" placeholder="qty" id="addStockInput_${itemId}" autofocus>
+        <input type="number" placeholder="+/- qty" id="addStockInput_${itemId}" autofocus>
         <button class="add-stock-confirm" onclick="confirmAddStock('${itemId}')">✓</button>
         <button class="add-stock-cancel" onclick="cancelAddStock('${itemId}', this)">✕</button>
       `;
@@ -815,7 +815,7 @@
     async function confirmAddStock(itemId) {
       const input = document.getElementById('addStockInput_' + itemId);
       const qty = parseInt(input?.value);
-      if (!qty || qty <= 0) return;
+      if (!qty || qty === 0) return;
 
       const wrap = input?.closest('.add-stock-inline');
       const addBtn = wrap?.previousElementSibling;
