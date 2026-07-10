@@ -99,13 +99,19 @@ async function processOrderEvent(store, orderId) {
     const fullOrder = await fetchFullOrder(store.merchant_id, apiToken, cleanId);
     console.log(`[processOrderEvent] order state=${fullOrder.state} paymentState=${fullOrder.paymentState} total=${fullOrder.total}`);
 
+    // Always fetch refunds — Clover often fires the order webhook before updating
+    // paymentState to REFUNDED, so we can't rely on paymentState alone.
+    const refundsData = await fetchOrderRefunds(store.merchant_id, apiToken, cleanId);
+    const hasRefunds = (refundsData?.elements?.length || 0) > 0;
+    console.log(`[processOrderEvent] refunds found=${hasRefunds} count=${refundsData?.elements?.length || 0}`);
+
     const payState = (fullOrder.paymentState || '').toUpperCase();
     const isRefund = fullOrder.state === 'refunded' ||
                      payState === 'REFUNDED' ||
                      payState === 'CREDITED' ||
                      payState === 'PARTIALLY_REFUNDED' ||
                      (fullOrder.refundAmount || 0) > 0 ||
-                     (fullOrder.refunds?.elements?.length > 0);
+                     hasRefunds;
 
     const alreadyLogged = existingSales && existingSales.length > 0;
     if (!isRefund && alreadyLogged) { console.log('Sale already logged:', cleanId); return; }
@@ -138,16 +144,25 @@ async function processOrderEvent(store, orderId) {
     let restockThisRefund = true;
 
     if (isRefund) {
-      const refundsData = await fetchOrderRefunds(store.merchant_id, apiToken, cleanId);
       const latestRefund = refundsData?.elements?.length > 0
         ? refundsData.elements[refundsData.elements.length - 1]
-        : fullOrder.refunds?.elements?.[fullOrder.refunds.elements.length - 1];
+        : null;
       if (latestRefund) {
         amount = (latestRefund.amount || 0) / 100;
         tax = (latestRefund.taxAmount || 0) / 100;
         if ((latestRefund.reason || '').toLowerCase().includes('not restocked')) restockThisRefund = false;
       }
       itemMap = extractRefundedItems(fullOrder);
+      // Fallback: if no items detected, treat all line items as refunded (full refund)
+      if (Object.keys(itemMap).length === 0) {
+        (fullOrder.lineItems?.elements || []).forEach(li => {
+          const itemId = (li.item?.id || '').toString().trim();
+          if (!itemId || itemId.length < 8) return;
+          const qty = li.unitQty ? (li.unitQty / 1000) : (li.quantity || 1);
+          if (!itemMap[itemId]) itemMap[itemId] = { qty: 0 };
+          itemMap[itemId].qty += qty;
+        });
+      }
     } else {
       itemMap = extractLineItems(fullOrder);
     }
