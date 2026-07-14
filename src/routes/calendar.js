@@ -14,12 +14,11 @@ const TYPE_COLORS = {
   event:        '#2563eb',
   meeting:      '#8b5cf6',
   reminder:     '#f59e0b',
-  deadline:     '#ef4444',
-  other:        '#374151',
+  deadline:     '#111111',
+  other:        '#6b7280',
   // auto-populated from other tables:
   sale_event:   '#f97316',
-  proposal_due: '#dc2626',
-  discount:     '#a855f7',
+  proposal_due: '#111111',
   task:         '#10b981',
 };
 

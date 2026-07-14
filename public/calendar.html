@@ -129,14 +129,14 @@
   <!-- Filters -->
   <div class="filters">
     <span class="filters-label">Show:</span>
+    <div class="filter-chip on" data-f="deadline"     style="--c:#111111" onclick="toggleFilter(this)">Deadline</div>
+    <div class="filter-chip on" data-f="proposal_due" style="--c:#111111" onclick="toggleFilter(this)">Proposals</div>
+    <div class="filter-chip on" data-f="sale_event"   style="--c:#f97316" onclick="toggleFilter(this)">Sale Events</div>
+    <div class="filter-chip on" data-f="reminder"     style="--c:#f59e0b" onclick="toggleFilter(this)">Reminder</div>
+    <div class="filter-chip on" data-f="task"         style="--c:#10b981" onclick="toggleFilter(this)">Tasks</div>
     <div class="filter-chip on" data-f="event"        style="--c:#2563eb" onclick="toggleFilter(this)">Event</div>
     <div class="filter-chip on" data-f="meeting"      style="--c:#8b5cf6" onclick="toggleFilter(this)">Meeting</div>
-    <div class="filter-chip on" data-f="reminder"     style="--c:#f59e0b" onclick="toggleFilter(this)">Reminder</div>
-    <div class="filter-chip on" data-f="deadline"     style="--c:#ef4444" onclick="toggleFilter(this)">Deadline</div>
     <div class="filter-chip on" data-f="other"        style="--c:#6b7280" onclick="toggleFilter(this)">Other</div>
-    <div class="filter-chip on" data-f="sale_event"   style="--c:#f97316" onclick="toggleFilter(this)">Sale Events</div>
-    <div class="filter-chip on" data-f="proposal_due" style="--c:#dc2626" onclick="toggleFilter(this)">Proposals</div>
-    <div class="filter-chip on" data-f="task"         style="--c:#10b981" onclick="toggleFilter(this)">Tasks</div>
   </div>
 
   <!-- Calendar body -->
@@ -221,10 +221,10 @@ const TYPE_COLORS = {
   event:        '#2563eb',
   meeting:      '#8b5cf6',
   reminder:     '#f59e0b',
-  deadline:     '#ef4444',
+  deadline:     '#111111',
   other:        '#6b7280',
   sale_event:   '#f97316',
-  proposal_due: '#dc2626',
+  proposal_due: '#111111',
   task:         '#10b981',
 };
 
@@ -248,7 +248,7 @@ const TYPE_BTN_COLORS = {
   event:    '#2563eb',
   meeting:  '#8b5cf6',
   reminder: '#f59e0b',
-  deadline: '#ef4444',
+  deadline: '#111111',
   other:    '#6b7280',
 };
 
