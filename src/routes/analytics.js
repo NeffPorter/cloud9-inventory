@@ -3,6 +3,7 @@ const router = express.Router();
 const auth = require('../middleware/auth');
 const supabase = require('../lib/supabase');
 const { isHim } = require('../lib/roles');
+const { fetchGoogleInsights, fetchAppleInsights, fetchFacebookInsights } = require('../services/platforms');
 
 const ALLOWED = ['regional_manager', 'him', 'admin', 'owner', 'media'];
 
@@ -64,6 +65,39 @@ router.get('/transactions', auth, requireAnalyticsAccess, async (req, res) => {
   } catch (err) {
     console.error('Analytics error:', err.message);
     res.status(500).json({ error: 'Failed to load analytics' });
+  }
+});
+
+// GET /api/analytics/google?start=&end=
+router.get('/google', auth, requireAnalyticsAccess, async (req, res) => {
+  try {
+    const result = await fetchGoogleInsights(req.query.start, req.query.end);
+    res.json(result);
+  } catch (err) {
+    console.error('[Route] Google analytics error:', err.message);
+    res.status(500).json({ configured: true, error: err.message });
+  }
+});
+
+// GET /api/analytics/apple?start=&end=
+router.get('/apple', auth, requireAnalyticsAccess, async (req, res) => {
+  try {
+    const result = await fetchAppleInsights(req.query.start, req.query.end);
+    res.json(result);
+  } catch (err) {
+    console.error('[Route] Apple analytics error:', err.message);
+    res.status(500).json({ configured: true, error: err.message });
+  }
+});
+
+// GET /api/analytics/facebook?start=&end=
+router.get('/facebook', auth, requireAnalyticsAccess, async (req, res) => {
+  try {
+    const result = await fetchFacebookInsights(req.query.start, req.query.end);
+    res.json(result);
+  } catch (err) {
+    console.error('[Route] Facebook analytics error:', err.message);
+    res.status(500).json({ configured: true, error: err.message });
   }
 });
 
