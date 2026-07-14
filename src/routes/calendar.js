@@ -4,176 +4,221 @@ const auth = require('../middleware/auth');
 const supabase = require('../lib/supabase');
 const { isHim } = require('../lib/roles');
 
-// Which roles can see everything vs just their store
+// Elevated = can see/assign all users' events
 function isElevated(role) {
   return isHim(role) || role === 'owner' || role === 'marketing';
 }
 
-// GET /api/calendar/events?start=YYYY-MM-DD&end=YYYY-MM-DD&store_id=
-// Returns merged events from: calendar_events, sale_events, store_tasks, assigned_tasks, discount_schedules
+// Fixed colors per event type (used server-side and matches frontend)
+const TYPE_COLORS = {
+  event:        '#2563eb',
+  meeting:      '#8b5cf6',
+  reminder:     '#f59e0b',
+  deadline:     '#ef4444',
+  other:        '#374151',
+  // auto-populated from other tables:
+  sale_event:   '#f97316',
+  proposal_due: '#dc2626',
+  discount:     '#a855f7',
+  task:         '#10b981',
+};
+
+// GET /api/calendar/users — list of users for assignment (elevated roles only)
+router.get('/users', auth, async (req, res) => {
+  try {
+    if (!isElevated(req.user.role)) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, name, email, role, store_id')
+      .order('name');
+    if (error) throw error;
+    res.json({ users: data || [] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/calendar/events?start=YYYY-MM-DD&end=YYYY-MM-DD
 router.get('/events', auth, async (req, res) => {
   try {
-    const { start, end, store_id } = req.query;
-    if (!start || !end) return res.status(400).json({ error: 'start and end dates required' });
+    const { start, end } = req.query;
+    if (!start || !end) return res.status(400).json({ error: 'start and end required' });
 
-    const role = req.user.role;
-    const userId = req.user.id;
+    const role     = req.user.role;
+    const userId   = req.user.id;
     const elevated = isElevated(role);
-    const userStoreId = req.user.store_id;
-    const filterStore = elevated ? (store_id || null) : userStoreId;
+    const storeId  = req.user.store_id;
 
     const events = [];
 
-    // ── 1. Custom calendar_events ──────────────────────────────────────────
-    let ceQuery = supabase.from('calendar_events')
-      .select('*, users!calendar_events_created_by_fkey(name)')
-      .gte('start_date', start)
+    // ── 1. Custom calendar_events ────────────────────────────────────────
+    // Fetch events that OVERLAP the range: start_date <= rangeEnd AND end_date >= rangeStart
+    let ceQuery = supabase
+      .from('calendar_events')
+      .select('*, users!calendar_events_created_by_fkey(id, name), calendar_event_users(user_id, users(id, name))')
       .lte('start_date', end)
       .order('start_date');
 
-    if (filterStore) ceQuery = ceQuery.or(`store_id.eq.${filterStore},store_id.is.null`);
+    const { data: customRaw } = await ceQuery;
+    let customEvents = (customRaw || []).filter(e => {
+      const effectiveEnd = e.end_date || e.start_date;
+      return effectiveEnd >= start;
+    });
 
-    const { data: customEvents } = await ceQuery;
-    (customEvents || []).forEach(e => {
-      // Expand recurring events within the range
-      const expanded = expandRecurring(e, start, end);
-      expanded.forEach(date => events.push({
+    // Access filter for non-elevated users
+    if (!elevated) {
+      customEvents = customEvents.filter(e => {
+        if (e.created_by === userId) return true;
+        const assignedIds = (e.calendar_event_users || []).map(u => u.user_id);
+        return assignedIds.includes(userId);
+      });
+    }
+
+    customEvents.forEach(e => {
+      const assignedUsers = (e.calendar_event_users || []).map(u => ({
+        id: u.user_id, name: u.users?.name || u.user_id
+      }));
+      events.push({
         id: e.id,
         source: 'custom',
         title: e.title,
         description: e.description,
         type: e.event_type,
-        date,
+        date: e.start_date,
         end_date: e.end_date,
-        color: e.color || '#2563eb',
-        store_id: e.store_id,
+        color: TYPE_COLORS[e.event_type] || TYPE_COLORS.event,
         recurring: e.recurring,
+        recurring_until: e.recurring_until,
         all_day: e.all_day,
+        created_by: e.created_by,
         created_by_name: e.users?.name || null,
+        assigned_users: assignedUsers,
         editable: elevated || e.created_by === userId
-      }));
+      });
     });
 
-    // ── 2. Sale events ─────────────────────────────────────────────────────
-    let seQuery = supabase.from('sale_events')
-      .select('id, name, start_date, end_date, proposal_due_date, status')
-      .or(`start_date.gte.${start},end_date.gte.${start},proposal_due_date.gte.${start}`)
-      .lte('start_date', end);
+    // Auto-populated events only shown to elevated OR scoped to user's store
+    const showAuto = elevated || !!storeId;
 
-    // If filtered to a store, only show events assigned to that store
-    if (filterStore) {
-      const { data: storeEvents } = await supabase
-        .from('sale_event_stores')
-        .select('sale_event_id')
-        .eq('store_id', filterStore);
-      const ids = (storeEvents || []).map(s => s.sale_event_id);
-      if (!ids.length) {
-        // no events for this store — skip
-      } else {
-        seQuery = seQuery.in('id', ids);
-        const { data: saleEvents } = await seQuery;
-        (saleEvents || []).forEach(e => {
-          // Sale event span
-          if (e.start_date >= start && e.start_date <= end) {
-            events.push({ id: `se-${e.id}`, source: 'sale_event', title: `🎯 ${e.name}`, type: 'sale_event', date: e.start_date, end_date: e.end_date, color: '#f59e0b', editable: false });
-          }
-          // Proposal due date
-          if (e.proposal_due_date && e.proposal_due_date >= start && e.proposal_due_date <= end) {
-            events.push({ id: `se-due-${e.id}`, source: 'sale_event', title: `📋 Proposal Due: ${e.name}`, type: 'proposal_due', date: e.proposal_due_date, color: '#ef4444', editable: false });
-          }
-        });
+    if (showAuto) {
+      // ── 2. Sale events ─────────────────────────────────────────────────
+      let seQuery = supabase.from('sale_events')
+        .select('id, name, start_date, end_date, proposal_due_date, status')
+        .lte('start_date', end);
+
+      if (!elevated && storeId) {
+        const { data: ses } = await supabase.from('sale_event_stores').select('sale_event_id').eq('store_id', storeId);
+        const ids = (ses || []).map(s => s.sale_event_id);
+        if (ids.length) seQuery = seQuery.in('id', ids);
+        else seQuery = seQuery.eq('id', 'none'); // no results
       }
-    } else {
+
       const { data: saleEvents } = await seQuery;
       (saleEvents || []).forEach(e => {
-        if (e.start_date >= start && e.start_date <= end) {
-          events.push({ id: `se-${e.id}`, source: 'sale_event', title: `🎯 ${e.name}`, type: 'sale_event', date: e.start_date, end_date: e.end_date, color: '#f59e0b', editable: false });
+        if (e.start_date >= start || (e.end_date && e.end_date >= start)) {
+          events.push({ id: `se-${e.id}`, source: 'sale_event', title: `🎯 ${e.name}`, type: 'sale_event', date: e.start_date, end_date: e.end_date, color: TYPE_COLORS.sale_event, editable: false });
         }
         if (e.proposal_due_date && e.proposal_due_date >= start && e.proposal_due_date <= end) {
-          events.push({ id: `se-due-${e.id}`, source: 'sale_event', title: `📋 Proposal Due: ${e.name}`, type: 'proposal_due', date: e.proposal_due_date, color: '#ef4444', editable: false });
+          events.push({ id: `se-due-${e.id}`, source: 'sale_event', title: `📋 Proposal Due: ${e.name}`, type: 'proposal_due', date: e.proposal_due_date, color: TYPE_COLORS.proposal_due, editable: false });
         }
+      });
+
+      // ── 3. Discount schedules ─────────────────────────────────────────
+      let dsQuery = supabase.from('discount_schedules')
+        .select('id, name, start_date, end_date, store_id, status')
+        .lte('start_date', end)
+        .neq('status', 'cancelled');
+      if (!elevated && storeId) dsQuery = dsQuery.eq('store_id', storeId);
+
+      const { data: discounts } = await dsQuery;
+      (discounts || []).filter(d => (d.end_date || d.start_date) >= start).forEach(d => {
+        events.push({ id: `ds-${d.id}`, source: 'discount', title: `🏷️ ${d.name}`, type: 'discount', date: d.start_date, end_date: d.end_date, color: TYPE_COLORS.discount, editable: false });
+      });
+
+      // ── 4. Store tasks ────────────────────────────────────────────────
+      let stQuery = supabase.from('store_tasks')
+        .select('id, title, due_date, store_id')
+        .gte('due_date', start).lte('due_date', end).not('due_date', 'is', null);
+      if (!elevated && storeId) stQuery = stQuery.eq('store_id', storeId);
+
+      const { data: storeTasks } = await stQuery;
+      (storeTasks || []).forEach(t => {
+        events.push({ id: `st-${t.id}`, source: 'store_task', title: `✅ ${t.title}`, type: 'task', date: t.due_date, color: TYPE_COLORS.task, editable: false });
+      });
+
+      // ── 5. Assigned tasks ─────────────────────────────────────────────
+      let atQuery = supabase.from('assigned_tasks')
+        .select('id, title, due_date, assigned_to, store_id, users!assigned_tasks_assigned_to_fkey(name)')
+        .gte('due_date', start).lte('due_date', end).not('due_date', 'is', null).neq('status', 'completed');
+      if (!elevated) atQuery = atQuery.eq('assigned_to', userId);
+
+      const { data: assignedTasks } = await atQuery;
+      (assignedTasks || []).forEach(t => {
+        events.push({ id: `at-${t.id}`, source: 'assigned_task', title: `📋 ${t.title}`, type: 'task', date: t.due_date, color: TYPE_COLORS.task, assigned_to_name: t.users?.name || null, editable: false });
       });
     }
 
-    // ── 3. Discount schedules ──────────────────────────────────────────────
-    let dsQuery = supabase.from('discount_schedules')
-      .select('id, name, start_date, end_date, store_id, status')
-      .gte('start_date', start)
-      .lte('start_date', end)
-      .neq('status', 'cancelled');
-    if (filterStore) dsQuery = dsQuery.eq('store_id', filterStore);
-
-    const { data: discounts } = await dsQuery;
-    (discounts || []).forEach(d => {
-      events.push({ id: `ds-${d.id}`, source: 'discount', title: `🏷️ ${d.name}`, type: 'discount', date: d.start_date, end_date: d.end_date, color: '#8b5cf6', store_id: d.store_id, editable: false });
+    // Expand recurring custom events
+    const expandedEvents = [];
+    events.forEach(e => {
+      if (e.source !== 'custom' || !e.recurring || e.recurring === 'none') {
+        expandedEvents.push(e);
+        return;
+      }
+      const occurrences = expandRecurring(e, start, end);
+      occurrences.forEach((date, i) => {
+        if (i === 0) { expandedEvents.push({ ...e, date }); }
+        else { expandedEvents.push({ ...e, id: `${e.id}_${i}`, date, end_date: null }); }
+      });
     });
 
-    // ── 4. Store tasks ─────────────────────────────────────────────────────
-    let stQuery = supabase.from('store_tasks')
-      .select('id, title, due_date, store_id, status, task_type')
-      .gte('due_date', start)
-      .lte('due_date', end)
-      .not('due_date', 'is', null)
-      .neq('status', 'done');
-    if (filterStore) stQuery = stQuery.eq('store_id', filterStore);
-
-    const { data: storeTasks } = await stQuery;
-    (storeTasks || []).forEach(t => {
-      events.push({ id: `st-${t.id}`, source: 'store_task', title: `✅ ${t.title}`, type: 'task', date: t.due_date, color: '#10b981', store_id: t.store_id, editable: false });
-    });
-
-    // ── 5. Assigned tasks ──────────────────────────────────────────────────
-    let atQuery = supabase.from('assigned_tasks')
-      .select('id, title, due_date, assigned_to, store_id, status, users!assigned_tasks_assigned_to_fkey(name)')
-      .gte('due_date', start)
-      .lte('due_date', end)
-      .not('due_date', 'is', null)
-      .neq('status', 'completed');
-
-    // Users only see their own assigned tasks unless elevated
-    if (!elevated) atQuery = atQuery.eq('assigned_to', userId);
-    else if (filterStore) atQuery = atQuery.eq('store_id', filterStore);
-
-    const { data: assignedTasks } = await atQuery;
-    (assignedTasks || []).forEach(t => {
-      events.push({ id: `at-${t.id}`, source: 'assigned_task', title: `📋 ${t.title}`, type: 'task', date: t.due_date, color: '#06b6d4', store_id: t.store_id, assigned_to_name: t.users?.name || null, editable: false });
-    });
-
-    res.json({ events });
+    res.json({ events: expandedEvents });
   } catch (err) {
-    console.error('[Calendar] GET events error:', err.message);
+    console.error('[Calendar] GET error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// POST /api/calendar/events — create custom event
+// POST /api/calendar/events
 router.post('/events', auth, async (req, res) => {
   try {
-    const { title, description, event_type, start_date, end_date, all_day, store_id, recurring, recurring_until, color } = req.body;
+    const { title, description, event_type, start_date, end_date, all_day, assigned_user_ids, recurring, recurring_until } = req.body;
     if (!title || !start_date) return res.status(400).json({ error: 'title and start_date required' });
 
-    const role = req.user.role;
-    // Only elevated roles can create store-wide events
-    const effectiveStoreId = (isElevated(role) && store_id) ? store_id : (store_id || req.user.store_id || null);
+    const color = TYPE_COLORS[event_type] || TYPE_COLORS.event;
 
-    const { data, error } = await supabase.from('calendar_events').insert({
+    const { data: ev, error } = await supabase.from('calendar_events').insert({
       title,
       description: description || null,
       event_type: event_type || 'event',
       start_date,
       end_date: end_date || null,
       all_day: all_day !== false,
-      store_id: effectiveStoreId,
       created_by: req.user.id,
       recurring: recurring || 'none',
       recurring_until: recurring_until || null,
-      color: color || '#2563eb'
+      color,
+      store_id: null
     }).select().single();
 
     if (error) throw error;
-    res.json({ event: data });
+
+    // Assign users — always include creator, plus any selected users
+    const userIds = new Set([req.user.id, ...((assigned_user_ids || []).filter(Boolean))]);
+    // Non-elevated users can only assign to themselves
+    if (!isElevated(req.user.role)) userIds.clear(), userIds.add(req.user.id);
+
+    if (userIds.size) {
+      await supabase.from('calendar_event_users').insert(
+        [...userIds].map(uid => ({ event_id: ev.id, user_id: uid }))
+      );
+    }
+
+    res.json({ event: ev });
   } catch (err) {
-    console.error('[Calendar] POST event error:', err.message);
+    console.error('[Calendar] POST error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -187,17 +232,31 @@ router.put('/events/:id', auth, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized' });
     }
 
-    const { title, description, event_type, start_date, end_date, all_day, store_id, recurring, recurring_until, color } = req.body;
+    const { title, description, event_type, start_date, end_date, all_day, assigned_user_ids, recurring, recurring_until } = req.body;
+    const color = TYPE_COLORS[event_type] || TYPE_COLORS.event;
+
     const { data, error } = await supabase.from('calendar_events').update({
-      title, description, event_type, start_date, end_date, all_day,
-      store_id, recurring, recurring_until, color,
+      title, description, event_type, start_date, end_date, all_day, recurring, recurring_until, color,
       updated_at: new Date().toISOString()
     }).eq('id', req.params.id).select().single();
 
     if (error) throw error;
+
+    // Replace user assignments
+    if (assigned_user_ids !== undefined) {
+      await supabase.from('calendar_event_users').delete().eq('event_id', req.params.id);
+      const userIds = new Set([existing.created_by, ...((assigned_user_ids || []).filter(Boolean))]);
+      if (!isElevated(req.user.role)) { userIds.clear(); userIds.add(req.user.id); }
+      if (userIds.size) {
+        await supabase.from('calendar_event_users').insert(
+          [...userIds].map(uid => ({ event_id: req.params.id, user_id: uid }))
+        );
+      }
+    }
+
     res.json({ event: data });
   } catch (err) {
-    console.error('[Calendar] PUT event error:', err.message);
+    console.error('[Calendar] PUT error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -213,41 +272,29 @@ router.delete('/events/:id', auth, async (req, res) => {
     await supabase.from('calendar_events').delete().eq('id', req.params.id);
     res.json({ ok: true });
   } catch (err) {
-    console.error('[Calendar] DELETE event error:', err.message);
+    console.error('[Calendar] DELETE error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// Helper: expand a recurring event into all occurrence dates within [start, end]
 function expandRecurring(event, rangeStart, rangeEnd) {
   const dates = [];
-  const base = event.start_date;
-
-  if (!event.recurring || event.recurring === 'none') {
-    if (base >= rangeStart && base <= rangeEnd) dates.push(base);
-    return dates;
-  }
-
   const until = event.recurring_until || rangeEnd;
   const effectiveEnd = until < rangeEnd ? until : rangeEnd;
-
-  let current = new Date(base + 'T00:00:00');
+  let current = new Date(event.date + 'T00:00:00');
   const end = new Date(effectiveEnd + 'T00:00:00');
   const start = new Date(rangeStart + 'T00:00:00');
-
-  let iterations = 0;
-  while (current <= end && iterations < 500) {
-    iterations++;
+  let i = 0;
+  while (current <= end && i < 500) {
+    i++;
     const dateStr = current.toISOString().split('T')[0];
     if (current >= start) dates.push(dateStr);
-
     if (event.recurring === 'daily') current.setDate(current.getDate() + 1);
     else if (event.recurring === 'weekly') current.setDate(current.getDate() + 7);
     else if (event.recurring === 'monthly') current.setMonth(current.getMonth() + 1);
     else if (event.recurring === 'yearly') current.setFullYear(current.getFullYear() + 1);
     else break;
   }
-
   return dates;
 }
 
