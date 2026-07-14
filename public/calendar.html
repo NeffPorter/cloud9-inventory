@@ -223,7 +223,6 @@ const TYPE_COLORS = {
   deadline:     '#ef4444',
   other:        '#6b7280',
   sale_event:   '#f97316',
-  proposal_due: '#ef4444',
   task:         '#10b981',
 };
 
@@ -359,9 +358,7 @@ function visibleForDate(dateStr) {
   return events.filter(function(e) {
     var eStart = e.date, eEnd = e.end_date || e.date;
     if (dateStr < eStart || dateStr > eEnd) return false;
-    // proposal_due events share the Deadline filter
-    var filterKey = e.type === 'proposal_due' ? 'deadline' : e.type;
-    return activeFilters.has(filterKey);
+    return activeFilters.has(e.type);
   });
 }
 

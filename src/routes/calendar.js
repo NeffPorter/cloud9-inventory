@@ -120,7 +120,7 @@ router.get('/events', auth, async (req, res) => {
           events.push({ id: `se-${e.id}`, source: 'sale_event', title: `🎯 ${e.name}`, type: 'sale_event', date: e.start_date, end_date: e.end_date, color: TYPE_COLORS.sale_event, editable: false });
         }
         if (e.proposal_due_date && e.proposal_due_date >= start && e.proposal_due_date <= end) {
-          events.push({ id: `se-due-${e.id}`, source: 'sale_event', title: `📋 Proposal Due: ${e.name}`, type: 'proposal_due', date: e.proposal_due_date, color: TYPE_COLORS.proposal_due, editable: false });
+          events.push({ id: `se-due-${e.id}`, source: 'sale_event', title: `📋 ${e.name} — Proposal Due`, type: 'deadline', date: e.proposal_due_date, color: TYPE_COLORS.deadline, editable: false });
         }
       });
 
