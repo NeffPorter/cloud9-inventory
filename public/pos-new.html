@@ -94,6 +94,10 @@
 
     <!-- Suggested Orders panel -->
     <div id="panelSuggested">
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:8px" id="suggestedActions" style="display:none">
+        <button onclick="selectAllSuggested(true)"  style="background:#f0f4ff;border:1px solid #c7d7fd;color:#2563eb;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">Select All</button>
+        <button onclick="selectAllSuggested(false)" style="background:#fff0f0;border:1px solid #fca5a5;color:#dc2626;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer">Deselect All</button>
+      </div>
       <div id="suggestedContent" class="loading">Loading suggested orders...</div>
     </div>
 
@@ -191,6 +195,7 @@
         selectedItems[item.id] = { item, qty: item.suggested_order, fromSuggested: true };
       });
       fromSuggested = true;
+      document.getElementById('suggestedActions').style.display = 'flex';
       renderSuggestedTable();
       updateSummary();
     } catch (err) {
@@ -330,6 +335,20 @@
     const savings = invCost > 0 && bp.unit_cost < invCost
       ? `<span class="best-price-savings">save $${(invCost - bp.unit_cost).toFixed(2)}</span>` : '';
     return `<span class="best-price-badge">💰 $${bp.unit_cost.toFixed(2)} · ${bp.distributor_name}</span>${savings}`;
+  }
+
+  function selectAllSuggested(select) {
+    if (select) {
+      suggestedItems.forEach(item => {
+        selectedItems[item.id] = { item, qty: item.suggested_order, fromSuggested: true };
+      });
+    } else {
+      suggestedItems.forEach(item => {
+        delete selectedItems[item.id];
+      });
+    }
+    renderSuggestedTable();
+    updateSummary();
   }
 
   function renderSuggestedTable() {
@@ -655,36 +674,4 @@
       items: items.map(s => ({
         item_id: s.item.id,
         category: s.item.category,
-        group_name: s.item.group_name,
-        variant_name: s.item.variant_name,
-        unit_cost: getUnitCost(s.item),
-        unit_price: s.item.price || 0,
-        ordered_qty: s.qty
-      }))
-    };
-
-    try {
-      const res = await fetch('/api/pos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      if (data.needs_approval) {
-        alert('This PO would put this week\'s spending over the 30% budget line, so it needs admin approval before it can be ordered. It\'s been saved and flagged for approval.');
-      }
-      window.location.href = `/pos/view?id=${data.po.id}`;
-    } catch (err) {
-      alert('Error creating PO: ' + err.message);
-      btn.disabled = false;
-      btn.textContent = '✅ Create Purchase Order';
-    }
-  }
-
-  // Load data
-  loadSuggested();
-</script>
-<script>loadNavbar();</script>
-</body>
-</html>
+        group_name: s.item.gro
