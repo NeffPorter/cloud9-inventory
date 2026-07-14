@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Store To-Do</title>
-<script src="/navbar.js?v=3"></script>
+<script src="/navbar.js?v=4"></script>
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; }
@@ -173,4 +173,29 @@ async function completeAssigned(taskId) {
     method: 'PUT',
     headers: { Authorization: 'Bearer ' + token }
   });
-  if (re
+  if (res.ok) loadTasks();
+}
+
+function renderTask(task) {
+  const today = new Date().toISOString().split('T')[0];
+  const isOverdue = task.due_date && task.due_date < today;
+  const icon = task.task_type === 'stocktake' ? '\U0001F4E6' : '\U0001F3AF';
+  return `
+  <div class="task-card">
+    <div class="task-icon">${icon}</div>
+    <div class="task-info">
+      <div class="task-title">${task.title || 'Untitled Task'}</div>
+      ${task.description ? `<div class="task-desc">${task.description}</div>` : ''}
+      ${task.due_date ? `<div class="task-due ${isOverdue ? 'overdue' : ''}">Due ${task.due_date}${isOverdue ? ' \u2014 OVERDUE' : ''}</div>` : ''}
+    </div>
+    <div class="task-actions">
+      <span class="badge badge-${task.status || 'pending'}">${task.status === 'in_progress' ? 'In Progress' : 'Pending'}</span>
+    </div>
+  </div>`;
+}
+
+init();
+</script>
+<script>loadNavbar();</script>
+</body>
+</html>

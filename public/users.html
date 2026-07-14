@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cloud 9 - Users</title>
-  <script src="/navbar.js?v=2"></script>
+  <script src="/navbar.js?v=4"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -506,4 +506,16 @@
       try {
         await fetch(`/api/auth/users/${id}`, {
           method: 'DELETE',
-          headers: { 'Authorization': 'Bearer ' + token
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        loadUsers();
+      } catch (err) {
+        alert('Could not delete user.');
+      }
+    }
+
+    loadUsers();
+    loadStores();
+  </script>
+</body>
+</html>
