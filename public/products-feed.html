@@ -99,7 +99,7 @@
 <script>
 const token = localStorage.getItem('token');
 const user  = JSON.parse(localStorage.getItem('user') || '{}');
-const ALLOWED = ['regional_manager','him','admin','owner','media','gm','store_user'];
+const ALLOWED = ['regional_manager','him','admin','owner','marketing','gm','store_user'];
 if (!token || !ALLOWED.includes(user.role)) window.location.href = '/dashboard';
 
 let storesMap = {}, selectedStore = '';

@@ -110,7 +110,7 @@
 <script>
 const token = localStorage.getItem('token');
 const user  = JSON.parse(localStorage.getItem('user') || '{}');
-const ALLOWED = ['regional_manager', 'him', 'admin', 'owner', 'gm', 'store_user', 'media'];
+const ALLOWED = ['regional_manager', 'him', 'admin', 'owner', 'gm', 'store_user', 'marketing'];
 const CREATOR_ROLES = ['regional_manager', 'him', 'admin'];
 const isCreator = CREATOR_ROLES.includes(user.role);
 

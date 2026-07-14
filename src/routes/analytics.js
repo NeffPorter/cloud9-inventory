@@ -8,7 +8,7 @@ const {
   fetchInstagramInsights, fetchGoogleReviews, fetchGA4Insights
 } = require('../services/platforms');
 
-const ALLOWED = ['regional_manager', 'him', 'admin', 'owner', 'media', 'gm', 'store_user'];
+const ALLOWED = ['regional_manager', 'him', 'admin', 'owner', 'marketing', 'gm', 'store_user'];
 
 function requireAnalyticsAccess(req, res, next) {
   if (!ALLOWED.includes(req.user.role)) return res.status(403).json({ error: 'Forbidden' });
@@ -25,7 +25,7 @@ router.get('/transactions', auth, requireAnalyticsAccess, async (req, res) => {
     const endDate   = end   ? new Date(end)   : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
     let storeQuery = supabase.from('stores').select('id, name');
-    if (!isHim(req.user.role) && req.user.role !== 'media') {
+    if (!isHim(req.user.role) && req.user.role !== 'marketing') {
       storeQuery = storeQuery.eq('id', req.user.store_id);
     } else if (store_id) {
       storeQuery = storeQuery.eq('id', store_id);
@@ -140,7 +140,7 @@ router.get('/expense-revenue', auth, requireAnalyticsAccess, async (req, res) =>
     const endStr    = endDate.toISOString().slice(0, 10);
 
     let storeQuery = supabase.from('stores').select('id, name');
-    if (!isHim(req.user.role) && req.user.role !== 'media') {
+    if (!isHim(req.user.role) && req.user.role !== 'marketing') {
       storeQuery = storeQuery.eq('id', req.user.store_id);
     } else if (store_id) {
       storeQuery = storeQuery.eq('id', store_id);

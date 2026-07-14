@@ -3,7 +3,7 @@ function buildNavItems(user) {
   const storeId = user.store_id || '';
 
   const isHimRole = ['him', 'admin', 'regional_manager'].includes(role);
-  const isMedia   = role === 'media';
+  const isMedia   = role === 'marketing';
   const isSingle  = role === 'gm' || role === 'store_user';
 
   // Paths that carry a ?store= param for single-store users
@@ -290,7 +290,7 @@ function loadNavbar() {
   document.head.appendChild(style);
 
   // Notifications / tasks polling
-  if (['admin', 'him', 'regional_manager', 'owner', 'media'].includes(user.role)) {
+  if (['admin', 'him', 'regional_manager', 'owner', 'marketing'].includes(user.role)) {
     loadNotifications();
     if (window.__notifPollInterval) clearInterval(window.__notifPollInterval);
     window.__notifPollInterval = setInterval(loadNotifications, 30000);
