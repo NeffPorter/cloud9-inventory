@@ -37,6 +37,7 @@ const ownerRouter = require('./routes/owner');
 app.use('/api/owner', ownerRouter);
 app.use('/api/system', require('./routes/system'));
 app.use('/api/analytics', require('./routes/analytics'));
+app.use('/api/assigned-tasks', require('./routes/assigned-tasks'));
 
 // Static files
 app.use(express.static(path.join(__dirname, '../public')));
@@ -209,6 +210,9 @@ app.get('/analytics', (req, res) => {
 });
 app.get('/products-feed', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/products-feed.html'));
+});
+app.get('/task-manager', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/task-manager.html'));
 });
 
 module.exports = app;

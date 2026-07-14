@@ -12,27 +12,49 @@ function adminOnly(req, res, next) {
 // ─── List notifications ───────────────────────────────────────────────────────
 // HIM+ see target_role='admin' notifications.
 // Store users see target_store_id=their store notifications.
+// All users see target_user_id=their own notifications (assigned tasks etc.)
 router.get('/', auth, async (req, res) => {
   try {
-    let query = supabase
-      .from('notifications')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(50);
+    let results = [];
 
+    // Fetch role/store-scoped notifications
     if (isHim(req.user.role)) {
-      query = query.eq('target_role', 'admin');
+      const { data } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('target_role', 'admin')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      results = results.concat(data || []);
     } else if (req.user.store_id) {
-      query = query.eq('target_store_id', req.user.store_id);
-    } else {
-      return res.json({ notifications: [], unread_count: 0 });
+      const { data } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('target_store_id', req.user.store_id)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      results = results.concat(data || []);
     }
 
-    const { data, error } = await query;
-    if (error) throw error;
+    // Fetch direct user notifications (assigned tasks, completions)
+    const { data: userNotifs } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('target_user_id', req.user.id)
+      .order('created_at', { ascending: false })
+      .limit(30);
+    results = results.concat(userNotifs || []);
 
-    const unreadCount = (data || []).filter(n => !n.read).length;
-    res.json({ notifications: data || [], unread_count: unreadCount });
+    // Deduplicate by id, sort by created_at desc
+    const seen = new Set();
+    const deduped = results.filter(n => {
+      if (seen.has(n.id)) return false;
+      seen.add(n.id);
+      return true;
+    }).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 60);
+
+    const unreadCount = deduped.filter(n => !n.read).length;
+    res.json({ notifications: deduped, unread_count: unreadCount });
   } catch (err) {
     console.error('List notifications error:', err);
     res.status(500).json({ error: err.message });
@@ -57,22 +79,27 @@ router.put('/:id/read', auth, async (req, res) => {
 // ─── Mark all notifications read ─────────────────────────────────────────────
 router.put('/read-all', auth, async (req, res) => {
   try {
-    let query = supabase.from('notifications').update({ read: true }).eq('read', false);
-    if (isHim(req.user.role)) {
-      query = query.eq('target_role', 'admin');
-    } else if (req.user.store_id) {
-      query = query.eq('target_store_id', req.user.store_id);
-    }
-    const { error } = await query;
+    // Mark direct user notifications read
+    await supabase.from('notifications').update({ read: true })
+      .eq('target_user_id', req.user.id).eq('read', false);
 
-    if (error) throw error;
+    // Mark role/store notifications read
+    if (isHim(req.user.role)) {
+      await supabase.from('notifications').update({ read: true })
+        .eq('target_role', 'admin').eq('read', false);
+
+    } else if (req.user.store_id) {
+      await supabase.from('notifications').update({ read: true })
+        .eq('target_store_id', req.user.store_id).eq('read', false);
+    }
+
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// ─── Activity log (HIM+) ──────────────────────────────────────────────────────
+// Activity log (HIM+)
 router.get('/activity-log', auth, adminOnly, async (req, res) => {
   try {
     const { store_id, limit } = req.query;
