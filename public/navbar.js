@@ -156,6 +156,7 @@ function loadNavbar() {
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:12px;">
+        <button onclick="window.location.href='/calendar'" title="Calendar" style="background:transparent;border:none;font-size:20px;cursor:pointer;padding:6px 8px;border-radius:8px;color:#ccc;line-height:1;transition:background .15s" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'">📅</button>
         <div class="nav-item" style="position:relative">
           <button class="nav-btn" id="notifBellBtn" onclick="toggleDropdown('notifDropdown', this)" style="position:relative;font-size:18px;padding:8px 12px;">
             🔔

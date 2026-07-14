@@ -38,6 +38,7 @@ app.use('/api/owner', ownerRouter);
 app.use('/api/system', require('./routes/system'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/assigned-tasks', require('./routes/assigned-tasks'));
+app.use('/api/calendar', require('./routes/calendar'));
 
 // Static files
 app.use(express.static(path.join(__dirname, '../public')));
@@ -217,5 +218,7 @@ app.get('/task-manager', (req, res) => {
 app.get('/promotions', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/promotions.html'));
 });
-
+app.get('/calendar', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/calendar.html'));
+});
 module.exports = app;
