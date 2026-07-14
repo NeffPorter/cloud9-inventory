@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cloud 9 - Users</title>
-  <script src="/navbar.js?v=5"></script>
+  <script src="/navbar.js?v=2"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -118,7 +118,6 @@
     .role-owner { background: #d9ead3; color: #38761d; }
     .role-gm { background: #fce5cd; color: #b45309; }
     .role-store_user { background: #ead1dc; color: #880e4f; }
-    .role-media { background: #f3e8ff; color: #7c3aed; }
     .role-manager { background: #d9ead3; color: #38761d; }
     .action-btns { display: flex; gap: 8px; }
     .edit-btn {
@@ -215,7 +214,6 @@
           <option value="store_user">Inventory Manager (IM)</option>
           <option value="gm">General Manager (GM)</option>
           <option value="owner">Owner</option>
-          <option value="media">Media</option>
           <option value="him">Head Inventory Manager (HIM)</option>
           <option value="admin">Admin</option>
           <option value="regional_manager">Regional Manager</option>
@@ -257,7 +255,6 @@
           <option value="store_user">Inventory Manager (IM)</option>
           <option value="gm">General Manager (GM)</option>
           <option value="owner">Owner</option>
-          <option value="media">Media</option>
           <option value="him">Head Inventory Manager (HIM)</option>
           <option value="admin">Admin</option>
           <option value="regional_manager">Regional Manager</option>
@@ -289,7 +286,7 @@
     function toggleStoreSelect(selectId, role) {
       const groupId = selectId === 'newStore' ? 'newStoreGroup' : 'editStoreGroup';
       // Owner and admin don't need a store assigned
-      const noStore = ['admin', 'him', 'regional_manager', 'owner', 'media'].includes(role);
+      const noStore = ['admin', 'him', 'regional_manager', 'owner'].includes(role);
       document.getElementById(groupId).style.display = noStore ? 'none' : 'block';
     }
 
@@ -369,8 +366,8 @@
                 <tr>
                   <td><div style="display:flex;align-items:center">${dot}<strong>${u.name}</strong>${isMe ? ' <span style="color:#999;font-size:11px;margin-left:4px">(you)</span>' : ''}</div></td>
                   <td>${u.email}</td>
-                  <td><span class="role-badge role-${u.role}">${{regional_manager:'Regional Manager',him:'HIM',admin:'Admin',owner:'Owner',gm:'GM',store_user:'IM',media:'Media'}[u.role] || u.role}</span></td>
-                  <td>${store ? store.name : ['admin','him','regional_manager','owner','media'].includes(u.role) ? 'All Stores' : '—'}</td>
+                  <td><span class="role-badge role-${u.role}">${{regional_manager:'Regional Manager',him:'HIM',admin:'Admin',owner:'Owner',gm:'GM',store_user:'IM'}[u.role] || u.role}</span></td>
+                  <td>${store ? store.name : ['admin','him','regional_manager','owner'].includes(u.role) ? 'All Stores' : '—'}</td>
                   <td>
                     <div class="action-btns">
                       <button class="edit-btn" onclick="openEdit('${u.id}')">Edit</button>
@@ -510,12 +507,12 @@
         });
         loadUsers();
       } catch (err) {
-        alert('Could not delete user.');
+        alert('Error removing user');
       }
     }
 
-    loadUsers();
     loadStores();
+    loadUsers();
   </script>
 </body>
 </html>

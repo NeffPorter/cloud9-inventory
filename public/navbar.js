@@ -80,7 +80,6 @@ function buildNavItems(user) {
         <div class="dropdown-header">Reports</div>
         ${item('/sales',    '💰', 'Sales')}
         ${item('/owner-pl', '📊', 'P&L Statement')}
-        <button class="dropdown-item" onclick="window.location.href='/analytics'">📊 Analytics</button>
       </div>
     </div>
 
