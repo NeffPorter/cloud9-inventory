@@ -54,7 +54,8 @@ function requireOwnerLevel(req, res, next) {
   if (!isOwnerLevel(req.user?.role)) return res.status(403).json({ error: 'Owner access required' });
   next();
 }
-
 module.exports = {
   HIM_ROLES, USER_ADMIN_ROLES, OWNER_ROLES, STORE_ROLES,
-  isHi
+  isHim, isUserAdmin, isOwnerLevel, isStoreLevel,
+  requireHim, requireUserAdmin, requireOwnerLevel
+};
