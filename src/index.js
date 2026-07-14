@@ -36,6 +36,7 @@ app.use('/api/store-expenses', storeExpensesRouter);
 const ownerRouter = require('./routes/owner');
 app.use('/api/owner', ownerRouter);
 app.use('/api/system', require('./routes/system'));
+app.use('/api/analytics', require('./routes/analytics'));
 
 // Static files
 app.use(express.static(path.join(__dirname, '../public')));
@@ -202,6 +203,12 @@ app.get('/owner-pl', (req, res) => {
 });
 app.get('/settings', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/settings.html'));
+});
+app.get('/analytics', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/analytics.html'));
+});
+app.get('/products-feed', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/products-feed.html'));
 });
 
 module.exports = app;

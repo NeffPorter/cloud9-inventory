@@ -3,6 +3,7 @@ function buildNavItems(user) {
   const storeId = user.store_id || '';
 
   const isHimRole = ['him', 'admin', 'regional_manager'].includes(role);
+  const isMedia   = role === 'media';
   const isSingle  = role === 'gm' || role === 'store_user';
 
   // Paths that carry a ?store= param for single-store users
@@ -43,6 +44,25 @@ function buildNavItems(user) {
       </div>
     </div>` : '';
 
+  // Media role gets its own simplified nav
+  if (isMedia) {
+    return `
+      <div class="nav-item" style="position:relative">
+        <button class="nav-btn" onclick="toggleDropdown('mediaDropdown', this)">📊 Analytics <span style="font-size:10px">▼</span></button>
+        <div class="dropdown" id="mediaDropdown">
+          <div class="dropdown-header">Analytics</div>
+          <button class="dropdown-item" onclick="window.location.href='/analytics'">📊 Analytics</button>
+          <button class="dropdown-item" onclick="window.location.href='/products-feed'">🆕 Products Feed</button>
+          <button class="dropdown-item" onclick="window.location.href='/owner-inventory'">🔍 Product Lookup</button>
+          <button class="dropdown-item" onclick="window.location.href='/sale-events'">📅 Sale Events</button>
+          <button class="dropdown-item" onclick="window.location.href='/gm-expenses'">💼 Expenses</button>
+        </div>
+      </div>
+      <div class="nav-item">
+        <button class="nav-btn" onclick="window.location.href='${todoHref}'">✅ To-Do</button>
+      </div>`;
+  }
+
   return `
     <!-- Reports -->
     <div class="nav-item" style="position:relative">
@@ -51,6 +71,7 @@ function buildNavItems(user) {
         <div class="dropdown-header">Reports</div>
         ${item('/sales',    '💰', 'Sales')}
         ${item('/owner-pl', '📊', 'P&L Statement')}
+        <button class="dropdown-item" onclick="window.location.href='/analytics'">📊 Analytics</button>
       </div>
     </div>
 
@@ -65,6 +86,7 @@ function buildNavItems(user) {
         ${item('/schedules',       '🎯', 'Discount Scheduler')}
         <button class="dropdown-item" onclick="window.location.href='/sale-events'">📅 Sale Events</button>
         <button class="dropdown-item" onclick="window.location.href='/owner-inventory'">🔍 Inventory Lookup</button>
+        <button class="dropdown-item" onclick="window.location.href='/products-feed'">🆕 Products Feed</button>
       </div>
     </div>
 

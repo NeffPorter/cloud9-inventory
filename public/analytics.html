@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloud 9 - Analytics</title>
+  <script src="/navbar.js?v=2"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; min-height: 100vh; }
+    .page { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
+    .page-header { margin-bottom: 28px; }
+    .page-title { font-size: 24px; font-weight: 700; color: #1a1a2e; }
+    .page-subtitle { color: #666; font-size: 14px; margin-top: 4px; }
+
+    /* Controls */
+    .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 24px; background: white; padding: 16px; border-radius: 12px; border: 1px solid #e5e7eb; }
+    .control-group { display: flex; flex-direction: column; gap: 5px; }
+    .control-group label { font-size: 12px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: .04em; }
+    .controls input, .controls select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: white; }
+    .preset-btn { padding: 7px 16px; border-radius: 8px; border: 1.5px solid #ddd; background: white; font-size: 13px; font-weight: 600; cursor: pointer; color: #555; transition: all .15s; }
+    .preset-btn:hover { border-color: #2563eb; color: #2563eb; }
+    .preset-btn.active { border-color: #2563eb; background: #2563eb; color: white; }
+    .btn { padding: 8px 18px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; background: #2563eb; color: white; }
+    .btn:hover { background: #1d4ed8; }
+
+    /* Section headers */
+    .section-title { font-size: 16px; font-weight: 700; color: #1a1a2e; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .section { background: white; border-radius: 12px; padding: 24px; border: 1px solid #e5e7eb; margin-bottom: 24px; }
+
+    /* Summary stat cards */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .stat-card { background: white; border-radius: 12px; padding: 20px; border: 1px solid #e5e7eb; }
+    .stat-label { font-size: 11px; font-weight: 600; color: #999; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 8px; }
+    .stat-value { font-size: 28px; font-weight: 800; color: #1a1a2e; }
+    .stat-sub { font-size: 12px; color: #666; margin-top: 4px; }
+
+    /* Store table */
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; font-size: 11px; font-weight: 700; color: #999; text-transform: uppercase; letter-spacing: .05em; padding: 8px 12px; border-bottom: 2px solid #e5e7eb; }
+    td { padding: 12px; border-bottom: 1px solid #f3f4f6; font-size: 14px; color: #1a1a2e; }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #f9fafb; }
+    .store-name { font-weight: 600; }
+    .positive { color: #16a34a; }
+    .negative { color: #dc2626; }
+
+    /* Platform sections */
+    .platform-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 700px) { .platform-grid { grid-template-columns: 1fr; } }
+
+    .platform-card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; }
+    .platform-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+    .platform-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+    .platform-name { font-size: 15px; font-weight: 700; color: #1a1a2e; }
+    .platform-status { font-size: 12px; color: #888; }
+
+    .metric-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f3f4f6; }
+    .metric-row:last-child { border-bottom: none; }
+    .metric-label { font-size: 13px; color: #555; }
+    .metric-value { font-size: 15px; font-weight: 700; color: #1a1a2e; }
+
+    .setup-banner { background: #f0f4ff; border: 1px solid #c7d7f8; border-radius: 10px; padding: 16px 20px; font-size: 13px; color: #2563eb; margin-bottom: 16px; }
+    .setup-banner strong { display: block; margin-bottom: 4px; font-size: 14px; }
+
+    /* Store tabs */
+    .store-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+    .store-tab { padding: 6px 16px; border-radius: 20px; border: 1.5px solid #e5e7eb; background: white; font-size: 13px; font-weight: 600; cursor: pointer; color: #555; }
+    .store-tab.active { border-color: #2563eb; background: #2563eb; color: white; }
+
+    .loading { text-align: center; padding: 40px; color: #999; font-size: 14px; }
+  </style>
+</head>
+<body>
+<script>loadNavbar();</script>
+
+<div class="page">
+  <div class="page-header">
+    <div class="page-title">📊 Analytics</div>
+    <div class="page-subtitle">Transaction data, Google Business, and Apple Business Connect stats</div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <div class="control-group">
+      <label>Store</label>
+      <select id="storeFilter" onchange="load()">
+        <option value="">All Stores</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>From</label>
+      <input type="date" id="startDate" onchange="load()">
+    </div>
+    <div class="control-group">
+      <label>To</label>
+      <input type="date" id="endDate" onchange="load()">
+    </div>
+    <div class="control-group">
+      <label>Quick range</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="preset-btn active" onclick="setRange('month',this)">This Month</button>
+        <button class="preset-btn" onclick="setRange('week',this)">This Week</button>
+        <button class="preset-btn" onclick="setRange('30d',this)">Last 30 Days</button>
+        <button class="preset-btn" onclick="setRange('ytd',this)">YTD</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transaction summary cards -->
+  <div class="stats-grid" id="summaryCards">
+    <div class="stat-card"><div class="stat-label">Total Transactions</div><div class="stat-value" id="totalTx">—</div></div>
+    <div class="stat-card"><div class="stat-label">Sales</div><div class="stat-value" id="totalSales">—</div></div>
+    <div class="stat-card"><div class="stat-label">Refunds</div><div class="stat-value" id="totalRefunds">—</div></div>
+    <div class="stat-card"><div class="stat-label">Gross Revenue</div><div class="stat-value" id="totalGross">—</div></div>
+  </div>
+
+  <!-- Per-store breakdown -->
+  <div class="section">
+    <div class="section-title">🏪 Per-Store Breakdown</div>
+    <div id="storeTable"><div class="loading">Loading...</div></div>
+  </div>
+
+  <!-- Google & Apple -->
+  <div class="platform-grid">
+    <!-- Google Business Profile -->
+    <div class="platform-card">
+      <div class="platform-header">
+        <div class="platform-icon" style="background:#fff3cd">🔍</div>
+        <div>
+          <div class="platform-name">Google Business Profile</div>
+          <div class="platform-status" id="googleStatus">Not configured</div>
+        </div>
+      </div>
+      <div class="setup-banner" id="googleSetup">
+        <strong>Setup Required</strong>
+        Ask your media person for the Google Business Profile API credentials (service account JSON or OAuth client) and add them to Railway environment variables as <code>GOOGLE_CLIENT_EMAIL</code>, <code>GOOGLE_PRIVATE_KEY</code>, and <code>GOOGLE_LOCATION_IDS</code>.
+      </div>
+      <div id="googleMetrics" style="display:none">
+        <div class="metric-row"><span class="metric-label">🔍 Search Impressions</span><span class="metric-value" id="gSearches">—</span></div>
+        <div class="metric-row"><span class="metric-label">👁️ Profile Views</span><span class="metric-value" id="gViews">—</span></div>
+        <div class="metric-row"><span class="metric-label">📞 Calls</span><span class="metric-value" id="gCalls">—</span></div>
+        <div class="metric-row"><span class="metric-label">🗺️ Direction Requests</span><span class="metric-value" id="gDirections">—</span></div>
+        <div class="metric-row"><span class="metric-label">🌐 Website Clicks</span><span class="metric-value" id="gWebsite">—</span></div>
+      </div>
+    </div>
+
+    <!-- Apple Business Connect -->
+    <div class="platform-card">
+      <div class="platform-header">
+        <div class="platform-icon" style="background:#f0f0f0">🍎</div>
+        <div>
+          <div class="platform-name">Apple Business Connect</div>
+          <div class="platform-status" id="appleStatus">Not configured</div>
+        </div>
+      </div>
+      <div class="setup-banner" id="appleSetup">
+        <strong>Setup Required</strong>
+        Ask your media person for the Apple Business Connect API key and add it to Railway as <code>APPLE_ABC_KEY_ID</code>, <code>APPLE_ABC_TEAM_ID</code>, <code>APPLE_ABC_PRIVATE_KEY</code>, and <code>APPLE_ABC_LOCATION_IDS</code>.
+      </div>
+      <div id="appleMetrics" style="display:none">
+        <div class="metric-row"><span class="metric-label">🔍 Search Impressions</span><span class="metric-value" id="aSearches">—</span></div>
+        <div class="metric-row"><span class="metric-label">👁️ Profile Views</span><span class="metric-value" id="aViews">—</span></div>
+        <div class="metric-row"><span class="metric-label">📞 Calls</span><span class="metric-value" id="aCalls">—</span></div>
+        <div class="metric-row"><span class="metric-label">🗺️ Direction Requests</span><span class="metric-value" id="aDirections">—</span></div>
+        <div class="metric-row"><span class="metric-label">🌐 Website Clicks</span><span class="metric-value" id="aWebsite">—</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem('token');
+const user  = JSON.parse(localStorage.getItem('user') || '{}');
+const ALLOWED = ['regional_manager', 'him', 'admin', 'owner', 'media'];
+if (!token || !ALLOWED.includes(user.role)) window.location.href = '/dashboard';
+
+// Set default date range to this month
+function setRange(range, btn) {
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const now = new Date();
+  let start, end;
+  if (range === 'month') {
+    start = new Date(now.getFullYear(), now.getMonth(), 1);
+    end   = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  } else if (range === 'week') {
+    const day = now.getDay();
+    start = new Date(now); start.setDate(now.getDate() - day);
+    end   = new Date(now); end.setDate(now.getDate() + (6 - day));
+  } else if (range === '30d') {
+    start = new Date(now); start.setDate(now.getDate() - 29);
+    end   = new Date(now);
+  } else if (range === 'ytd') {
+    start = new Date(now.getFullYear(), 0, 1);
+    end   = new Date(now);
+  }
+  document.getElementById('startDate').value = start.toISOString().slice(0,10);
+  document.getElementById('endDate').value   = end.toISOString().slice(0,10);
+  load();
+}
+
+function fmt(n) { return '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 }); }
+
+async function loadStores() {
+  const r = await fetch('/api/stores', { headers: { Authorization: 'Bearer ' + token } });
+  const data = await r.json();
+  const sel = document.getElementById('storeFilter');
+  (data.stores || data || []).forEach(s => {
+    const o = document.createElement('option');
+    o.value = s.id; o.textContent = s.name;
+    sel.appendChild(o);
+  });
+}
+
+async function load() {
+  const storeId = document.getElementById('storeFilter').value;
+  const start   = document.getElementById('startDate').value;
+  const end     = document.getElementById('endDate').value;
+  let url = `/api/analytics/transactions?start=${start}&end=${end}`;
+  if (storeId) url += `&store_id=${storeId}`;
+
+  document.getElementById('storeTable').innerHTML = '<div class="loading">Loading...</div>';
+
+  const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+  const data = await r.json();
+  const stores = data.stores || [];
+
+  // Summary
+  const totTx = stores.reduce((s,x) => s + x.sales + x.refunds, 0);
+  const totSales = stores.reduce((s,x) => s + x.sales, 0);
+  const totRefunds = stores.reduce((s,x) => s + x.refunds, 0);
+  const totGross = stores.reduce((s,x) => s + x.gross, 0);
+  document.getElementById('totalTx').textContent = totTx.toLocaleString();
+  document.getElementById('totalSales').textContent = totSales.toLocaleString();
+  document.getElementById('totalRefunds').textContent = totRefunds.toLocaleString();
+  document.getElementById('totalGross').textContent = fmt(totGross);
+
+  // Table
+  if (stores.length === 0) {
+    document.getElementById('storeTable').innerHTML = '<div class="loading">No data for this period.</div>';
+    return;
+  }
+  let html = `<table>
+    <thead><tr>
+      <th>Store</th><th>Sales</th><th>Refunds</th><th>Gross Revenue</th><th>Net Revenue</th>
+    </tr></thead><tbody>`;
+  stores.forEach(s => {
+    html += `<tr>
+      <td class="store-name">${s.name}</td>
+      <td>${s.sales.toLocaleString()}</td>
+      <td>${s.refunds.toLocaleString()}</td>
+      <td class="${s.gross >= 0 ? 'positive' : 'negative'}">${fmt(s.gross)}</td>
+      <td class="${s.net >= 0 ? 'positive' : 'negative'}">${fmt(s.net)}</td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('storeTable').innerHTML = html;
+}
+
+// Init
+loadStores();
+setRange('month', null);
+document.querySelector('.preset-btn').classList.add('active');
+</script>
+</body>
+</html>
