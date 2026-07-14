@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cloud 9 - Products Feed</title>
+  <script src="/navbar.js?v=5"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; min-height: 100vh; }
+    .page { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+    .page-title { font-size: 24px; font-weight: 700; color: #1a1a2e; }
+    .page-subtitle { color: #666; font-size: 14px; margin-top: 4px; margin-bottom: 28px; }
+
+    /* Controls */
+    .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 24px; background: white; padding: 16px; border-radius: 12px; border: 1px solid #e5e7eb; }
+    .control-group { display: flex; flex-direction: column; gap: 5px; }
+    .control-group label { font-size: 12px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: .04em; }
+    .controls select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: white; }
+
+    /* Section */
+    .section { background: white; border-radius: 12px; padding: 24px; border: 1px solid #e5e7eb; margin-bottom: 24px; }
+    .section-title { font-size: 15px; font-weight: 700; color: #1a1a2e; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .count-badge { background: #f3f4f6; color: #374151; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 12px; }
+
+    /* Product cards */
+    .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+    .product-card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; background: #fafafa; }
+    .product-name { font-size: 14px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
+    .product-variant { font-size: 12px; color: #666; margin-bottom: 8px; }
+    .product-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .meta-tag { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+    .tag-store { background: #e0f2fe; color: #0369a1; }
+    .tag-dropping { background: #fee2e2; color: #dc2626; }
+    .tag-new { background: #d1fae5; color: #065f46; }
+    .tag-category { background: #f3e8ff; color: #7c3aed; }
+    .tag-qty { background: #f9fafb; color: #374151; border: 1px solid #e5e7eb; }
+
+    .empty { text-align: center; padding: 32px; color: #999; font-size: 14px; }
+    .loading { text-align: center; padding: 40px; color: #999; font-size: 14px; }
+    .new-days-badge { font-size: 11px; color: #888; margin-top: 6px; }
+  </style>
+</head>
+<body>
+<script>loadNavbar();</script>
+
+<div class="page">
+  <div class="page-title">🆕 Products Feed</div>
+  <div class="page-subtitle">New arrivals and dropping products across all stores</div>
+
+  <div class="controls">
+    <div class="control-group">
+      <label>Store</label>
+      <select id="storeFilter" onchange="load()">
+        <option value="">All Stores</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>New = added within</label>
+      <select id="newDays" onchange="load()">
+        <option value="7">Last 7 days</option>
+        <option value="14">Last 14 days</option>
+        <option value="30" selected>Last 30 days</option>
+        <option value="60">Last 60 days</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Dropping -->
+  <div class="section">
+    <div class="section-title">
+      🔻 Dropping Products
+      <span class="count-badge" id="droppingCount">0</span>
+    </div>
+    <div id="droppingGrid"><div class="loading">Loading...</div></div>
+  </div>
+
+  <!-- New Arrivals -->
+  <div class="section">
+    <div class="section-title">
+      ✨ New Arrivals
+      <span class="count-badge" id="newCount">0</span>
+    </div>
+    <div id="newGrid"><div class="loading">Loading...</div></div>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem('token');
+const user  = JSON.parse(localStorage.getItem('user') || '{}');
+const ALLOWED = ['regional_manager', 'him', 'admin', 'owner', 'media', 'gm', 'store_user'];
+if (!token || !ALLOWED.includes(user.role)) window.location.href = '/dashboard';
+
+let storesMap = {};
+
+async function loadStores() {
+  const r = await fetch('/api/inventory/stores', { headers: { Authorization: 'Bearer ' + token } });
+  const data = await r.json();
+  const stores = data.stores || data || [];
+  stores.forEach(s => { storesMap[s.id] = s.name; });
+  const sel = document.getElementById('storeFilter');
+  stores.forEach(s => {
+    const o = document.createElement('option');
+    o.value = s.id; o.textContent = s.name;
+    sel.appendChild(o);
+  });
+}
+
+function card(item, type) {
+  const storeName = storesMap[item.store_id] || '—';
+  const daysAgo = item.created_at
+    ? Math.floor((Date.now() - new Date(item.created_at)) / 86400000)
+    : null;
+  return `<div class="product-card">
+    <div class="product-name">${item.group_name || item.variant_name || item.id}</div>
+    ${item.variant_name && item.group_name ? `<div class="product-variant">${item.variant_name}</div>` : ''}
+    <div class="product-meta">
+      <span class="meta-tag tag-store">${storeName}</span>
+      ${type === 'dropping' ? '<span class="meta-tag tag-dropping">Dropping</span>' : '<span class="meta-tag tag-new">New</span>'}
+      ${item.category ? `<span class="meta-tag tag-category">${item.category}</span>` : ''}
+      ${item.clover_qty != null ? `<span class="meta-tag tag-qty">Qty: ${item.clover_qty}</span>` : ''}
+    </div>
+    ${daysAgo !== null ? `<div class="new-days-badge">Added ${daysAgo === 0 ? 'today' : daysAgo + 'd ago'}</div>` : ''}
+  </div>`;
+}
+
+async function load() {
+  const storeId = document.getElementById('storeFilter').value;
+  const days    = parseInt(document.getElementById('newDays').value) || 30;
+
+  document.getElementById('droppingGrid').innerHTML = '<div class="loading">Loading...</div>';
+  document.getElementById('newGrid').innerHTML = '<div class="loading">Loading...</div>';
+
+  let url = `/api/inventory/items?`;
+  if (storeId) url += `store_id=${storeId}&`;
+  url += 'limit=500';
+
+  const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
+  const data = await r.json();
+  const items = data.items || data || [];
+
+  const cutoff = new Date(Date.now() - days * 86400000).toISOString();
+
+  const dropping = items.filter(i => i.status === 'Dropping');
+  const newItems = items.filter(i => i.created_at && i.created_at >= cutoff && i.status !== 'Dropping');
+
+  document.getElementById('droppingCount').textContent = dropping.length;
+  document.getElementById('newCount').textContent = newItems.length;
+
+  document.getElementById('droppingGrid').innerHTML = dropping.length
+    ? `<div class="product-grid">${dropping.map(i => card(i, 'dropping')).join('')}</div>`
+    : '<div class="empty">No products currently marked as Dropping.</div>';
+
+  document.getElementById('newGrid').innerHTML = newItems.length
+    ? `<div class="product-grid">${newItems.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).map(i => card(i, 'new')).join('')}</div>`
+    : '<div class="empty">No new products in this period.</div>';
+}
+
+loadStores().then(load);
+</script>
+</body>
+</html>

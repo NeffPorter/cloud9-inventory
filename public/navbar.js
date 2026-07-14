@@ -3,6 +3,7 @@ function buildNavItems(user) {
   const storeId = user.store_id || '';
 
   const isHimRole = ['him', 'admin', 'regional_manager'].includes(role);
+  const isMedia   = role === 'media';
   const isSingle  = role === 'gm' || role === 'store_user';
 
   // Paths that carry a ?store= param for single-store users
@@ -43,6 +44,25 @@ function buildNavItems(user) {
       </div>
     </div>` : '';
 
+  // Media role gets its own simplified nav
+  if (isMedia) {
+    return `
+      <div class="nav-item" style="position:relative">
+        <button class="nav-btn" onclick="toggleDropdown('mediaDropdown', this)">📊 Analytics <span style="font-size:10px">▼</span></button>
+        <div class="dropdown" id="mediaDropdown">
+          <div class="dropdown-header">Analytics</div>
+            <button class="dropdown-item" onclick="window.location.href='/analytics'">📊 Analytics Dashboard</button>
+            <button class="dropdown-item" onclick="window.location.href='/products-feed'">🆕 Products Feed</button>
+          <button class="dropdown-item" onclick="window.location.href='/owner-inventory'">🔍 Product Lookup</button>
+          <button class="dropdown-item" onclick="window.location.href='/sale-events'">📅 Sale Events</button>
+          <button class="dropdown-item" onclick="window.location.href='/gm-expenses'">💼 Expenses</button>
+        </div>
+      </div>
+      <div class="nav-item">
+        <button class="nav-btn" onclick="window.location.href='${todoHref}'">✅ To-Do</button>
+      </div>`;
+  }
+
   return `
     <!-- Reports -->
     <div class="nav-item" style="position:relative">
@@ -51,8 +71,10 @@ function buildNavItems(user) {
         <div class="dropdown-header">Reports</div>
         ${item('/sales',    '💰', 'Sales')}
         ${item('/owner-pl', '📊', 'P&L Statement')}
+        <button class="dropdown-item" onclick="window.location.href='/analytics'">📊 Analytics Dashboard</button>
       </div>
     </div>
+
 
     <!-- Inventory Management -->
     <div class="nav-item" style="position:relative">
@@ -65,6 +87,7 @@ function buildNavItems(user) {
         ${item('/schedules',       '🎯', 'Discount Scheduler')}
         <button class="dropdown-item" onclick="window.location.href='/sale-events'">📅 Sale Events</button>
         <button class="dropdown-item" onclick="window.location.href='/owner-inventory'">🔍 Inventory Lookup</button>
+        <button class="dropdown-item" onclick="window.location.href='/products-feed'">🆕 Products Feed</button>
       </div>
     </div>
 
@@ -82,10 +105,19 @@ function buildNavItems(user) {
       </div>
     </div>
 
-    <!-- To-Do (direct link, no dropdown) -->
+    <!-- To-Do / Task Manager -->
+    ${isHimRole ? `
+    <div class="nav-item" style="position:relative">
+      <button class="nav-btn" onclick="toggleDropdown('todoDropdown', this)">✅ To-Do <span style="font-size:10px">▼</span></button>
+      <div class="dropdown" id="todoDropdown">
+        <div class="dropdown-header">Tasks</div>
+        <button class="dropdown-item" onclick="window.location.href='${todoHref}'">✅ My To-Do</button>
+        <button class="dropdown-item" onclick="window.location.href='/task-manager'">📋 Task Manager</button>
+      </div>
+    </div>` : `
     <div class="nav-item">
       <button class="nav-btn" onclick="window.location.href='${todoHref}'">✅ To-Do</button>
-    </div>
+    </div>`}
 
     ${adminSection}`;
 }
@@ -258,7 +290,7 @@ function loadNavbar() {
   document.head.appendChild(style);
 
   // Notifications / tasks polling
-  if (['admin', 'him', 'regional_manager', 'owner'].includes(user.role)) {
+  if (['admin', 'him', 'regional_manager', 'owner', 'media'].includes(user.role)) {
     loadNotifications();
     if (window.__notifPollInterval) clearInterval(window.__notifPollInterval);
     window.__notifPollInterval = setInterval(loadNotifications, 30000);
@@ -352,24 +384,50 @@ async function loadStoreTasks(storeId) {
   const list = document.getElementById('notifList');
   if (!list) return;
   try {
-    const res = await fetch(`/api/store-tasks?store_id=${storeId}`, {
-      headers: { 'Authorization': 'Bearer ' + token }
-    });
-    if (!res.ok) return;
-    const tasks = await res.json();
-    if (!Array.isArray(tasks) || tasks.length === 0) {
+    // Fetch store tasks + assigned tasks in parallel
+    const [storeRes, assignedRes] = await Promise.all([
+      fetch(`/api/store-tasks?store_id=${storeId}`, { headers: { 'Authorization': 'Bearer ' + token } }),
+      fetch('/api/assigned-tasks/mine', { headers: { 'Authorization': 'Bearer ' + token } })
+    ]);
+
+    const storeTasks = storeRes.ok ? await storeRes.json() : [];
+    const assignedData = assignedRes.ok ? await assignedRes.json() : { tasks: [] };
+    const assignedTasks = assignedData.tasks || [];
+
+    const totalCount = (Array.isArray(storeTasks) ? storeTasks.length : 0) + assignedTasks.length;
+
+    if (totalCount === 0) {
       if (badge) badge.style.display = 'none';
       list.innerHTML = '<div style="padding:16px;color:#999;font-size:13px;text-align:center;">No pending tasks 🎉</div>';
       return;
     }
     if (badge) {
       badge.style.display = 'block';
-      badge.textContent = tasks.length > 99 ? '99+' : tasks.length;
+      badge.textContent = totalCount > 99 ? '99+' : totalCount;
     }
     const today = new Date().toISOString().split('T')[0];
-    list.innerHTML = tasks.map(t => {
+
+    // Render assigned tasks first (with 📋 tag)
+    const assignedHtml = assignedTasks.map(t => {
       const isOverdue = t.due_date && t.due_date < today;
-      const icon = t.task_type === 'sale_proposal' ? '🎯' : '📦';
+      const from = t.creator ? (t.creator.name || t.creator.email) : '';
+      return `
+        <div onclick="window.location.href='/task-manager'" style="
+          padding:12px 16px;
+          border-bottom:1px solid #f0f0f0;
+          cursor:pointer;
+          background:${isOverdue ? '#fff5f5' : '#f0f4ff'};
+          transition:background 0.15s;
+        " onmouseover="this.style.background='#e8efff'" onmouseout="this.style.background='${isOverdue ? '#fff5f5' : '#f0f4ff'}'">
+          <div style="font-size:13px;font-weight:700;color:#333;margin-bottom:2px;">📋 ${t.title}</div>
+          ${from ? `<div style="font-size:12px;color:#666;">From: ${from}</div>` : ''}
+          ${t.due_date ? `<div style="font-size:11px;color:${isOverdue ? '#dc2626' : '#aaa'};margin-top:4px;">${isOverdue ? '⚠️ Overdue · ' : ''}Due ${t.due_date}</div>` : ''}
+        </div>`;
+    }).join('');
+    // Render store tasks
+    const storeHtml = (Array.isArray(storeTasks) ? storeTasks : []).map(t => {
+      const isOverdue = t.due_date && t.due_date < today;
+      const icon = t.task_type === 'sale_proposal' ? '\u{1f3af}' : '\u{1f4e6}';
       const link = t.task_type === 'sale_proposal' && t.reference_id
         ? `/sale-proposal?id=${t.reference_id}`
         : `/store-tasks?store=${storeId}`;
@@ -383,9 +441,11 @@ async function loadStoreTasks(storeId) {
         " onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background='${isOverdue ? '#fff5f5' : 'white'}'">
           <div style="font-size:13px;font-weight:700;color:#333;margin-bottom:2px;">${icon} ${t.title}</div>
           ${t.description ? `<div style="font-size:12px;color:#666;">${t.description}</div>` : ''}
-          ${t.due_date ? `<div style="font-size:11px;color:${isOverdue ? '#dc2626' : '#aaa'};margin-top:4px;">${isOverdue ? '⚠️ Overdue · ' : ''}Due ${t.due_date}</div>` : ''}
+          ${t.due_date ? `<div style="font-size:11px;color:${isOverdue ? '#dc2626' : '#aaa'};margin-top:4px;">${isOverdue ? '\u26a0\ufe0f Overdue \u00b7 ' : ''}Due ${t.due_date}</div>` : ''}
         </div>`;
     }).join('');
+
+    list.innerHTML = assignedHtml + storeHtml;
   } catch (err) {
     console.error('Store tasks error:', err);
   }
