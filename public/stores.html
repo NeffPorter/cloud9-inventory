@@ -125,6 +125,13 @@
       <div style="font-size:11px;color:#888;margin-top:4px;">Leave blank to keep the existing token.</div>
     </div>
 
+    <div class="section-divider">📈 Google Analytics (GA4)</div>
+    <div class="form-group">
+      <label>Property ID <span class="label-hint">— e.g. 123456789 or properties/123456789</span></label>
+      <input type="text" id="editGA4PropertyId" placeholder="e.g. 123456789">
+      <div style="font-size:11px;color:#888;margin-top:4px;">The service account must be added as Viewer in GA4 admin.</div>
+    </div>
+
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeModal()">Cancel</button>
       <button class="btn-save" onclick="saveStore()" id="saveBtn">Save Credentials</button>
@@ -165,6 +172,7 @@ async function loadStores() {
             <span class="platform-dot ${s.google_location_id ? 'dot-on' : 'dot-off'}">🔍 Google ${s.google_location_id ? '✓' : '—'}</span>
             <span class="platform-dot ${s.apple_location_id  ? 'dot-on' : 'dot-off'}">🍎 Apple ${s.apple_location_id  ? '✓' : '—'}</span>
             <span class="platform-dot ${s.facebook_page_id   ? 'dot-on' : 'dot-off'}">📘 Facebook ${s.facebook_page_id ? '✓' : '—'}</span>
+            <span class="platform-dot ${s.ga4_property_id ? 'dot-on' : 'dot-off'}">📈 GA4 ${s.ga4_property_id ? '✓' : '—'}</span>
           </div>
         </div>
         <div class="store-actions">
@@ -184,6 +192,7 @@ function openModal(store) {
   document.getElementById('editAppleLocationId').value  = store.apple_location_id  || '';
   document.getElementById('editFacebookPageId').value   = store.facebook_page_id   || '';
   document.getElementById('editFacebookToken').value    = '';
+  document.getElementById('editGA4PropertyId').value    = store.ga4_property_id    || '';
   document.getElementById('editError').style.display = 'none';
   document.getElementById('editModal').classList.add('open');
 }
@@ -204,6 +213,7 @@ async function saveStore() {
     google_location_id:  document.getElementById('editGoogleLocationId').value.trim() || null,
     apple_location_id:   document.getElementById('editAppleLocationId').value.trim()  || null,
     facebook_page_id:    document.getElementById('editFacebookPageId').value.trim()   || null,
+    ga4_property_id:     document.getElementById('editGA4PropertyId').value.trim()    || null,
   };
   const fbToken = document.getElementById('editFacebookToken').value.trim();
   if (fbToken) body.facebook_page_token = fbToken;

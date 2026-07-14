@@ -3,7 +3,10 @@ const router = express.Router();
 const auth = require('../middleware/auth');
 const supabase = require('../lib/supabase');
 const { isHim } = require('../lib/roles');
-const { fetchGoogleInsights, fetchAppleInsights, fetchFacebookInsights } = require('../services/platforms');
+const {
+  fetchGoogleInsights, fetchAppleInsights, fetchFacebookInsights,
+  fetchInstagramInsights, fetchGoogleReviews, fetchGA4Insights
+} = require('../services/platforms');
 
 const ALLOWED = ['regional_manager', 'him', 'admin', 'owner', 'media'];
 
@@ -16,13 +19,10 @@ function requireAnalyticsAccess(req, res, next) {
 router.get('/transactions', auth, requireAnalyticsAccess, async (req, res) => {
   try {
     const { store_id, start, end } = req.query;
-
-    // Build date range (default: current month)
     const now = new Date();
     const startDate = start ? new Date(start) : new Date(now.getFullYear(), now.getMonth(), 1);
     const endDate   = end   ? new Date(end)   : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
-    // Determine which stores to query
     let storeQuery = supabase.from('stores').select('id, name');
     if (!isHim(req.user.role) && req.user.role !== 'media') {
       storeQuery = storeQuery.eq('id', req.user.store_id);
@@ -33,8 +33,6 @@ router.get('/transactions', auth, requireAnalyticsAccess, async (req, res) => {
     if (!stores || stores.length === 0) return res.json({ stores: [] });
 
     const storeIds = stores.map(s => s.id);
-
-    // Fetch sales_log for the date range
     const { data: sales } = await supabase
       .from('sales_log')
       .select('store_id, type, gross, net, tax')
@@ -42,12 +40,10 @@ router.get('/transactions', auth, requireAnalyticsAccess, async (req, res) => {
       .gte('created_at', startDate.toISOString())
       .lte('created_at', endDate.toISOString());
 
-    // Aggregate per store
     const storeMap = {};
     stores.forEach(s => {
       storeMap[s.id] = { id: s.id, name: s.name, sales: 0, refunds: 0, gross: 0, net: 0 };
     });
-
     (sales || []).forEach(row => {
       if (!storeMap[row.store_id]) return;
       if (row.type === 'Sale') {
@@ -60,55 +56,130 @@ router.get('/transactions', auth, requireAnalyticsAccess, async (req, res) => {
         storeMap[row.store_id].net   += row.net   || 0;
       }
     });
-
     res.json({ stores: Object.values(storeMap) });
   } catch (err) {
-    console.error('Analytics error:', err.message);
+    console.error('Analytics/transactions error:', err.message);
     res.status(500).json({ error: 'Failed to load analytics' });
   }
 });
 
-// Helper: load stores with platform credentials from DB
+// Helper: load stores with ALL platform credentials from DB
 async function getPlatformStores(storeId) {
-  let q = supabase.from('stores').select('id, name, google_location_id, apple_location_id, facebook_page_id, facebook_page_token');
+  let q = supabase.from('stores').select(
+    'id, name, google_location_id, apple_location_id, facebook_page_id, facebook_page_token, ga4_property_id'
+  );
   if (storeId) q = q.eq('id', storeId);
   const { data } = await q;
   return data || [];
 }
 
-// GET /api/analytics/google?start=&end=&store_id=
+// GET /api/analytics/google
 router.get('/google', auth, requireAnalyticsAccess, async (req, res) => {
   try {
     const stores = await getPlatformStores(req.query.store_id);
-    const result = await fetchGoogleInsights(req.query.start, req.query.end, stores);
-    res.json(result);
-  } catch (err) {
-    console.error('[Route] Google analytics error:', err.message);
-    res.status(500).json({ configured: true, error: err.message });
-  }
+    res.json(await fetchGoogleInsights(req.query.start, req.query.end, stores));
+  } catch (err) { res.status(500).json({ configured: true, error: err.message }); }
 });
 
-// GET /api/analytics/apple?start=&end=&store_id=
+// GET /api/analytics/apple
 router.get('/apple', auth, requireAnalyticsAccess, async (req, res) => {
   try {
     const stores = await getPlatformStores(req.query.store_id);
-    const result = await fetchAppleInsights(req.query.start, req.query.end, stores);
-    res.json(result);
-  } catch (err) {
-    console.error('[Route] Apple analytics error:', err.message);
-    res.status(500).json({ configured: true, error: err.message });
-  }
+    res.json(await fetchAppleInsights(req.query.start, req.query.end, stores));
+  } catch (err) { res.status(500).json({ configured: true, error: err.message }); }
 });
 
-// GET /api/analytics/facebook?start=&end=&store_id=
+// GET /api/analytics/facebook
 router.get('/facebook', auth, requireAnalyticsAccess, async (req, res) => {
   try {
     const stores = await getPlatformStores(req.query.store_id);
-    const result = await fetchFacebookInsights(req.query.start, req.query.end, stores);
-    res.json(result);
+    res.json(await fetchFacebookInsights(req.query.start, req.query.end, stores));
+  } catch (err) { res.status(500).json({ configured: true, error: err.message }); }
+});
+
+// GET /api/analytics/instagram
+router.get('/instagram', auth, requireAnalyticsAccess, async (req, res) => {
+  try {
+    const stores = await getPlatformStores(req.query.store_id);
+    res.json(await fetchInstagramInsights(req.query.start, req.query.end, stores));
+  } catch (err) { res.status(500).json({ configured: true, error: err.message }); }
+});
+
+// GET /api/analytics/google-reviews
+router.get('/google-reviews', auth, requireAnalyticsAccess, async (req, res) => {
+  try {
+    const stores = await getPlatformStores(req.query.store_id);
+    res.json(await fetchGoogleReviews(stores));
+  } catch (err) { res.status(500).json({ configured: true, error: err.message }); }
+});
+
+// GET /api/analytics/ga4
+router.get('/ga4', auth, requireAnalyticsAccess, async (req, res) => {
+  try {
+    const stores = await getPlatformStores(req.query.store_id);
+    res.json(await fetchGA4Insights(req.query.start, req.query.end, stores));
+  } catch (err) { res.status(500).json({ configured: true, error: err.message }); }
+});
+
+// GET /api/analytics/expense-revenue?store_id=&start=&end=
+router.get('/expense-revenue', auth, requireAnalyticsAccess, async (req, res) => {
+  try {
+    const { store_id, start, end } = req.query;
+    const now = new Date();
+    const startDate = start ? new Date(start) : new Date(now.getFullYear(), now.getMonth(), 1);
+    const endDate   = end   ? new Date(end)   : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    const startStr  = startDate.toISOString().slice(0, 10);
+    const endStr    = endDate.toISOString().slice(0, 10);
+
+    let storeQuery = supabase.from('stores').select('id, name');
+    if (!isHim(req.user.role) && req.user.role !== 'media') {
+      storeQuery = storeQuery.eq('id', req.user.store_id);
+    } else if (store_id) {
+      storeQuery = storeQuery.eq('id', store_id);
+    }
+    const { data: stores } = await storeQuery;
+    if (!stores || stores.length === 0) return res.json({ stores: [] });
+
+    const storeIds = stores.map(s => s.id);
+
+    // Revenue from sales_log (net of sales, minus net of refunds)
+    const { data: sales } = await supabase
+      .from('sales_log')
+      .select('store_id, type, net')
+      .in('store_id', storeIds)
+      .gte('created_at', startDate.toISOString())
+      .lte('created_at', endDate.toISOString());
+
+    // Expenses
+    const { data: expenses } = await supabase
+      .from('store_expenses')
+      .select('store_id, amount')
+      .in('store_id', storeIds)
+      .gte('expense_date', startStr)
+      .lte('expense_date', endStr);
+
+    const storeMap = {};
+    stores.forEach(s => { storeMap[s.id] = { id: s.id, name: s.name, revenue: 0, expenses: 0 }; });
+
+    (sales || []).forEach(row => {
+      if (!storeMap[row.store_id]) return;
+      const net = row.net || 0;
+      storeMap[row.store_id].revenue += row.type === 'Sale' ? net : (row.type === 'Refund' ? -Math.abs(net) : 0);
+    });
+    (expenses || []).forEach(row => {
+      if (storeMap[row.store_id]) storeMap[row.store_id].expenses += row.amount || 0;
+    });
+
+    const result = Object.values(storeMap).map(s => ({
+      ...s,
+      margin: s.revenue - s.expenses,
+      marginPct: s.revenue > 0 ? ((s.revenue - s.expenses) / s.revenue * 100).toFixed(1) : '0.0'
+    }));
+
+    res.json({ stores: result });
   } catch (err) {
-    console.error('[Route] Facebook analytics error:', err.message);
-    res.status(500).json({ configured: true, error: err.message });
+    console.error('Expense-revenue error:', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 

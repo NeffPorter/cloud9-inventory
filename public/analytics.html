@@ -3,94 +3,102 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Analytics - Cloud 9</title>
+  <title>Cloud 9 - Analytics</title>
   <script src="/navbar.js?v=5"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; color: #1a1a2e; }
-    .page { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
-    .page-header { margin-bottom: 24px; }
-    .page-title { font-size: 24px; font-weight: 700; color: #1a1a2e; }
-    .page-subtitle { color: #666; font-size: 14px; margin-top: 4px; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; min-height: 100vh; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 28px 20px; }
+    .page-title { font-size: 24px; font-weight: 700; color: #1a1a2e; margin-bottom: 6px; }
+    .page-sub   { font-size: 14px; color: #666; margin-bottom: 24px; }
 
-    /* Standard controls — matches sales.html */
-    .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 24px; background: white; padding: 16px; border-radius: 12px; border: 1px solid #e5e7eb; }
-    .control-group { display: flex; flex-direction: column; gap: 5px; }
-    .control-group label { font-size: 12px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: .04em; }
-    .controls input, .controls select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: white; }
-    .preset-btn { padding: 7px 16px; border-radius: 8px; border: 1.5px solid #ddd; background: white; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; color: #555; }
+    /* Controls */
+    .controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; background: white; border-radius: 12px; padding: 16px 20px; box-shadow: 0 1px 6px rgba(0,0,0,.06); margin-bottom: 24px; }
+    .control-group { display: flex; flex-direction: column; gap: 4px; }
+    .control-group label { font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: .04em; }
+    .control-group select, .control-group input[type=date] { padding: 8px 12px; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 13px; outline: none; }
+    .control-group select:focus, .control-group input:focus { border-color: #2563eb; }
+    .preset-group { display: flex; gap: 6px; }
+    .preset-btn { padding: 8px 14px; border: 1.5px solid #e0e0e0; background: white; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; color: #555; }
     .preset-btn:hover { border-color: #2563eb; color: #2563eb; }
-    .preset-btn.active { border-color: #2563eb; background: #2563eb; color: white; }
-    .btn { padding: 8px 18px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
-    .btn-primary { background: #2563eb; color: white; }
-    .btn-primary:hover { background: #1d4ed8; }
+    .preset-btn.active { border-color: #2563eb; background: #eff6ff; color: #2563eb; }
+    .apply-btn { padding: 8px 20px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; margin-left: auto; }
+    .apply-btn:hover { background: #1d4ed8; }
 
     /* Section headers */
-    .section-header { display: flex; align-items: center; justify-content: space-between; margin: 28px 0 16px; }
-    .section-title { font-size: 18px; font-weight: 700; color: #1a1a2e; }
+    .section-title { font-size: 17px; font-weight: 700; color: #1a1a2e; margin: 28px 0 14px; padding-bottom: 10px; border-bottom: 2px solid #e5e7eb; display: flex; align-items: center; gap: 8px; }
 
-    /* Platform cards */
-    .platform-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; margin-bottom: 28px; }
-    .platform-card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; }
-    .platform-card-header { padding: 16px 18px 12px; border-bottom: 1px solid #f3f4f6; display: flex; align-items: center; gap: 12px; }
-    .platform-logo { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
-    .logo-google { background: #fef2f2; }
-    .logo-apple { background: #f5f5f5; }
-    .logo-facebook { background: #eff6ff; }
-    .platform-name { font-size: 15px; font-weight: 700; }
-    .platform-status { margin-left: auto; }
-    .badge { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: 700; }
-    .badge-live { background: #d1fae5; color: #065f46; }
-    .badge-unconfigured { background: #f3f4f6; color: #6b7280; }
-    .badge-error { background: #fee2e2; color: #dc2626; }
-    .badge-loading { background: #dbeafe; color: #1d4ed8; }
-    .platform-card-body { padding: 14px 18px 18px; }
-    .metric-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
-    .metric-box { flex: 1; min-width: 80px; background: #f9fafb; border-radius: 8px; padding: 10px 12px; }
-    .metric-val { font-size: 22px; font-weight: 700; }
-    .metric-lbl { font-size: 11px; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-top: 2px; }
-    .setup-banner { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px; padding: 12px 14px; font-size: 13px; color: #92400e; }
-    .setup-banner code { background: #fef3c7; padding: 1px 5px; border-radius: 4px; font-size: 12px; font-family: monospace; }
-    .breakdown-toggle { font-size: 12px; font-weight: 600; color: #2563eb; cursor: pointer; margin-top: 8px; display: inline-block; }
-    .breakdown-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
-    .breakdown-table th { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e5e7eb; color: #888; font-weight: 600; text-transform: uppercase; font-size: 10px; }
-    .breakdown-table td { padding: 7px 8px; border-bottom: 1px solid #f3f4f6; color: #374151; }
+    /* Platform card grid */
+    .platform-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+    .platform-card { background: white; border-radius: 12px; padding: 20px 22px; box-shadow: 0 1px 6px rgba(0,0,0,.06); }
+    .card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+    .card-icon { font-size: 22px; }
+    .card-title-text { font-size: 15px; font-weight: 700; color: #1a1a2e; }
+    .card-subtitle { font-size: 12px; color: #888; margin-top: 1px; }
+    .metric-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f5f5f5; }
+    .metric-row:last-child { border-bottom: none; }
+    .metric-label { font-size: 13px; color: #555; }
+    .metric-value { font-size: 15px; font-weight: 700; color: #1a1a2e; }
+    .not-configured { color: #9ca3af; font-size: 13px; text-align: center; padding: 20px 0; }
+    .error-msg { color: #dc2626; font-size: 12px; margin-top: 8px; }
+    .loading { color: #9ca3af; font-size: 13px; text-align: center; padding: 20px 0; }
+    .per-location { margin-top: 12px; }
+    .loc-row { font-size: 12px; color: #666; display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #f5f5f5; }
+    .loc-row:last-child { border-bottom: none; }
+    .loc-name { font-weight: 600; color: #374151; }
 
-    /* Transaction section */
-    .summary-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; margin-bottom: 24px; }
-    .summary-card { background: white; border-radius: 10px; border: 1px solid #e5e7eb; padding: 16px 18px; }
-    .summary-card .val { font-size: 26px; font-weight: 700; }
-    .summary-card .lbl { font-size: 11px; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-top: 4px; }
-    .val-green { color: #16a34a; }
-    .val-red { color: #dc2626; }
-    .val-blue { color: #2563eb; }
-    .stores-table-wrap { background: white; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; }
-    .stores-table { width: 100%; border-collapse: collapse; }
-    .stores-table th { text-align: left; padding: 11px 16px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: .04em; }
-    .stores-table td { padding: 13px 16px; border-bottom: 1px solid #f3f4f6; font-size: 13px; }
-    .stores-table tr:last-child td { border-bottom: none; }
-    .stores-table .store-name { font-weight: 600; }
-    .refund-val { color: #dc2626; }
-    .loading-msg { text-align: center; padding: 32px; color: #999; font-size: 14px; }
-    .error-msg { text-align: center; padding: 24px; color: #dc2626; font-size: 13px; }
+    /* Reputation */
+    .rep-card { background: white; border-radius: 12px; padding: 22px 24px; box-shadow: 0 1px 6px rgba(0,0,0,.06); }
+    .rep-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin-top: 14px; }
+    .rep-store { background: #f9fafb; border-radius: 10px; padding: 14px 16px; text-align: center; }
+    .rep-store-name { font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 8px; }
+    .rep-score { font-size: 32px; font-weight: 800; color: #2563eb; }
+    .rep-score-label { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+    .rep-stars { font-size: 14px; color: #f59e0b; margin-top: 4px; }
+    .stars-row { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; margin-top: 6px; }
+    .stars-item { font-size: 12px; color: #555; }
+
+    /* Sales comparison table */
+    .comp-card { background: white; border-radius: 12px; padding: 22px 24px; box-shadow: 0 1px 6px rgba(0,0,0,.06); }
+    .comp-table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 13px; }
+    .comp-table th { text-align: left; padding: 8px 12px; font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: .04em; border-bottom: 2px solid #e5e7eb; }
+    .comp-table td { padding: 10px 12px; border-bottom: 1px solid #f3f4f6; color: #374151; }
+    .comp-table tr:last-child td { border-bottom: none; }
+    .comp-table tr:hover td { background: #f9fafb; }
+    .positive { color: #059669; }
+    .negative { color: #dc2626; }
+    .chart-wrap { position: relative; height: 280px; margin-top: 20px; }
+
+    /* Expense/Revenue */
+    .er-card { background: white; border-radius: 12px; padding: 22px 24px; box-shadow: 0 1px 6px rgba(0,0,0,.06); }
+    .er-chart-wrap { position: relative; height: 280px; margin-top: 16px; }
+
+    /* GA4 */
+    .ga4-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
+    .ga4-card { background: white; border-radius: 12px; padding: 18px 20px; box-shadow: 0 1px 6px rgba(0,0,0,.06); text-align: center; }
+    .ga4-num  { font-size: 28px; font-weight: 800; color: #2563eb; }
+    .ga4-lbl  { font-size: 12px; color: #6b7280; margin-top: 4px; }
+    .ga4-sub  { font-size: 11px; color: #9ca3af; margin-top: 2px; }
+
+    .summary-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+    .summary-card  { background: white; border-radius: 12px; padding: 16px 18px; box-shadow: 0 1px 6px rgba(0,0,0,.06); text-align: center; }
+    .summary-num   { font-size: 26px; font-weight: 800; color: #1a1a2e; }
+    .summary-lbl   { font-size: 12px; color: #6b7280; margin-top: 4px; }
   </style>
 </head>
 <body>
 <script>loadNavbar();</script>
 
-<div class="page">
-  <div class="page-header">
-    <div class="page-title">📊 Analytics</div>
-    <div class="page-subtitle">Platform insights and sales data</div>
-  </div>
+<div class="container">
+  <div class="page-title">📊 Analytics Dashboard</div>
+  <div class="page-sub">Social, search, reviews, traffic, and revenue across all stores</div>
 
-  <!-- Standard controls bar -->
+  <!-- Controls -->
   <div class="controls">
     <div class="control-group">
       <label>Store</label>
-      <select id="storeSelect" onchange="applyRange()">
-        <option value="">All Stores</option>
-      </select>
+      <select id="storeFilter"><option value="">All Stores</option></select>
     </div>
     <div class="control-group">
       <label>From</label>
@@ -101,232 +109,382 @@
       <input type="date" id="endDate">
     </div>
     <div class="control-group">
-      <label>&nbsp;</label>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="preset-btn active" onclick="setPreset('month',this)">This Month</button>
-        <button class="preset-btn" onclick="setPreset(7,this)">7 Days</button>
-        <button class="preset-btn" onclick="setPreset(30,this)">30 Days</button>
+      <label>Quick</label>
+      <div class="preset-group">
+        <button class="preset-btn" onclick="setPreset('month')">This Month</button>
+        <button class="preset-btn" onclick="setPreset('7')">7 Days</button>
+        <button class="preset-btn" onclick="setPreset('30')">30 Days</button>
       </div>
     </div>
-    <div class="control-group">
-      <label>&nbsp;</label>
-      <button class="btn btn-primary" onclick="applyRange()">Apply</button>
-    </div>
+    <button class="apply-btn" onclick="loadAll()">Apply</button>
   </div>
 
-  <!-- Platform Analytics -->
-  <div class="section-header">
-    <div class="section-title">📡 Platform Analytics</div>
-  </div>
+  <!-- ── Social Media ── -->
+  <div class="section-title">📱 Social Media</div>
   <div class="platform-grid">
-    <div class="platform-card">
-      <div class="platform-card-header">
-        <div class="platform-logo logo-google">🔍</div>
-        <div><div class="platform-name">Google Business</div></div>
-        <div class="platform-status"><span class="badge badge-loading" id="badge-google">Loading...</span></div>
-      </div>
-      <div class="platform-card-body" id="body-google"><div class="loading-msg">Fetching data...</div></div>
+    <div class="platform-card" id="fbCard">
+      <div class="card-header"><span class="card-icon">📘</span><div><div class="card-title-text">Facebook Pages</div><div class="card-subtitle" id="fbSub">Loading…</div></div></div>
+      <div id="fbBody"><div class="loading">Loading…</div></div>
     </div>
-    <div class="platform-card">
-      <div class="platform-card-header">
-        <div class="platform-logo logo-apple">🍎</div>
-        <div><div class="platform-name">Apple Business Connect</div></div>
-        <div class="platform-status"><span class="badge badge-loading" id="badge-apple">Loading...</span></div>
-      </div>
-      <div class="platform-card-body" id="body-apple"><div class="loading-msg">Fetching data...</div></div>
-    </div>
-    <div class="platform-card">
-      <div class="platform-card-header">
-        <div class="platform-logo logo-facebook">📘</div>
-        <div><div class="platform-name">Facebook Pages</div></div>
-        <div class="platform-status"><span class="badge badge-loading" id="badge-facebook">Loading...</span></div>
-      </div>
-      <div class="platform-card-body" id="body-facebook"><div class="loading-msg">Fetching data...</div></div>
+    <div class="platform-card" id="igCard">
+      <div class="card-header"><span class="card-icon">📸</span><div><div class="card-title-text">Instagram</div><div class="card-subtitle" id="igSub">Loading…</div></div></div>
+      <div id="igBody"><div class="loading">Loading…</div></div>
     </div>
   </div>
 
-  <!-- Sales Analytics -->
-  <div class="section-header">
-    <div class="section-title">💰 Sales Analytics</div>
+  <!-- ── Search & Maps ── -->
+  <div class="section-title">🔍 Search & Maps</div>
+  <div class="platform-grid">
+    <div class="platform-card" id="gCard">
+      <div class="card-header"><span class="card-icon">🔍</span><div><div class="card-title-text">Google Business Profile</div><div class="card-subtitle" id="gSub">Loading…</div></div></div>
+      <div id="gBody"><div class="loading">Loading…</div></div>
+    </div>
+    <div class="platform-card" id="appleCard">
+      <div class="card-header"><span class="card-icon">🍎</span><div><div class="card-title-text">Apple Business Connect</div><div class="card-subtitle" id="appleSub">Loading…</div></div></div>
+      <div id="appleBody"><div class="loading">Loading…</div></div>
+    </div>
   </div>
-  <div id="summaryCards" class="summary-cards"></div>
-  <div id="storesTable"></div>
+
+  <!-- ── Reviews & Reputation ── -->
+  <div class="section-title">⭐ Reviews & Reputation</div>
+  <div class="rep-card">
+    <div id="repBody"><div class="loading">Loading reputation data…</div></div>
+  </div>
+
+  <!-- ── Website Traffic (GA4) ── -->
+  <div class="section-title">📈 Website Traffic (GA4)</div>
+  <div id="ga4Body"><div class="loading" style="background:white;border-radius:12px;padding:24px;box-shadow:0 1px 6px rgba(0,0,0,.06);">Loading GA4 data…</div></div>
+
+  <!-- ── Store Comparison ── -->
+  <div class="section-title">🏪 Store Comparison</div>
+  <div class="comp-card">
+    <div id="compBody"><div class="loading">Loading…</div></div>
+  </div>
+
+  <!-- ── Expense vs Revenue ── -->
+  <div class="section-title">💰 Revenue vs Expenses</div>
+  <div class="er-card">
+    <div id="erBody"><div class="loading">Loading…</div></div>
+  </div>
 </div>
 
 <script>
 const token = localStorage.getItem('token');
 const user  = JSON.parse(localStorage.getItem('user') || '{}');
 const ALLOWED = ['regional_manager','him','admin','owner','media'];
-if (!token || !ALLOWED.includes(user.role)) window.location.href = '/dashboard';
+if (!token || !ALLOWED.includes(user.role)) window.location.href = '/';
 
-// ---- Date helpers ----
-function todayStr() { return new Date().toISOString().split('T')[0]; }
-function daysAgoStr(n) { const d = new Date(); d.setDate(d.getDate()-n+1); return d.toISOString().split('T')[0]; }
-function monthStartStr() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`; }
+const $ = id => document.getElementById(id);
+let storeCompChart = null;
+let erChart = null;
 
-function setPreset(val, btn) {
+// ── Date helpers ──────────────────────────────────────────────────────────────
+function today() { return new Date().toISOString().slice(0, 10); }
+function monthStart() {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
+}
+function daysAgo(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
+function setPreset(p) {
   document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
-  if (btn) btn.classList.add('active');
-  if (val === 'month') {
-    document.getElementById('startDate').value = monthStartStr();
-    document.getElementById('endDate').value   = todayStr();
-  } else {
-    document.getElementById('startDate').value = daysAgoStr(val);
-    document.getElementById('endDate').value   = todayStr();
-  }
-  applyRange();
+  event.target.classList.add('active');
+  if (p === 'month')  { $('startDate').value = monthStart(); $('endDate').value = today(); }
+  if (p === '7')      { $('startDate').value = daysAgo(7);   $('endDate').value = today(); }
+  if (p === '30')     { $('startDate').value = daysAgo(30);  $('endDate').value = today(); }
 }
 
-function applyRange() {
-  const start = document.getElementById('startDate').value;
-  const end   = document.getElementById('endDate').value;
-  loadAllPlatforms(start, end);
-  loadTransactions(start, end);
-}
-
-// ---- Store loader ----
+// ── Stores ────────────────────────────────────────────────────────────────────
 async function loadStores() {
-  try {
-    const r = await fetch('/api/inventory/stores', { headers: { Authorization: 'Bearer ' + token } });
-    const d = await r.json();
-    const stores = d.stores || d || [];
-    const sel = document.getElementById('storeSelect');
-    stores.forEach(s => {
-      const o = document.createElement('option');
-      o.value = s.id; o.textContent = s.name;
-      sel.appendChild(o);
-    });
-    // If user has only one store, auto-select it
-    if (stores.length === 1) sel.value = stores[0].id;
-  } catch(e) {}
+  const r = await fetch('/api/inventory/stores', { headers: { Authorization: 'Bearer ' + token } });
+  const d = await r.json();
+  const stores = d.stores || [];
+  const sel = $('storeFilter');
+  stores.forEach(s => {
+    const o = document.createElement('option');
+    o.value = s.id; o.textContent = s.name;
+    sel.appendChild(o);
+  });
 }
 
-// ---- Platform loaders ----
+function qs() {
+  const storeId = $('storeFilter').value;
+  const start   = $('startDate').value;
+  const end     = $('endDate').value;
+  let q = '';
+  if (storeId) q += `store_id=${storeId}&`;
+  if (start)   q += `start=${start}&`;
+  if (end)     q += `end=${end}&`;
+  return q ? '?' + q.slice(0, -1) : '';
+}
+
+async function api(path) {
+  const r = await fetch('/api/analytics' + path, { headers: { Authorization: 'Bearer ' + token } });
+  return r.json();
+}
+
 function fmt(n) { return (n||0).toLocaleString(); }
+function money(n) { return '$' + ((n||0)).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+function stars(rating) {
+  const full = Math.round(rating || 0);
+  return '★'.repeat(full) + '☆'.repeat(Math.max(0, 5 - full));
+}
 
-async function loadPlatform(key, start, end) {
-  const badge = document.getElementById('badge-'+key);
-  const body  = document.getElementById('body-'+key);
-  badge.className = 'badge badge-loading'; badge.textContent = 'Loading...';
-  body.innerHTML = '<div class="loading-msg">Fetching...</div>';
-  try {
-    const params = (start && end) ? `?start=${start}&end=${end}` : '';
-    const res = await fetch(`/api/analytics/${key}${params}`, { headers: { Authorization: 'Bearer '+token } });
-    const d = await res.json();
-    if (!d.configured) {
-      badge.className = 'badge badge-unconfigured'; badge.textContent = 'Not Configured';
-      body.innerHTML = setupBanner(key); return;
-    }
-    if (d.error) {
-      badge.className = 'badge badge-error'; badge.textContent = 'Error';
-      body.innerHTML = `<div class="error-msg">⚠️ ${d.error}</div>`; return;
-    }
-    badge.className = 'badge badge-live'; badge.textContent = 'Live';
-    body.innerHTML = renderPlatform(key, d);
-  } catch(e) {
-    badge.className = 'badge badge-error'; badge.textContent = 'Error';
-    body.innerHTML = `<div class="error-msg">⚠️ ${e.message}</div>`;
+// ── Facebook ──────────────────────────────────────────────────────────────────
+async function loadFacebook() {
+  $('fbBody').innerHTML = '<div class="loading">Loading…</div>';
+  const d = await api('/facebook' + qs());
+  if (!d.configured) {
+    $('fbSub').textContent = 'Not configured';
+    $('fbBody').innerHTML = '<div class="not-configured">No Facebook pages configured.<br>Add Page ID & Token in <a href="/stores">Stores</a>.</div>';
+    return;
   }
+  if (d.error) { $('fbBody').innerHTML = `<div class="error-msg">${d.error}</div>`; return; }
+  $('fbSub').textContent = (d.pages||[]).length + ' page(s)';
+  $('fbBody').innerHTML = `
+    <div class="metric-row"><span class="metric-label">Fans / Followers</span><span class="metric-value">${fmt(d.totals.fans)} / ${fmt(d.totals.followers)}</span></div>
+    <div class="metric-row"><span class="metric-label">Impressions</span><span class="metric-value">${fmt(d.totals.impressions)}</span></div>
+    <div class="metric-row"><span class="metric-label">Engaged Users</span><span class="metric-value">${fmt(d.totals.engaged)}</span></div>
+    <div class="metric-row"><span class="metric-label">Page Views</span><span class="metric-value">${fmt(d.totals.views)}</span></div>
+    ${(d.pages||[]).length > 1 ? `<div class="per-location">${(d.pages||[]).map(p=>`<div class="loc-row"><span class="loc-name">${p.name}</span><span>${fmt(p.fans)} fans</span></div>`).join('')}</div>` : ''}`;
 }
 
-function setupBanner(key) {
-  const hints = {
-    google: 'Add store Google location IDs in Stores settings.',
-    apple:  'Add store Apple location IDs in Stores settings.',
-    facebook: 'Add Facebook page ID and token in Stores settings.'
-  };
-  return `<div class="setup-banner"><strong>Not configured.</strong> ${hints[key]}</div>`;
+// ── Instagram ─────────────────────────────────────────────────────────────────
+async function loadInstagram() {
+  $('igBody').innerHTML = '<div class="loading">Loading…</div>';
+  const d = await api('/instagram' + qs());
+  if (!d.configured) {
+    $('igSub').textContent = 'Not configured';
+    $('igBody').innerHTML = '<div class="not-configured">Instagram requires a Facebook page with an Instagram Business Account linked.</div>';
+    return;
+  }
+  if (d.error) { $('igBody').innerHTML = `<div class="error-msg">${d.error}</div>`; return; }
+  $('igSub').textContent = (d.accounts||[]).length + ' account(s)';
+  $('igBody').innerHTML = `
+    <div class="metric-row"><span class="metric-label">Total Followers</span><span class="metric-value">${fmt(d.totals.followers)}</span></div>
+    <div class="metric-row"><span class="metric-label">Impressions</span><span class="metric-value">${fmt(d.totals.impressions)}</span></div>
+    <div class="metric-row"><span class="metric-label">Reach</span><span class="metric-value">${fmt(d.totals.reach)}</span></div>
+    <div class="metric-row"><span class="metric-label">Profile Views</span><span class="metric-value">${fmt(d.totals.profileViews)}</span></div>
+    ${(d.accounts||[]).length > 1 ? `<div class="per-location">${(d.accounts||[]).map(a=>`<div class="loc-row"><span class="loc-name">${a.name}${a.username?' (@'+a.username+')':''}</span><span>${fmt(a.followers)} followers</span></div>`).join('')}</div>` : ''}`;
 }
 
-function renderPlatform(key, d) {
+// ── Google Business ───────────────────────────────────────────────────────────
+async function loadGoogle() {
+  $('gBody').innerHTML = '<div class="loading">Loading…</div>';
+  const d = await api('/google' + qs());
+  if (!d.configured) {
+    $('gSub').textContent = 'Not configured';
+    $('gBody').innerHTML = '<div class="not-configured">No Google Location IDs configured.<br>Add them in <a href="/stores">Stores</a>.</div>';
+    return;
+  }
+  if (d.error) { $('gBody').innerHTML = `<div class="error-msg">${d.error}</div>`; return; }
+  $('gSub').textContent = (d.locations||[]).length + ' location(s)';
+  $('gBody').innerHTML = `
+    <div class="metric-row"><span class="metric-label">Impressions</span><span class="metric-value">${fmt(d.totals.impressions)}</span></div>
+    <div class="metric-row"><span class="metric-label">Calls</span><span class="metric-value">${fmt(d.totals.calls)}</span></div>
+    <div class="metric-row"><span class="metric-label">Directions</span><span class="metric-value">${fmt(d.totals.directions)}</span></div>
+    <div class="metric-row"><span class="metric-label">Website Clicks</span><span class="metric-value">${fmt(d.totals.websiteClicks)}</span></div>
+    ${(d.locations||[]).length > 1 ? `<div class="per-location">${(d.locations||[]).map(l=>`<div class="loc-row"><span class="loc-name">${l.name}</span><span>${fmt(l.impressions)} imp</span></div>`).join('')}</div>` : ''}`;
+}
+
+// ── Apple ─────────────────────────────────────────────────────────────────────
+async function loadApple() {
+  $('appleBody').innerHTML = '<div class="loading">Loading…</div>';
+  const d = await api('/apple' + qs());
+  if (!d.configured) {
+    $('appleSub').textContent = 'Not configured';
+    $('appleBody').innerHTML = '<div class="not-configured">No Apple Location IDs configured.<br>Add them in <a href="/stores">Stores</a>.</div>';
+    return;
+  }
+  if (d.error) { $('appleBody').innerHTML = `<div class="error-msg">${d.error}</div>`; return; }
+  $('appleSub').textContent = (d.locations||[]).length + ' location(s)';
+  $('appleBody').innerHTML = `
+    <div class="metric-row"><span class="metric-label">Impressions</span><span class="metric-value">${fmt(d.totals.impressions)}</span></div>
+    <div class="metric-row"><span class="metric-label">Taps</span><span class="metric-value">${fmt(d.totals.taps)}</span></div>
+    <div class="metric-row"><span class="metric-label">Calls</span><span class="metric-value">${fmt(d.totals.calls)}</span></div>
+    <div class="metric-row"><span class="metric-label">Directions</span><span class="metric-value">${fmt(d.totals.directions)}</span></div>
+    ${(d.locations||[]).length > 1 ? `<div class="per-location">${(d.locations||[]).map(l=>`<div class="loc-row"><span class="loc-name">${l.name}</span><span>${fmt(l.impressions)} imp</span></div>`).join('')}</div>` : ''}`;
+}
+
+// ── Reputation ────────────────────────────────────────────────────────────────
+async function loadReputation() {
+  $('repBody').innerHTML = '<div class="loading">Loading reputation data…</div>';
+  const [grev, fb] = await Promise.all([
+    api('/google-reviews' + qs()),
+    api('/facebook' + qs())
+  ]);
+
+  const googleByName = {};
+  if (grev.configured && !grev.error) {
+    (grev.locations||[]).forEach(l => { googleByName[l.name] = l; });
+  }
+  const fbByName = {};
+  if (fb.configured && !fb.error) {
+    (fb.pages||[]).forEach(p => { fbByName[p.name] = p; });
+  }
+
+  const allNames = [...new Set([...Object.keys(googleByName), ...Object.keys(fbByName)])];
+
+  if (!allNames.length) {
+    $('repBody').innerHTML = '<div class="not-configured">Configure Google or Facebook credentials to see reputation data.</div>';
+    return;
+  }
+
+  const cards = allNames.map(name => {
+    const g = googleByName[name];
+    const f = fbByName[name];
+    const gRating  = g ? (g.averageRating || 0) : null;
+    const fRating  = f ? null : null; // FB overall_star_rating not always available
+    const hasG = gRating !== null && gRating > 0;
+    const score = hasG ? gRating.toFixed(1) : '—';
+    const starsHtml = hasG ? `<div class="rep-stars">${stars(gRating)}</div>` : '';
+    return `<div class="rep-store">
+      <div class="rep-store-name">${name}</div>
+      <div class="rep-score">${score}</div>
+      ${starsHtml}
+      <div class="rep-score-label">Google Rating</div>
+      ${g ? `<div class="stars-item" style="margin-top:6px;font-size:11px;color:#6b7280;">${fmt(g.totalReviewCount)} reviews</div>` : ''}
+      ${f ? `<div class="stars-item" style="margin-top:6px;font-size:11px;color:#2563eb;">FB: ${fmt(f.fans)} fans</div>` : ''}
+    </div>`;
+  }).join('');
+
+  $('repBody').innerHTML = `<div class="rep-grid">${cards}</div>`;
+}
+
+// ── GA4 ───────────────────────────────────────────────────────────────────────
+async function loadGA4() {
+  $('ga4Body').innerHTML = '<div class="loading" style="background:white;border-radius:12px;padding:24px;box-shadow:0 1px 6px rgba(0,0,0,.06);">Loading GA4…</div>';
+  const d = await api('/ga4' + qs());
+  if (!d.configured) {
+    $('ga4Body').innerHTML = '<div style="background:white;border-radius:12px;padding:24px;box-shadow:0 1px 6px rgba(0,0,0,.06);"><div class="not-configured">No GA4 Property IDs configured.<br>Add them in <a href="/stores">Stores → Credentials</a> and ensure the service account has Viewer access in GA4.</div></div>';
+    return;
+  }
+  if (d.error) {
+    $('ga4Body').innerHTML = `<div style="background:white;border-radius:12px;padding:24px;box-shadow:0 1px 6px rgba(0,0,0,.06);"><div class="error-msg">${d.error}</div></div>`;
+    return;
+  }
   const t = d.totals || {};
-  if (key === 'google') return `
-    <div class="metric-row">
-      <div class="metric-box"><div class="metric-val">${fmt(t.impressions)}</div><div class="metric-lbl">Impressions</div></div>
-      <div class="metric-box"><div class="metric-val">${fmt(t.calls)}</div><div class="metric-lbl">Calls</div></div>
-      <div class="metric-box"><div class="metric-val">${fmt(t.directions)}</div><div class="metric-lbl">Directions</div></div>
-      <div class="metric-box"><div class="metric-val">${fmt(t.websiteClicks)}</div><div class="metric-lbl">Website</div></div>
-    </div>${breakdownTable(d.locations||[], ['Impressions','Calls','Dir.','Web'], l=>[fmt(l.impressions),fmt(l.calls),fmt(l.directions),fmt(l.websiteClicks)])}`;
-  if (key === 'apple') return `
-    <div class="metric-row">
-      <div class="metric-box"><div class="metric-val">${fmt(t.impressions)}</div><div class="metric-lbl">Impressions</div></div>
-      <div class="metric-box"><div class="metric-val">${fmt(t.taps)}</div><div class="metric-lbl">Taps</div></div>
-      <div class="metric-box"><div class="metric-val">${fmt(t.calls)}</div><div class="metric-lbl">Calls</div></div>
-      <div class="metric-box"><div class="metric-val">${fmt(t.directions)}</div><div class="metric-lbl">Directions</div></div>
-    </div>${breakdownTable(d.locations||[], ['Impressions','Taps','Calls','Dir.'], l=>[fmt(l.impressions),fmt(l.taps),fmt(l.calls),fmt(l.directions)])}`;
-  if (key === 'facebook') return `
-    <div class="metric-row">
-      <div class="metric-box"><div class="metric-val">${fmt(t.fans)}</div><div class="metric-lbl">Likes</div></div>
-      <div class="metric-box"><div class="metric-val">${fmt(t.impressions)}</div><div class="metric-lbl">Impressions</div></div>
-      <div class="metric-box"><div class="metric-val">${fmt(t.engaged)}</div><div class="metric-lbl">Engaged</div></div>
-      <div class="metric-box"><div class="metric-val">${fmt(t.views)}</div><div class="metric-lbl">Views</div></div>
-    </div>${breakdownTable(d.pages||[], ['Likes','Followers','Impressions','Views'], p=>[fmt(p.fans),fmt(p.followers),fmt(p.impressions),fmt(p.views)])}`;
-  return '';
+  const perProp = (d.properties||[]).length > 1
+    ? `<div class="per-location" style="margin-top:16px;">${(d.properties||[]).map(p=>`<div class="loc-row"><span class="loc-name">${p.name}</span><span>${fmt(p.sessions)} sessions / ${fmt(p.users)} users</span></div>`).join('')}</div>` : '';
+  $('ga4Body').innerHTML = `
+    <div class="ga4-grid">
+      <div class="ga4-card"><div class="ga4-num">${fmt(t.sessions)}</div><div class="ga4-lbl">Sessions</div></div>
+      <div class="ga4-card"><div class="ga4-num">${fmt(t.users)}</div><div class="ga4-lbl">Active Users</div></div>
+      <div class="ga4-card"><div class="ga4-num">${fmt(t.pageViews)}</div><div class="ga4-lbl">Page Views</div></div>
+      <div class="ga4-card"><div class="ga4-num">${((t.bounceRate||0)*100).toFixed(1)}%</div><div class="ga4-lbl">Bounce Rate</div></div>
+    </div>
+    ${perProp}`;
 }
 
-function breakdownTable(rows, headers, getVals) {
-  if (rows.length <= 1) return '';
-  return `<span class="breakdown-toggle" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'table':'none';this.textContent=(this.textContent.startsWith('▼')?'▲':'▼')+this.textContent.slice(1)">▼ Per-location breakdown</span>
-  <table class="breakdown-table" style="display:none">
-    <tr><th>Location</th>${headers.map(h=>`<th>${h}</th>`).join('')}</tr>
-    ${rows.map(r=>`<tr><td>${r.name||r.locationId||r.pageId}</td>${getVals(r).map(v=>`<td>${v}</td>`).join('')}</tr>`).join('')}
-  </table>`;
-}
+// ── Store Comparison ──────────────────────────────────────────────────────────
+async function loadComparison() {
+  $('compBody').innerHTML = '<div class="loading">Loading…</div>';
+  const d = await api('/transactions' + qs());
+  const stores = d.stores || [];
+  if (!stores.length) { $('compBody').innerHTML = '<div class="not-configured">No sales data found.</div>'; return; }
 
-function loadAllPlatforms(start, end) {
-  ['google','apple','facebook'].forEach(k => loadPlatform(k, start, end));
-}
+  const tableRows = stores.map(s => {
+    const refundRate = s.sales > 0 ? (s.refunds / (s.sales + s.refunds) * 100).toFixed(1) : '0.0';
+    return `<tr>
+      <td>${s.name}</td>
+      <td>${fmt(s.sales)}</td>
+      <td>${fmt(s.refunds)}</td>
+      <td class="${parseFloat(refundRate) > 5 ? 'negative' : 'positive'}">${refundRate}%</td>
+      <td>${money(s.net)}</td>
+    </tr>`;
+  }).join('');
 
-// ---- Transaction loader ----
-function fmtMoney(v) { return '$'+Math.abs(v/100).toFixed(2); }
+  $('compBody').innerHTML = `
+    <table class="comp-table">
+      <thead><tr><th>Store</th><th>Sales</th><th>Refunds</th><th>Refund %</th><th>Net Revenue</th></tr></thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+    <div class="chart-wrap"><canvas id="compChart"></canvas></div>`;
 
-async function loadTransactions(start, end) {
-  const storeId = document.getElementById('storeSelect').value;
-  const params = new URLSearchParams();
-  if (start)   params.set('start', start);
-  if (end)     params.set('end', end);
-  if (storeId) params.set('store_id', storeId);
-
-  document.getElementById('summaryCards').innerHTML = '<div class="loading-msg" style="grid-column:1/-1">Loading...</div>';
-  document.getElementById('storesTable').innerHTML = '';
-  try {
-    const res = await fetch('/api/analytics/transactions?'+params.toString(), { headers: { Authorization: 'Bearer '+token } });
-    const data = await res.json();
-    const stores = data.stores || [];
-    if (!stores.length) {
-      document.getElementById('summaryCards').innerHTML = '<div class="loading-msg" style="grid-column:1/-1">No data for this period.</div>';
-      return;
+  if (storeCompChart) storeCompChart.destroy();
+  const ctx = document.getElementById('compChart').getContext('2d');
+  storeCompChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: stores.map(s => s.name),
+      datasets: [
+        { label: 'Net Revenue ($)', data: stores.map(s => +(s.net||0).toFixed(2)), backgroundColor: 'rgba(37,99,235,0.7)', yAxisID: 'y' },
+        { label: 'Sales Count', data: stores.map(s => s.sales), backgroundColor: 'rgba(16,185,129,0.7)', yAxisID: 'y1' }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top' } },
+      scales: {
+        y:  { type: 'linear', position: 'left',  title: { display: true, text: 'Revenue ($)' } },
+        y1: { type: 'linear', position: 'right', title: { display: true, text: 'Sales Count' }, grid: { drawOnChartArea: false } }
+      }
     }
-    const tot = stores.reduce((a,s)=>({ sales:a.sales+(s.sales||0), refunds:a.refunds+(s.refunds||0), gross:a.gross+(s.gross||0), net:a.net+(s.net||0) }), {sales:0,refunds:0,gross:0,net:0});
-    document.getElementById('summaryCards').innerHTML = `
-      <div class="summary-card"><div class="val val-blue">${tot.sales}</div><div class="lbl">Transactions</div></div>
-      <div class="summary-card"><div class="val val-red">${tot.refunds}</div><div class="lbl">Refunds</div></div>
-      <div class="summary-card"><div class="val val-green">${fmtMoney(tot.gross)}</div><div class="lbl">Gross Sales</div></div>
-      <div class="summary-card"><div class="val ${tot.net<0?'val-red':'val-green'}">${fmtMoney(tot.net)}</div><div class="lbl">Net Revenue</div></div>`;
-    if (stores.length > 1) {
-      document.getElementById('storesTable').innerHTML = `
-      <div class="stores-table-wrap"><table class="stores-table">
-        <thead><tr><th>Store</th><th>Transactions</th><th>Refunds</th><th>Gross</th><th>Net</th></tr></thead>
-        <tbody>${stores.map(s=>`<tr>
-          <td class="store-name">${s.name}</td><td>${s.sales}</td>
-          <td class="refund-val">${s.refunds}</td>
-          <td>${fmtMoney(s.gross)}</td>
-          <td class="${s.net<0?'refund-val':''}">${fmtMoney(s.net)}</td>
-        </tr>`).join('')}</tbody>
-      </table></div>`;
-    }
-  } catch(e) {
-    document.getElementById('summaryCards').innerHTML = `<div class="error-msg" style="grid-column:1/-1">Failed: ${e.message}</div>`;
-  }
+  });
 }
 
-// ---- Init ----
-document.getElementById('startDate').value = monthStartStr();
-document.getElementById('endDate').value   = todayStr();
-loadStores().then(() => {
-  loadAllPlatforms(monthStartStr(), todayStr());
-  loadTransactions(monthStartStr(), todayStr());
-});
+// ── Expense vs Revenue ────────────────────────────────────────────────────────
+async function loadExpenseRevenue() {
+  $('erBody').innerHTML = '<div class="loading">Loading…</div>';
+  const d = await api('/expense-revenue' + qs());
+  const stores = d.stores || [];
+  if (!stores.length) { $('erBody').innerHTML = '<div class="not-configured">No data found.</div>'; return; }
+
+  const tableRows = stores.map(s => `<tr>
+    <td>${s.name}</td>
+    <td class="positive">${money(s.revenue)}</td>
+    <td class="negative">${money(s.expenses)}</td>
+    <td class="${s.margin >= 0 ? 'positive' : 'negative'}">${money(s.margin)}</td>
+    <td class="${parseFloat(s.marginPct) >= 0 ? 'positive' : 'negative'}">${s.marginPct}%</td>
+  </tr>`).join('');
+
+  $('erBody').innerHTML = `
+    <table class="comp-table">
+      <thead><tr><th>Store</th><th>Revenue</th><th>Expenses</th><th>Margin $</th><th>Margin %</th></tr></thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+    <div class="er-chart-wrap"><canvas id="erChart"></canvas></div>`;
+
+  if (erChart) erChart.destroy();
+  const ctx = document.getElementById('erChart').getContext('2d');
+  erChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: stores.map(s => s.name),
+      datasets: [
+        { label: 'Revenue', data: stores.map(s => +(s.revenue||0).toFixed(2)), backgroundColor: 'rgba(16,185,129,0.7)' },
+        { label: 'Expenses', data: stores.map(s => +(s.expenses||0).toFixed(2)), backgroundColor: 'rgba(239,68,68,0.7)' },
+        { label: 'Margin', data: stores.map(s => +(s.margin||0).toFixed(2)), backgroundColor: 'rgba(37,99,235,0.7)' }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top' } },
+      scales: { y: { title: { display: true, text: 'Amount ($)' } } }
+    }
+  });
+}
+
+// ── Main load ─────────────────────────────────────────────────────────────────
+function loadAll() {
+  loadFacebook();
+  loadInstagram();
+  loadGoogle();
+  loadApple();
+  loadReputation();
+  loadGA4();
+  loadComparison();
+  loadExpenseRevenue();
+}
+
+// Init
+$('startDate').value = monthStart();
+$('endDate').value   = today();
+loadStores().then(loadAll);
 </script>
 </body>
 </html>

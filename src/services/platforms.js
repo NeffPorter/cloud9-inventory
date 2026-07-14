@@ -226,4 +226,189 @@ async function fetchFacebookInsights(start, end, stores = []) {
   } catch (err) { console.error('[Facebook]', err.message); return { configured: true, error: err.message }; }
 }
 
-module.exports = { fetchGoogleInsights, fetchAppleInsights, fetchFacebookInsights };
+
+
+// ── Instagram (via Facebook Graph API) ─────────────────────────────────────────────
+// Per-store DB: facebook_page_id + facebook_page_token (same as Facebook)
+
+async function fetchInstagramInsights(start, end, stores = []) {
+  const activeStores = stores.filter(s => s.facebook_page_id && s.facebook_page_token);
+  if (!activeStores.length) return { configured: false };
+
+  try {
+    const startTs = start ? Math.floor(new Date(start).getTime()/1000)
+      : Math.floor(new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime()/1000);
+    const endTs = end ? Math.floor(new Date(end + 'T23:59:59').getTime()/1000)
+      : Math.floor(Date.now()/1000);
+
+    const accounts = await Promise.all(activeStores.map(async (store) => {
+      const token = store.facebook_page_token;
+      const pageId = store.facebook_page_id;
+
+      // Get linked Instagram Business Account
+      const igRes = await httpsRequest('GET', 'graph.facebook.com',
+        `/v18.0/${pageId}?fields=instagram_business_account{id,username,followers_count}&access_token=${encodeURIComponent(token)}`, {});
+      const igData = JSON.parse(igRes.body);
+      if (igData.error) throw new Error(`Page ${pageId}: ${igData.error.message}`);
+
+      const igAccount = igData.instagram_business_account;
+      if (!igAccount) return { pageId, name: store.name, error: 'No Instagram Business Account linked' };
+
+      const igUserId = igAccount.id;
+      const followers = igAccount.followers_count || 0;
+
+      // Fetch insights
+      const insightRes = await httpsRequest('GET', 'graph.facebook.com',
+        `/v18.0/${igUserId}/insights?metric=impressions,reach,profile_views&period=day&since=${startTs}&until=${endTs}&access_token=${encodeURIComponent(token)}`, {});
+      const insightData = JSON.parse(insightRes.body);
+      if (insightData.error) throw new Error(`IG insights: ${insightData.error.message}`);
+
+      const m = {};
+      (insightData.data || []).forEach(item => {
+        m[item.name] = (item.values || []).reduce((s, v) => s + (typeof v.value === 'number' ? v.value : 0), 0);
+      });
+
+      return {
+        pageId, igUserId, name: store.name,
+        username:     igAccount.username || '',
+        followers,
+        impressions:  m.impressions   || 0,
+        reach:        m.reach         || 0,
+        profileViews: m.profile_views || 0
+      };
+    }));
+
+    const totals = {
+      followers:    accounts.reduce((s, a) => s + (a.followers    || 0), 0),
+      impressions:  accounts.reduce((s, a) => s + (a.impressions  || 0), 0),
+      reach:        accounts.reduce((s, a) => s + (a.reach        || 0), 0),
+      profileViews: accounts.reduce((s, a) => s + (a.profileViews || 0), 0)
+    };
+    return { configured: true, accounts, totals };
+  } catch (err) { console.error('[Instagram]', err.message); return { configured: true, error: err.message }; }
+}
+
+// ── Google Reviews ──────────────────────────────────────────────────────────────
+// Uses same service account as Google Business Profile
+// Per-store DB: google_location_id
+
+async function fetchGoogleReviews(stores = []) {
+  const hasAuth = !!(process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY);
+  const activeStores = stores.filter(s => s.google_location_id);
+  if (!hasAuth || !activeStores.length) return { configured: false };
+
+  try {
+    const token = await getGoogleToken();
+    if (!token) return { configured: true, error: 'Auth failed' };
+
+    const locations = await Promise.all(activeStores.map(async (store) => {
+      const locId = store.google_location_id.startsWith('locations/')
+        ? store.google_location_id : `locations/${store.google_location_id}`;
+      const r = await httpsRequest('GET', 'mybusiness.googleapis.com',
+        `/v4/${locId}/reviews?pageSize=1`,
+        { 'Authorization': `Bearer ${token}` });
+      if (r.status !== 200) return { locationId: locId, name: store.name, error: `API ${r.status}` };
+      const data = JSON.parse(r.body);
+      return {
+        locationId: locId, name: store.name,
+        averageRating:    data.averageRating    || 0,
+        totalReviewCount: data.totalReviewCount || 0
+      };
+    }));
+
+    return { configured: true, locations };
+  } catch (err) { console.error('[GoogleReviews]', err.message); return { configured: true, error: err.message }; }
+}
+
+// ── GA4 (Google Analytics Data API) ──────────────────────────────────────────────
+// Same service account creds — ensure analytics.readonly scope granted
+// Per-store DB: ga4_property_id  (e.g. "properties/123456789" or just "123456789")
+
+async function getGA4Token() {
+  const key   = (process.env.GOOGLE_PRIVATE_KEY  || '').replace(/\\n/g, '\n');
+  const email =  process.env.GOOGLE_CLIENT_EMAIL  || '';
+  if (!key || !email) return null;
+  const header  = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+  const now     = Math.floor(Date.now() / 1000);
+  const payload = Buffer.from(JSON.stringify({
+    iss: email,
+    scope: 'https://www.googleapis.com/auth/analytics.readonly',
+    aud: 'https://oauth2.googleapis.com/token',
+    iat: now, exp: now + 3600
+  })).toString('base64url');
+  try {
+    const sign = crypto.createSign('RSA-SHA256');
+    sign.update(`${header}.${payload}`);
+    const jwt = `${header}.${payload}.${sign.sign(key, 'base64url')}`;
+    const body = `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`;
+    const r = await httpsRequest('POST', 'oauth2.googleapis.com', '/token', {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Content-Length': Buffer.byteLength(body)
+    }, body);
+    return JSON.parse(r.body).access_token || null;
+  } catch { return null; }
+}
+
+async function fetchGA4Insights(start, end, stores = []) {
+  const hasAuth = !!(process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY);
+  const activeStores = stores.filter(s => s.ga4_property_id);
+  if (!hasAuth || !activeStores.length) return { configured: false };
+
+  try {
+    const token = await getGA4Token();
+    if (!token) return { configured: true, error: 'GA4 auth failed — ensure service account has Analytics access' };
+
+    const startDate = start ? start.slice(0, 10)
+      : new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+    const endDate = end ? end.slice(0, 10) : new Date().toISOString().slice(0, 10);
+
+    const properties = await Promise.all(activeStores.map(async (store) => {
+      const propId = store.ga4_property_id.startsWith('properties/')
+        ? store.ga4_property_id : `properties/${store.ga4_property_id}`;
+      const reportBody = JSON.stringify({
+        dateRanges: [{ startDate, endDate }],
+        metrics: [
+          { name: 'sessions' },
+          { name: 'activeUsers' },
+          { name: 'screenPageViews' },
+          { name: 'bounceRate' }
+        ]
+      });
+      const r = await httpsRequest('POST', 'analyticsdata.googleapis.com',
+        `/v1beta/${propId}:runReport`,
+        {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(reportBody)
+        }, reportBody);
+      if (r.status !== 200) {
+        return { propertyId: propId, name: store.name, error: `API ${r.status}` };
+      }
+      const data = JSON.parse(r.body);
+      const row = (data.rows || [])[0];
+      const vals = row ? row.metricValues.map(v => parseFloat(v.value) || 0) : [0, 0, 0, 0];
+      return {
+        propertyId: propId, name: store.name,
+        sessions:   vals[0],
+        users:      vals[1],
+        pageViews:  vals[2],
+        bounceRate: vals[3]
+      };
+    }));
+
+    const totals = {
+      sessions:   properties.reduce((s, p) => s + (p.sessions  || 0), 0),
+      users:      properties.reduce((s, p) => s + (p.users     || 0), 0),
+      pageViews:  properties.reduce((s, p) => s + (p.pageViews || 0), 0),
+      bounceRate: properties.length
+        ? properties.reduce((s, p) => s + (p.bounceRate || 0), 0) / properties.length
+        : 0
+    };
+    return { configured: true, properties, totals };
+  } catch (err) { console.error('[GA4]', err.message); return { configured: true, error: err.message }; }
+}
+
+module.exports = {
+  fetchGoogleInsights, fetchAppleInsights, fetchFacebookInsights,
+  fetchInstagramInsights, fetchGoogleReviews, fetchGA4Insights
+};

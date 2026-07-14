@@ -182,7 +182,8 @@ router.delete('/stores/:id', auth, async (req, res) => {
 router.get('/items', auth, async (req, res) => {
   try {
     const { store_id } = req.query;
-    if (!store_id) return res.status(400).json({ error: 'store_id required' });
+    const privileged = isHim(req.user.role) || ['owner','media'].includes(req.user.role);
+    if (!store_id && !privileged) return res.status(400).json({ error: 'store_id required' });
 
     if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== store_id) {
       return res.status(403).json({ error: 'Access denied' });
