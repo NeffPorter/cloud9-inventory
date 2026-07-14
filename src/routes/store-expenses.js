@@ -251,4 +251,4 @@ async function runRecurringExpenseCron() {
 }
 
 router.runRecurringExpenseCron = runRecurringExpenseCron;
-modul
+module.exports = router;
