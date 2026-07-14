@@ -591,4 +591,10 @@ async function saveEvent() {
     }
     closeAddModal();
     await loadEvents(); render();
-  } cat
+  } catch(e) { alert('Failed to save: ' + e.message); }
+}
+
+init();
+</script>
+</body>
+</html>
