@@ -54,14 +54,7 @@ function buildNavItems(user) {
             <button class="dropdown-item" onclick="window.location.href='/analytics'">📊 Analytics Dashboard</button>
         </div>
       </div>
-      <div class="nav-item" style="position:relative">
-        <button class="nav-btn" onclick="toggleDropdown('mediaPromoDropdown', this)">🎯 Promotions <span style="font-size:10px">▼</span></button>
-        <div class="dropdown" id="mediaPromoDropdown">
-          <div class="dropdown-header">Promotions</div>
-          <button class="dropdown-item" onclick="window.location.href='/products-feed'">🆕 Products Feed</button>
-          <button class="dropdown-item" onclick="window.location.href='/promotions'">📅 Sale Events</button>
-        </div>
-      </div>
+      <button class="nav-btn" onclick="window.location.href='/promotions'">🎯 Promotions</button>
       <button class="nav-btn" onclick="window.location.href='/owner-inventory'">🔍 Inventory Lookup</button>
       <button class="nav-btn" onclick="window.location.href='/gm-expenses'">💼 Expenses</button>
       <div class="nav-item">
@@ -95,14 +88,7 @@ function buildNavItems(user) {
     </div>
 
     <!-- Promotions -->
-    <div class="nav-item" style="position:relative">
-      <button class="nav-btn" onclick="toggleDropdown('promotionsDropdown', this)">🎯 Promotions <span style="font-size:10px">▼</span></button>
-      <div class="dropdown" id="promotionsDropdown">
-        <div class="dropdown-header">Promotions</div>
-        <button class="dropdown-item" onclick="window.location.href='/products-feed'">🆕 Products Feed</button>
-        <button class="dropdown-item" onclick="window.location.href='/promotions'">📅 Sale Events &amp; Discounts</button>
-      </div>
-    </div>
+    <button class="nav-btn" onclick="window.location.href='/promotions'">🎯 Promotions</button>
 
     <!-- Purchases -->
     <div class="nav-item" style="position:relative">

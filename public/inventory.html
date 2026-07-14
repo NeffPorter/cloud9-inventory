@@ -206,6 +206,37 @@
     .empty { text-align: center; padding: 40px; color: #999; }
     .sync-status { font-size: 13px; color: #666; padding: 8px 16px; background: #f0f4ff; border-radius: 8px; }
     .dropping-row td { opacity: 0.5; text-decoration: line-through; }
+
+    /* ── Products Feed section ── */
+    .feed-section { margin-top: 32px; }
+    .feed-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+    .feed-section-title { font-size: 20px; font-weight: 700; color: #1a1a2e; }
+    .feed-controls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .feed-period-tab { padding: 6px 14px; border-radius: 8px; border: 1.5px solid #ddd; background: white; font-size: 12px; font-weight: 600; cursor: pointer; color: #555; transition: all .15s; }
+    .feed-period-tab:hover  { border-color: #2563eb; color: #2563eb; }
+    .feed-period-tab.active { border-color: #2563eb; background: #2563eb; color: white; }
+    .feed-picker-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+    .feed-picker-row input, .feed-picker-row select { padding: 7px 11px; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 13px; outline: none; }
+    .feed-picker-row input:focus, .feed-picker-row select:focus { border-color: #2563eb; }
+    .feed-cards-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 768px) { .feed-cards-row { grid-template-columns: 1fr; } }
+    .feed-panel { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 1px 6px rgba(0,0,0,.06); }
+    .feed-panel-title { font-size: 14px; font-weight: 700; color: #1a1a2e; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+    .feed-count { background: #f3f4f6; color: #374151; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+    .feed-range { font-size: 12px; color: #aaa; font-weight: 400; }
+    .feed-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+    .feed-card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; background: #fafafa; }
+    .feed-card-name { font-size: 13px; font-weight: 700; color: #1a1a2e; margin-bottom: 3px; }
+    .feed-card-variant { font-size: 12px; color: #666; margin-bottom: 6px; }
+    .feed-card-meta { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+    .feed-tag { font-size: 11px; padding: 2px 7px; border-radius: 10px; font-weight: 600; }
+    .feed-tag-store    { background: #e0f2fe; color: #0369a1; }
+    .feed-tag-dropping { background: #fee2e2; color: #dc2626; }
+    .feed-tag-new      { background: #d1fae5; color: #065f46; }
+    .feed-tag-category { background: #f3e8ff; color: #7c3aed; }
+    .feed-tag-qty      { background: #f9fafb; color: #374151; border: 1px solid #e5e7eb; }
+    .feed-days         { font-size: 11px; color: #aaa; margin-top: 5px; }
+    .feed-empty        { text-align: center; padding: 28px; color: #bbb; font-size: 13px; }
     .hold-row td { opacity: 0.7; color: #999; }
     .not-tracking-row td { opacity: 0.3; color: #999; }
     .changes-bar {
@@ -260,6 +291,46 @@
 
     <div class="stats-row" id="statsRow"></div>
     <div id="inventoryContainer" class="loading">Loading inventory...</div>
+
+    <!-- Products Feed section -->
+    <div class="feed-section" id="feedSection" style="display:none">
+      <div class="feed-section-header">
+        <div class="feed-section-title">🆕 Products Feed</div>
+        <div class="feed-controls">
+          <button class="feed-period-tab" onclick="feedSetPeriod('daily',this)">Daily</button>
+          <button class="feed-period-tab" onclick="feedSetPeriod('weekly',this)">Weekly</button>
+          <button class="feed-period-tab active" onclick="feedSetPeriod('monthly',this)">Monthly</button>
+          <button class="feed-period-tab" onclick="feedSetPeriod('quarterly',this)">Quarterly</button>
+          <button class="feed-period-tab" onclick="feedSetPeriod('custom',this)">Custom</button>
+        </div>
+      </div>
+      <div class="feed-picker-row" id="feedPickerRow" style="display:none">
+        <input type="date" id="feedDatePicker" onchange="feedLoadFromPicker()">
+        <select id="feedWeekPicker" style="display:none" onchange="feedLoadFromPicker()"></select>
+      </div>
+      <div class="feed-picker-row" id="feedMonthRow">
+        <input type="month" id="feedMonthPicker" onchange="feedLoadFromPicker()">
+      </div>
+      <div class="feed-picker-row" id="feedQuarterRow" style="display:none">
+        <input type="text" id="feedQuarterPicker" placeholder="e.g. 2026-Q2" onchange="feedLoadFromPicker()">
+      </div>
+      <div class="feed-picker-row" id="feedCustomRow" style="display:none">
+        <span style="font-size:12px;color:#666;font-weight:600">From</span>
+        <input type="date" id="feedStartDate" onchange="feedLoadFromPicker()">
+        <span style="font-size:12px;color:#666;font-weight:600">To</span>
+        <input type="date" id="feedEndDate" onchange="feedLoadFromPicker()">
+      </div>
+      <div class="feed-cards-row">
+        <div class="feed-panel">
+          <div class="feed-panel-title">🔻 Dropping Products <span class="feed-count" id="feedDroppingCount">0</span></div>
+          <div id="feedDroppingGrid"><div class="feed-empty">Loading...</div></div>
+        </div>
+        <div class="feed-panel">
+          <div class="feed-panel-title">✨ New Arrivals <span class="feed-count" id="feedNewCount">0</span> <span class="feed-range" id="feedNewRange"></span></div>
+          <div id="feedNewGrid"><div class="feed-empty">Loading...</div></div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <div class="modal-overlay" id="statModal">
@@ -782,130 +853,3 @@
         }
       }
       renderInventory(allItems);
-    }
-
-    function showAddStock(itemId, btn) {
-      // Close any other open add-stock inputs
-      document.querySelectorAll('.add-stock-inline').forEach(el => el.remove());
-      document.querySelectorAll('.add-stock-btn').forEach(el => el.style.display = '');
-
-      btn.style.display = 'none';
-      const wrap = document.createElement('span');
-      wrap.className = 'add-stock-inline';
-      wrap.innerHTML = `
-        <input type="number" placeholder="+/- qty" id="addStockInput_${itemId}" autofocus>
-        <button class="add-stock-confirm" onclick="confirmAddStock('${itemId}')">✓</button>
-        <button class="add-stock-cancel" onclick="cancelAddStock('${itemId}', this)">✕</button>
-      `;
-      btn.insertAdjacentElement('afterend', wrap);
-      wrap.querySelector('input').focus();
-      wrap.querySelector('input').addEventListener('keydown', e => {
-        if (e.key === 'Enter') confirmAddStock('${itemId}');
-        if (e.key === 'Escape') cancelAddStock('${itemId}', wrap.querySelector('.add-stock-cancel'));
-      });
-    }
-
-    function cancelAddStock(itemId, btn) {
-      const wrap = btn.closest('.add-stock-inline');
-      const addBtn = wrap ? wrap.previousElementSibling : null;
-      if (wrap) wrap.remove();
-      if (addBtn && addBtn.classList.contains('add-stock-btn')) addBtn.style.display = '';
-    }
-
-    async function confirmAddStock(itemId) {
-      const input = document.getElementById('addStockInput_' + itemId);
-      const qty = parseInt(input?.value);
-      if (!qty || qty === 0) return;
-
-      const wrap = input?.closest('.add-stock-inline');
-      const addBtn = wrap?.previousElementSibling;
-      if (wrap) wrap.innerHTML = '<span style="font-size:11px;color:#888">Saving...</span>';
-
-      try {
-        const r = await fetch('/api/inventory/add-stock', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-          body: JSON.stringify({ store_id: storeId, item_id: itemId, qty_received: qty })
-        });
-        const data = await r.json();
-        if (!r.ok) throw new Error(data.error || 'Failed');
-
-        // Update local item
-        const item = allItems.find(i => i.id === itemId);
-        if (item) {
-          item.clover_qty = data.new_qty;
-          item.suggested_order = data.new_suggested;
-        }
-        if (wrap) wrap.remove();
-        if (addBtn && addBtn.classList.contains('add-stock-btn')) addBtn.style.display = '';
-        updateStats(allItems);
-        renderInventory(allItems);
-      } catch (err) {
-        if (wrap) wrap.innerHTML = '<span style="color:red;font-size:11px">' + err.message + '</span>';
-      }
-    }
-
-    async function clearSuggestedOrder(itemId) {
-      try {
-        await fetch(`/api/inventory/items/${itemId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-          body: JSON.stringify({ suggested_order: 0 })
-        });
-        const item = allItems.find(i => i.id === itemId);
-        if (item) item.suggested_order = 0;
-        updateStats(allItems);
-        renderInventory(allItems);
-      } catch (err) {
-        console.error('Error clearing suggested order:', err);
-      }
-    }
-
-    async function init() {
-      if (!storeId) {
-        if (!isMultiStoreRole) { window.location.href = '/dashboard'; return; }
-
-        // Multi-store role with no store: inject a store selector and wait
-        document.getElementById('pageTitle').textContent = '📦 Inventory';
-        document.getElementById('pageSubtitle').textContent = 'Select a store to get started';
-        document.getElementById('inventoryContainer').innerHTML = `
-          <div style="text-align:center;padding:80px 20px;color:#999;">
-            <div style="font-size:52px;margin-bottom:16px">📦</div>
-            <div style="font-size:17px;font-weight:600;color:#666;">Select a store above to view inventory</div>
-          </div>`;
-
-        try {
-          const res = await fetch('/api/inventory/stores', { headers: { 'Authorization': 'Bearer ' + token } });
-          const data = await res.json();
-          const stores = data.stores || [];
-          const pills = document.getElementById('storePills');
-          pills.innerHTML = stores.map(s =>
-            `<button class="store-pill" onclick="selectInventoryStore('${s.id}', this)">${s.name}</button>`
-          ).join('');
-        } catch (e) { console.error('Store list error:', e); }
-        return;
-      }
-
-      loadStoreName();
-      loadCategorySettings().then(loadInventory);
-    }
-
-    function selectInventoryStore(id, btn) {
-      document.querySelectorAll('#storePills .store-pill').forEach(b => b.classList.remove('active'));
-      if (btn) btn.classList.add('active');
-      storeId = id;
-      history.replaceState(null, '', `/inventory?store=${storeId}`);
-      loadStoreName();
-      loadCategorySettings().then(loadInventory);
-    }
-
-    init();
-
-    // Auto-refresh every 30s — only when a store is selected and not in edit mode
-    setInterval(() => {
-      if (!editMode && storeId) loadInventory();
-    }, 30000);
-  </script>
-  <script>loadNavbar();</script>
-</body>
-</html>
