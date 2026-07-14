@@ -14,17 +14,14 @@
     .page-sub   { font-size: 14px; color: #666; margin-bottom: 24px; }
 
     /* Controls */
-    .controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; background: white; border-radius: 12px; padding: 16px 20px; box-shadow: 0 1px 6px rgba(0,0,0,.06); margin-bottom: 24px; }
+    .controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; background: white; border-radius: 12px; padding: 16px 20px; box-shadow: 0 1px 6px rgba(0,0,0,.06); margin-bottom: 12px; }
     .control-group { display: flex; flex-direction: column; gap: 4px; }
     .control-group label { font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: .04em; }
-    .control-group select, .control-group input[type=date] { padding: 8px 12px; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 13px; outline: none; }
-    .control-group select:focus, .control-group input:focus { border-color: #2563eb; }
-    .preset-group { display: flex; gap: 6px; }
-    .preset-btn { padding: 8px 14px; border: 1.5px solid #e0e0e0; background: white; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; color: #555; }
-    .preset-btn:hover { border-color: #2563eb; color: #2563eb; }
-    .preset-btn.active { border-color: #2563eb; background: #eff6ff; color: #2563eb; }
-    .apply-btn { padding: 8px 20px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; margin-left: auto; }
-    .apply-btn:hover { background: #1d4ed8; }
+    .control-group input[type=date], .control-group input[type=month], .control-group input[type=text], .control-group select { padding: 8px 12px; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 13px; outline: none; }
+    .control-group input:focus, .control-group select:focus { border-color: #2563eb; }
+    .period-tab { padding: 7px 16px; border-radius: 8px; border: 1.5px solid #ddd; background: white; font-size: 13px; font-weight: 600; cursor: pointer; color: #555; transition: all .15s; }
+    .period-tab:hover  { border-color: #2563eb; color: #2563eb; }
+    .period-tab.active { border-color: #2563eb; background: #2563eb; color: white; }
 
     /* Section headers */
     .section-title { font-size: 17px; font-weight: 700; color: #1a1a2e; margin: 28px 0 14px; padding-bottom: 10px; border-bottom: 2px solid #e5e7eb; display: flex; align-items: center; gap: 8px; }
@@ -85,6 +82,10 @@
     .summary-card  { background: white; border-radius: 12px; padding: 16px 18px; box-shadow: 0 1px 6px rgba(0,0,0,.06); text-align: center; }
     .summary-num   { font-size: 26px; font-weight: 800; color: #1a1a2e; }
     .summary-lbl   { font-size: 12px; color: #6b7280; margin-top: 4px; }
+    .store-filter  { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 0; }
+    .store-filter-btn { padding: 6px 16px; border-radius: 20px; border: 1.5px solid #ddd; background: white; font-size: 13px; font-weight: 600; cursor: pointer; color: #555; transition: all .15s; }
+    .store-filter-btn:hover  { border-color: #2563eb; color: #2563eb; }
+    .store-filter-btn.active { border-color: #2563eb; background: #2563eb; color: white; }
   </style>
 </head>
 <body>
@@ -97,27 +98,34 @@
   <!-- Controls -->
   <div class="controls">
     <div class="control-group">
-      <label>Store</label>
-      <select id="storeFilter"><option value="">All Stores</option></select>
-    </div>
-    <div class="control-group">
-      <label>From</label>
-      <input type="date" id="startDate">
-    </div>
-    <div class="control-group">
-      <label>To</label>
-      <input type="date" id="endDate">
-    </div>
-    <div class="control-group">
-      <label>Quick</label>
-      <div class="preset-group">
-        <button class="preset-btn" onclick="setPreset('month')">This Month</button>
-        <button class="preset-btn" onclick="setPreset('7')">7 Days</button>
-        <button class="preset-btn" onclick="setPreset('30')">30 Days</button>
+      <label>Period</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="period-tab" onclick="setPeriod('daily',this)">Daily</button>
+        <button class="period-tab" onclick="setPeriod('weekly',this)">Weekly</button>
+        <button class="period-tab active" onclick="setPeriod('monthly',this)">Monthly</button>
+        <button class="period-tab" onclick="setPeriod('quarterly',this)">Quarterly</button>
+        <button class="period-tab" onclick="setPeriod('custom',this)">Custom</button>
       </div>
     </div>
-    <button class="apply-btn" onclick="loadAll()">Apply</button>
+    <div class="control-group" id="periodPickerWrap" style="display:none">
+      <label id="periodPickerLabel">Date</label>
+      <input type="date" id="singleDatePicker" onchange="loadFromPicker()">
+      <select id="weekSelectPicker" style="display:none" onchange="loadFromPicker()"></select>
+    </div>
+    <div class="control-group" id="monthPickerWrap">
+      <label>Month</label>
+      <input type="month" id="monthPicker" onchange="loadFromPicker()">
+    </div>
+    <div class="control-group" id="quarterPickerWrap" style="display:none">
+      <label>Quarter</label>
+      <input type="text" id="quarterPicker" placeholder="e.g. 2026-Q2" onchange="loadFromPicker()">
+    </div>
+    <div class="control-group" id="customDateWrap" style="display:none;flex-direction:row;gap:8px;align-items:flex-end">
+      <div><label style="display:block;font-size:11px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">From</label><input type="date" id="startDate" onchange="loadFromPicker()"></div>
+      <div><label style="display:block;font-size:11px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">To</label><input type="date" id="endDate" onchange="loadFromPicker()"></div>
+    </div>
   </div>
+  <div class="store-filter" id="storeFilter" style="margin-bottom:16px"></div>
 
   <!-- ── Social Media ── -->
   <div class="section-title">📱 Social Media</div>
@@ -178,47 +186,110 @@ const $ = id => document.getElementById(id);
 let storeCompChart = null;
 let erChart = null;
 
-// ── Date helpers ──────────────────────────────────────────────────────────────
-function today() { return new Date().toISOString().slice(0, 10); }
-function monthStart() {
-  const d = new Date();
-  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10);
-}
-function daysAgo(n) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+// ── Period controls ───────────────────────────────────────────────────────────
+let currentPeriod = 'monthly', currentStart, currentEnd;
+const pad = n => String(n).padStart(2,'0');
+
+function buildWeekOptions(sel) {
+  const now = new Date();
+  const diff = now.getDay() === 0 ? -6 : 1 - now.getDay();
+  const mon = new Date(now); mon.setDate(now.getDate() + diff); mon.setHours(0,0,0,0);
+  let html = '';
+  for (let i = -4; i <= 52; i++) {
+    const m = new Date(mon); m.setDate(mon.getDate() - i * 7);
+    const s = new Date(m); s.setDate(m.getDate() + 6);
+    const val = m.toISOString().split('T')[0];
+    const lbl = m.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ' – ' + s.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    html += `<option value="${val}"${i===0?' selected':''}>${lbl}</option>`;
+  }
+  sel.innerHTML = html;
 }
 
-function setPreset(p) {
-  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
-  event.target.classList.add('active');
-  if (p === 'month')  { $('startDate').value = monthStart(); $('endDate').value = today(); }
-  if (p === '7')      { $('startDate').value = daysAgo(7);   $('endDate').value = today(); }
-  if (p === '30')     { $('startDate').value = daysAgo(30);  $('endDate').value = today(); }
+function setPeriod(period, btn) {
+  currentPeriod = period;
+  document.querySelectorAll('.period-tab').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+
+  $('periodPickerWrap').style.display  = 'none';
+  $('monthPickerWrap').style.display   = 'none';
+  $('quarterPickerWrap').style.display = 'none';
+  $('customDateWrap').style.display    = 'none';
+
+  if (period === 'daily') {
+    $('periodPickerWrap').style.display = '';
+    $('periodPickerLabel').textContent  = 'Date';
+    $('singleDatePicker').style.display = '';
+    $('weekSelectPicker').style.display = 'none';
+    const p = $('singleDatePicker');
+    if (!p.value) p.value = todayStr;
+    const d = new Date(p.value + 'T00:00:00');
+    currentStart = new Date(d); currentStart.setHours(0,0,0,0);
+    currentEnd   = new Date(d); currentEnd.setHours(23,59,59,999);
+  } else if (period === 'weekly') {
+    $('periodPickerWrap').style.display = '';
+    $('periodPickerLabel').textContent  = 'Week of';
+    $('singleDatePicker').style.display = 'none';
+    const ws = $('weekSelectPicker'); ws.style.display = '';
+    if (!ws.options.length) buildWeekOptions(ws);
+    const d = new Date(ws.value + 'T00:00:00');
+    const diff2 = d.getDay() === 0 ? -6 : 1 - d.getDay();
+    currentStart = new Date(d); currentStart.setDate(d.getDate() + diff2); currentStart.setHours(0,0,0,0);
+    currentEnd   = new Date(currentStart); currentEnd.setDate(currentStart.getDate() + 6); currentEnd.setHours(23,59,59,999);
+  } else if (period === 'monthly') {
+    $('monthPickerWrap').style.display = '';
+    const p = $('monthPicker');
+    if (!p.value) p.value = `${now.getFullYear()}-${pad(now.getMonth()+1)}`;
+    const [y, m] = p.value.split('-');
+    const last = new Date(y, m, 0).getDate();
+    currentStart = new Date(`${y}-${m}-01T00:00:00`);
+    currentEnd   = new Date(`${y}-${m}-${pad(last)}T23:59:59`);
+  } else if (period === 'quarterly') {
+    $('quarterPickerWrap').style.display = '';
+    const p = $('quarterPicker');
+    if (!p.value) { const q = Math.ceil((now.getMonth()+1)/3); p.value = `${now.getFullYear()}-Q${q}`; }
+    const match = p.value.match(/(\d{4})-Q(\d)/);
+    if (!match) return;
+    const [, y, q] = match;
+    const sm = (parseInt(q)-1)*3+1, em = sm+2;
+    currentStart = new Date(`${y}-${pad(sm)}-01T00:00:00`);
+    currentEnd   = new Date(`${y}-${pad(em)}-${pad(new Date(y,em,0).getDate())}T23:59:59`);
+  } else if (period === 'custom') {
+    $('customDateWrap').style.display = 'flex';
+    const s = $('startDate').value, e = $('endDate').value;
+    if (!s || !e) return;
+    currentStart = new Date(s + 'T00:00:00');
+    currentEnd   = new Date(e + 'T23:59:59');
+  }
+  loadAll();
 }
+
+function loadFromPicker() { setPeriod(currentPeriod, document.querySelector('.period-tab.active')); }
 
 // ── Stores ────────────────────────────────────────────────────────────────────
+let selectedStore = '';
+
 async function loadStores() {
   const r = await fetch('/api/inventory/stores', { headers: { Authorization: 'Bearer ' + token } });
   const d = await r.json();
   const stores = d.stores || [];
-  const sel = $('storeFilter');
-  stores.forEach(s => {
-    const o = document.createElement('option');
-    o.value = s.id; o.textContent = s.name;
-    sel.appendChild(o);
-  });
+  const el = $('storeFilter');
+  el.innerHTML = `<button class="store-filter-btn active" onclick="filterStore('', this)">All Stores</button>` +
+    stores.map(s => `<button class="store-filter-btn" onclick="filterStore('${s.id}', this)">${s.name}</button>`).join('');
+}
+
+function filterStore(storeId, btn) {
+  selectedStore = storeId;
+  document.querySelectorAll('.store-filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
 }
 
 function qs() {
-  const storeId = $('storeFilter').value;
-  const start   = $('startDate').value;
-  const end     = $('endDate').value;
   let q = '';
-  if (storeId) q += `store_id=${storeId}&`;
-  if (start)   q += `start=${start}&`;
-  if (end)     q += `end=${end}&`;
+  if (selectedStore) q += `store_id=${selectedStore}&`;
+  if (currentStart)  q += `start=${currentStart.toISOString().slice(0,10)}&`;
+  if (currentEnd)    q += `end=${currentEnd.toISOString().slice(0,10)}&`;
   return q ? '?' + q.slice(0, -1) : '';
 }
 
@@ -482,25 +553,21 @@ function loadAll() {
 }
 
 // Init
-$('startDate').value = monthStart();
-$('endDate').value   = today();
-
 const isSingleStore = ['gm', 'store_user'].includes(user.role);
 
 loadStores().then(() => {
   if (isSingleStore && user.store_id) {
-    const sel = $('storeFilter');
-    sel.value = user.store_id;
-    // If exact value not found, add it
-    if (!sel.value) {
-      const o = document.createElement('option');
-      o.value = user.store_id; o.textContent = 'My Store';
-      sel.appendChild(o);
-      sel.value = user.store_id;
-    }
-    sel.disabled = true;
+    selectedStore = user.store_id;
+    // Activate the matching store button and disable all others
+    document.querySelectorAll('.store-filter-btn').forEach(btn => {
+      const isMatch = btn.textContent !== 'All Stores' &&
+        btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(user.store_id);
+      btn.classList.toggle('active', isMatch);
+      btn.disabled = true;
+      btn.style.cursor = 'default';
+    });
   }
-  loadAll();
+  setPeriod('monthly', document.querySelector('.period-tab.active'));
 });
 </script>
 </body>

@@ -10,35 +10,40 @@
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; min-height: 100vh; }
     .page { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
     .page-title { font-size: 24px; font-weight: 700; color: #1a1a2e; }
-    .page-subtitle { color: #666; font-size: 14px; margin-top: 4px; margin-bottom: 28px; }
+    .page-subtitle { color: #666; font-size: 14px; margin-top: 4px; margin-bottom: 24px; }
 
-    /* Controls */
-    .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 24px; background: white; padding: 16px; border-radius: 12px; border: 1px solid #e5e7eb; }
-    .control-group { display: flex; flex-direction: column; gap: 5px; }
-    .control-group label { font-size: 12px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: .04em; }
-    .controls select { padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; background: white; }
+    .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; background: white; padding: 16px 20px; border-radius: 12px; box-shadow: 0 1px 6px rgba(0,0,0,.06); margin-bottom: 12px; }
+    .control-group { display: flex; flex-direction: column; gap: 4px; }
+    .control-group label { font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: .04em; }
+    .period-tab { padding: 7px 16px; border-radius: 8px; border: 1.5px solid #ddd; background: white; font-size: 13px; font-weight: 600; cursor: pointer; color: #555; transition: all .15s; }
+    .period-tab:hover  { border-color: #2563eb; color: #2563eb; }
+    .period-tab.active { border-color: #2563eb; background: #2563eb; color: white; }
+    .control-group input[type=date], .control-group input[type=month], .control-group input[type=text],
+    .control-group select { padding: 8px 12px; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 13px; outline: none; }
+    .control-group input:focus, .control-group select:focus { border-color: #2563eb; }
+    .store-filter { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+    .store-filter-btn { padding: 6px 16px; border-radius: 20px; border: 1.5px solid #ddd; background: white; font-size: 13px; font-weight: 600; cursor: pointer; color: #555; transition: all .15s; }
+    .store-filter-btn:hover  { border-color: #2563eb; color: #2563eb; }
+    .store-filter-btn.active { border-color: #2563eb; background: #2563eb; color: white; }
 
-    /* Section */
-    .section { background: white; border-radius: 12px; padding: 24px; border: 1px solid #e5e7eb; margin-bottom: 24px; }
+    .section { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 1px 6px rgba(0,0,0,.06); margin-bottom: 20px; }
     .section-title { font-size: 15px; font-weight: 700; color: #1a1a2e; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
     .count-badge { background: #f3f4f6; color: #374151; font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 12px; }
-
-    /* Product cards */
+    .range-label { font-size: 12px; color: #888; font-weight: 400; }
     .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
     .product-card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; background: #fafafa; }
     .product-name { font-size: 14px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
     .product-variant { font-size: 12px; color: #666; margin-bottom: 8px; }
     .product-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
     .meta-tag { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
-    .tag-store { background: #e0f2fe; color: #0369a1; }
+    .tag-store    { background: #e0f2fe; color: #0369a1; }
     .tag-dropping { background: #fee2e2; color: #dc2626; }
-    .tag-new { background: #d1fae5; color: #065f46; }
+    .tag-new      { background: #d1fae5; color: #065f46; }
     .tag-category { background: #f3e8ff; color: #7c3aed; }
-    .tag-qty { background: #f9fafb; color: #374151; border: 1px solid #e5e7eb; }
-
-    .empty { text-align: center; padding: 32px; color: #999; font-size: 14px; }
+    .tag-qty      { background: #f9fafb; color: #374151; border: 1px solid #e5e7eb; }
+    .days-badge   { font-size: 11px; color: #888; margin-top: 6px; }
+    .empty   { text-align: center; padding: 32px; color: #999; font-size: 14px; }
     .loading { text-align: center; padding: 40px; color: #999; font-size: 14px; }
-    .new-days-badge { font-size: 11px; color: #888; margin-top: 6px; }
   </style>
 </head>
 <body>
@@ -50,37 +55,43 @@
 
   <div class="controls">
     <div class="control-group">
-      <label>Store</label>
-      <select id="storeFilter" onchange="load()">
-        <option value="">All Stores</option>
-      </select>
+      <label>Period</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="period-tab" onclick="setPeriod('daily',this)">Daily</button>
+        <button class="period-tab" onclick="setPeriod('weekly',this)">Weekly</button>
+        <button class="period-tab active" onclick="setPeriod('monthly',this)">Monthly</button>
+        <button class="period-tab" onclick="setPeriod('quarterly',this)">Quarterly</button>
+        <button class="period-tab" onclick="setPeriod('custom',this)">Custom</button>
+      </div>
     </div>
-    <div class="control-group">
-      <label>New = added within</label>
-      <select id="newDays" onchange="load()">
-        <option value="7">Last 7 days</option>
-        <option value="14">Last 14 days</option>
-        <option value="30" selected>Last 30 days</option>
-        <option value="60">Last 60 days</option>
-      </select>
+    <div class="control-group" id="periodPickerWrap">
+      <label id="periodPickerLabel">Date</label>
+      <input type="date" id="singleDatePicker" onchange="loadFromPicker()">
+      <select id="weekSelectPicker" style="display:none" onchange="loadFromPicker()"></select>
+    </div>
+    <div class="control-group" id="monthPickerWrap" style="display:none">
+      <label>Month</label>
+      <input type="month" id="monthPicker" onchange="loadFromPicker()">
+    </div>
+    <div class="control-group" id="quarterPickerWrap" style="display:none">
+      <label>Quarter</label>
+      <input type="text" id="quarterPicker" placeholder="e.g. 2026-Q2" onchange="loadFromPicker()">
+    </div>
+    <div class="control-group" id="customDateWrap" style="display:none;flex-direction:row;gap:8px;align-items:flex-end">
+      <div><label style="display:block;font-size:11px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">From</label><input type="date" id="startDate" onchange="loadFromPicker()"></div>
+      <div><label style="display:block;font-size:11px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px">To</label><input type="date" id="endDate" onchange="loadFromPicker()"></div>
     </div>
   </div>
 
-  <!-- Dropping -->
+  <div class="store-filter" id="storeFilter"></div>
+
   <div class="section">
-    <div class="section-title">
-      🔻 Dropping Products
-      <span class="count-badge" id="droppingCount">0</span>
-    </div>
+    <div class="section-title">🔻 Dropping Products <span class="count-badge" id="droppingCount">0</span></div>
     <div id="droppingGrid"><div class="loading">Loading...</div></div>
   </div>
 
-  <!-- New Arrivals -->
   <div class="section">
-    <div class="section-title">
-      ✨ New Arrivals
-      <span class="count-badge" id="newCount">0</span>
-    </div>
+    <div class="section-title">✨ New Arrivals <span class="count-badge" id="newCount">0</span> <span class="range-label" id="newRangeLabel"></span></div>
     <div id="newGrid"><div class="loading">Loading...</div></div>
   </div>
 </div>
@@ -88,75 +99,165 @@
 <script>
 const token = localStorage.getItem('token');
 const user  = JSON.parse(localStorage.getItem('user') || '{}');
-const ALLOWED = ['regional_manager', 'him', 'admin', 'owner', 'media', 'gm', 'store_user'];
+const ALLOWED = ['regional_manager','him','admin','owner','media','gm','store_user'];
 if (!token || !ALLOWED.includes(user.role)) window.location.href = '/dashboard';
 
-let storesMap = {};
+let storesMap = {}, selectedStore = '';
+let currentPeriod = 'monthly', currentStart, currentEnd;
+
+const pad = n => String(n).padStart(2,'0');
+
+function buildWeekOptions(sel) {
+  const now = new Date();
+  const diff = now.getDay() === 0 ? -6 : 1 - now.getDay();
+  const mon = new Date(now); mon.setDate(now.getDate() + diff); mon.setHours(0,0,0,0);
+  let html = '';
+  for (let i = -4; i <= 52; i++) {
+    const m = new Date(mon); m.setDate(mon.getDate() - i * 7);
+    const s = new Date(m); s.setDate(m.getDate() + 6);
+    const val = m.toISOString().split('T')[0];
+    const lbl = m.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ' – ' + s.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    html += `<option value="${val}"${i===0?' selected':''}>${lbl}</option>`;
+  }
+  sel.innerHTML = html;
+}
+
+function setPeriod(period, btn) {
+  currentPeriod = period;
+  document.querySelectorAll('.period-tab').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+
+  document.getElementById('periodPickerWrap').style.display  = 'none';
+  document.getElementById('monthPickerWrap').style.display   = 'none';
+  document.getElementById('quarterPickerWrap').style.display = 'none';
+  document.getElementById('customDateWrap').style.display    = 'none';
+
+  if (period === 'daily') {
+    document.getElementById('periodPickerWrap').style.display = '';
+    document.getElementById('periodPickerLabel').textContent  = 'Date';
+    document.getElementById('singleDatePicker').style.display = '';
+    document.getElementById('weekSelectPicker').style.display = 'none';
+    const p = document.getElementById('singleDatePicker');
+    if (!p.value) p.value = todayStr;
+    const d = new Date(p.value + 'T00:00:00');
+    currentStart = new Date(d); currentStart.setHours(0,0,0,0);
+    currentEnd   = new Date(d); currentEnd.setHours(23,59,59,999);
+  } else if (period === 'weekly') {
+    document.getElementById('periodPickerWrap').style.display = '';
+    document.getElementById('periodPickerLabel').textContent  = 'Week of';
+    document.getElementById('singleDatePicker').style.display = 'none';
+    const ws = document.getElementById('weekSelectPicker');
+    ws.style.display = '';
+    if (!ws.options.length) buildWeekOptions(ws);
+    const d = new Date(ws.value + 'T00:00:00');
+    const diff2 = d.getDay() === 0 ? -6 : 1 - d.getDay();
+    currentStart = new Date(d); currentStart.setDate(d.getDate() + diff2); currentStart.setHours(0,0,0,0);
+    currentEnd   = new Date(currentStart); currentEnd.setDate(currentStart.getDate() + 6); currentEnd.setHours(23,59,59,999);
+  } else if (period === 'monthly') {
+    document.getElementById('monthPickerWrap').style.display = '';
+    const p = document.getElementById('monthPicker');
+    if (!p.value) p.value = `${now.getFullYear()}-${pad(now.getMonth()+1)}`;
+    const [y, m] = p.value.split('-');
+    const last = new Date(y, m, 0).getDate();
+    currentStart = new Date(`${y}-${m}-01T00:00:00`);
+    currentEnd   = new Date(`${y}-${m}-${pad(last)}T23:59:59`);
+  } else if (period === 'quarterly') {
+    document.getElementById('quarterPickerWrap').style.display = '';
+    const p = document.getElementById('quarterPicker');
+    if (!p.value) { const q = Math.ceil((now.getMonth()+1)/3); p.value = `${now.getFullYear()}-Q${q}`; }
+    const match = p.value.match(/(\d{4})-Q(\d)/);
+    if (!match) return;
+    const [, y, q] = match;
+    const sm = (parseInt(q)-1)*3+1, em = sm+2;
+    currentStart = new Date(`${y}-${pad(sm)}-01T00:00:00`);
+    currentEnd   = new Date(`${y}-${pad(em)}-${pad(new Date(y,em,0).getDate())}T23:59:59`);
+  } else if (period === 'custom') {
+    document.getElementById('customDateWrap').style.display = 'flex';
+    const s = document.getElementById('startDate').value;
+    const e = document.getElementById('endDate').value;
+    if (!s || !e) return;
+    currentStart = new Date(s + 'T00:00:00');
+    currentEnd   = new Date(e + 'T23:59:59');
+  }
+  load();
+}
+
+function loadFromPicker() { setPeriod(currentPeriod, document.querySelector('.period-tab.active')); }
 
 async function loadStores() {
   const r = await fetch('/api/inventory/stores', { headers: { Authorization: 'Bearer ' + token } });
-  const data = await r.json();
-  const stores = data.stores || data || [];
+  const d = await r.json();
+  const stores = d.stores || d || [];
   stores.forEach(s => { storesMap[s.id] = s.name; });
-  const sel = document.getElementById('storeFilter');
-  stores.forEach(s => {
-    const o = document.createElement('option');
-    o.value = s.id; o.textContent = s.name;
-    sel.appendChild(o);
-  });
+  const el = document.getElementById('storeFilter');
+  el.innerHTML = `<button class="store-filter-btn active" onclick="filterStore('',this)">All Stores</button>` +
+    stores.map(s => `<button class="store-filter-btn" onclick="filterStore('${s.id}',this)">${s.name}</button>`).join('');
+  if (['gm','store_user'].includes(user.role) && user.store_id) {
+    selectedStore = user.store_id;
+    document.querySelectorAll('.store-filter-btn').forEach(b => {
+      const match = b.getAttribute('onclick') && b.getAttribute('onclick').includes(user.store_id);
+      b.classList.toggle('active', match); b.disabled = true; b.style.cursor = 'default';
+    });
+  }
+}
+
+function filterStore(id, btn) {
+  selectedStore = id;
+  document.querySelectorAll('.store-filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  load();
 }
 
 function card(item, type) {
   const storeName = storesMap[item.store_id] || '—';
-  const daysAgo = item.created_at
-    ? Math.floor((Date.now() - new Date(item.created_at)) / 86400000)
-    : null;
+  const daysOld = item.created_at ? Math.floor((Date.now() - new Date(item.created_at)) / 86400000) : null;
   return `<div class="product-card">
     <div class="product-name">${item.group_name || item.variant_name || item.id}</div>
     ${item.variant_name && item.group_name ? `<div class="product-variant">${item.variant_name}</div>` : ''}
     <div class="product-meta">
       <span class="meta-tag tag-store">${storeName}</span>
-      ${type === 'dropping' ? '<span class="meta-tag tag-dropping">Dropping</span>' : '<span class="meta-tag tag-new">New</span>'}
-      ${item.category ? `<span class="meta-tag tag-category">${item.category}</span>` : ''}
-      ${item.clover_qty != null ? `<span class="meta-tag tag-qty">Qty: ${item.clover_qty}</span>` : ''}
+      ${type==='dropping'?'<span class="meta-tag tag-dropping">Dropping</span>':'<span class="meta-tag tag-new">New</span>'}
+      ${item.category?`<span class="meta-tag tag-category">${item.category}</span>`:''}
+      ${item.clover_qty!=null?`<span class="meta-tag tag-qty">Qty: ${item.clover_qty}</span>`:''}
     </div>
-    ${daysAgo !== null ? `<div class="new-days-badge">Added ${daysAgo === 0 ? 'today' : daysAgo + 'd ago'}</div>` : ''}
+    ${daysOld!==null?`<div class="days-badge">Added ${daysOld===0?'today':daysOld+'d ago'}</div>`:''}
   </div>`;
 }
 
 async function load() {
-  const storeId = document.getElementById('storeFilter').value;
-  const days    = parseInt(document.getElementById('newDays').value) || 30;
-
+  if (!currentStart || !currentEnd) return;
   document.getElementById('droppingGrid').innerHTML = '<div class="loading">Loading...</div>';
-  document.getElementById('newGrid').innerHTML = '<div class="loading">Loading...</div>';
+  document.getElementById('newGrid').innerHTML      = '<div class="loading">Loading...</div>';
 
-  let url = `/api/inventory/items?`;
-  if (storeId) url += `store_id=${storeId}&`;
-  url += 'limit=500';
+  let url = '/api/inventory/items?limit=500';
+  if (selectedStore) url += `&store_id=${selectedStore}`;
 
   const r = await fetch(url, { headers: { Authorization: 'Bearer ' + token } });
   const data = await r.json();
   const items = data.items || data || [];
 
-  const cutoff = new Date(Date.now() - days * 86400000).toISOString();
-
   const dropping = items.filter(i => i.status === 'Dropping');
-  const newItems = items.filter(i => i.created_at && i.created_at >= cutoff && i.status !== 'Dropping');
+  const newItems = items.filter(i => {
+    if (i.status === 'Dropping' || !i.created_at) return false;
+    const t = new Date(i.created_at).getTime();
+    return t >= currentStart.getTime() && t <= currentEnd.getTime();
+  });
 
   document.getElementById('droppingCount').textContent = dropping.length;
-  document.getElementById('newCount').textContent = newItems.length;
+  document.getElementById('newCount').textContent      = newItems.length;
+  document.getElementById('newRangeLabel').textContent = `(${currentStart.toLocaleDateString('en-US',{month:'short',day:'numeric'})} – ${currentEnd.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})})`;
 
   document.getElementById('droppingGrid').innerHTML = dropping.length
-    ? `<div class="product-grid">${dropping.map(i => card(i, 'dropping')).join('')}</div>`
+    ? `<div class="product-grid">${dropping.map(i=>card(i,'dropping')).join('')}</div>`
     : '<div class="empty">No products currently marked as Dropping.</div>';
-
   document.getElementById('newGrid').innerHTML = newItems.length
-    ? `<div class="product-grid">${newItems.sort((a,b) => new Date(b.created_at) - new Date(a.created_at)).map(i => card(i, 'new')).join('')}</div>`
+    ? `<div class="product-grid">${newItems.sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).map(i=>card(i,'new')).join('')}</div>`
     : '<div class="empty">No new products in this period.</div>';
 }
 
-loadStores().then(load);
+loadStores().then(() => setPeriod('monthly', document.querySelector('.period-tab.active')));
 </script>
 </body>
 </html>
