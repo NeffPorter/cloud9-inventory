@@ -497,4 +497,26 @@ async function markAllNotificationsRead(event) {
 
 function toggleMobileMenu() {
   const items = document.getElementById('navItems');
-  if (items) items
+  if (items) items.classList.toggle('open');
+}
+
+function toggleDropdown(id, btn) {
+  const dropdown = document.getElementById(id);
+  const isOpen = dropdown.classList.contains('open');
+  closeAllDropdowns();
+  if (!isOpen) {
+    dropdown.classList.add('open');
+    btn.classList.add('active');
+  }
+}
+
+function closeAllDropdowns() {
+  document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('open'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+}
+
+function logout() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  window.location.href = '/';
+}
