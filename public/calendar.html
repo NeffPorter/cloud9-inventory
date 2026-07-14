@@ -129,9 +129,8 @@
   <!-- Filters -->
   <div class="filters">
     <span class="filters-label">Show:</span>
-    <div class="filter-chip on" data-f="deadline"     style="--c:#111111" onclick="toggleFilter(this)">Deadline</div>
-    <div class="filter-chip on" data-f="proposal_due" style="--c:#111111" onclick="toggleFilter(this)">Proposals</div>
-    <div class="filter-chip on" data-f="sale_event"   style="--c:#f97316" onclick="toggleFilter(this)">Sale Events</div>
+    <div class="filter-chip on" data-f="deadline"   style="--c:#ef4444" onclick="toggleFilter(this)">Deadline</div>
+    <div class="filter-chip on" data-f="sale_event" style="--c:#f97316" onclick="toggleFilter(this)">Sale Events</div>
     <div class="filter-chip on" data-f="reminder"     style="--c:#f59e0b" onclick="toggleFilter(this)">Reminder</div>
     <div class="filter-chip on" data-f="task"         style="--c:#10b981" onclick="toggleFilter(this)">Tasks</div>
     <div class="filter-chip on" data-f="event"        style="--c:#2563eb" onclick="toggleFilter(this)">Event</div>
@@ -221,10 +220,10 @@ const TYPE_COLORS = {
   event:        '#2563eb',
   meeting:      '#8b5cf6',
   reminder:     '#f59e0b',
-  deadline:     '#111111',
+  deadline:     '#ef4444',
   other:        '#6b7280',
   sale_event:   '#f97316',
-  proposal_due: '#111111',
+  proposal_due: '#ef4444',
   task:         '#10b981',
 };
 
@@ -248,7 +247,7 @@ const TYPE_BTN_COLORS = {
   event:    '#2563eb',
   meeting:  '#8b5cf6',
   reminder: '#f59e0b',
-  deadline: '#111111',
+  deadline: '#ef4444',
   other:    '#6b7280',
 };
 
@@ -274,7 +273,7 @@ let allUsers = [];
 let currentUser = {};
 let editingId = null;
 let selectedType = 'event';
-let activeFilters = new Set(['event','meeting','reminder','deadline','other','sale_event','proposal_due','task']);
+let activeFilters = new Set(['event','meeting','reminder','deadline','other','sale_event','task']);
 
 function isElevated(role) {
   return ['regional_manager','him','admin','owner','marketing'].includes(role);
@@ -360,7 +359,9 @@ function visibleForDate(dateStr) {
   return events.filter(function(e) {
     var eStart = e.date, eEnd = e.end_date || e.date;
     if (dateStr < eStart || dateStr > eEnd) return false;
-    return activeFilters.has(e.type);
+    // proposal_due events share the Deadline filter
+    var filterKey = e.type === 'proposal_due' ? 'deadline' : e.type;
+    return activeFilters.has(filterKey);
   });
 }
 
