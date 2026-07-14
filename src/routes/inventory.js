@@ -195,14 +195,15 @@ router.get('/items', auth, async (req, res) => {
     let keepGoing = true;
 
     while (keepGoing) {
-      const { data, error } = await supabase
+      let q = supabase
         .from('inventory_items')
         .select('*')
-        .eq('store_id', store_id)
         .order('category')
         .order('group_name')
         .order('variant_name')
         .range(from, from + pageSize - 1);
+      if (store_id) q = q.eq('store_id', store_id);
+      const { data, error } = await q;
 
       if (error) throw error;
       allItems = allItems.concat(data || []);

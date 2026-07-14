@@ -484,7 +484,24 @@ function loadAll() {
 // Init
 $('startDate').value = monthStart();
 $('endDate').value   = today();
-loadStores().then(loadAll);
+
+const isSingleStore = ['gm', 'store_user'].includes(user.role);
+
+loadStores().then(() => {
+  if (isSingleStore && user.store_id) {
+    const sel = $('storeFilter');
+    sel.value = user.store_id;
+    // If exact value not found, add it
+    if (!sel.value) {
+      const o = document.createElement('option');
+      o.value = user.store_id; o.textContent = 'My Store';
+      sel.appendChild(o);
+      sel.value = user.store_id;
+    }
+    sel.disabled = true;
+  }
+  loadAll();
+});
 </script>
 </body>
 </html>
