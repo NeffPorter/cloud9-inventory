@@ -94,7 +94,7 @@ if (!token || !ALLOWED.includes(user.role)) window.location.href = '/dashboard';
 let storesMap = {};
 
 async function loadStores() {
-  const r = await fetch('/api/stores', { headers: { Authorization: 'Bearer ' + token } });
+  const r = await fetch('/api/inventory/stores', { headers: { Authorization: 'Bearer ' + token } });
   const data = await r.json();
   const stores = data.stores || data || [];
   stores.forEach(s => { storesMap[s.id] = s.name; });

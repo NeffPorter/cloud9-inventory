@@ -146,7 +146,7 @@ async function init() {
 
 async function loadUsers() {
   try {
-    const r = await fetch('/api/users', { headers: { Authorization: 'Bearer ' + token } });
+    const r = await fetch('/api/auth/users', { headers: { Authorization: 'Bearer ' + token } });
     const d = await r.json();
     const users = d.users || d || [];
     const sel = document.getElementById('assignTo');

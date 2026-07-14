@@ -63,16 +63,6 @@ function buildNavItems(user) {
   }
 
   return `
-    <!-- Analytics -->
-    <div class="nav-item" style="position:relative">
-      <button class="nav-btn" onclick="toggleDropdown('analyticsDropdown', this)">📊 Analytics <span style="font-size:10px">▼</span></button>
-      <div class="dropdown" id="analyticsDropdown">
-        <div class="dropdown-header">Analytics & Data</div>
-        <button class="dropdown-item" onclick="window.location.href='/analytics'">📊 Analytics Dashboard</button>
-        <button class="dropdown-item" onclick="window.location.href='/products-feed'">🆕 Products Feed</button>
-      </div>
-    </div>
-
     <!-- Reports -->
     <div class="nav-item" style="position:relative">
       <button class="nav-btn" onclick="toggleDropdown('reportsDropdown', this)">📊 Reports <span style="font-size:10px">▼</span></button>
@@ -80,6 +70,16 @@ function buildNavItems(user) {
         <div class="dropdown-header">Reports</div>
         ${item('/sales',    '💰', 'Sales')}
         ${item('/owner-pl', '📊', 'P&L Statement')}
+      </div>
+    </div>
+
+    <!-- Analytics -->
+    <div class="nav-item" style="position:relative">
+      <button class="nav-btn" onclick="toggleDropdown('analyticsDropdown', this)">📊 Analytics <span style="font-size:10px">▼</span></button>
+      <div class="dropdown" id="analyticsDropdown">
+        <div class="dropdown-header">Analytics & Data</div>
+        <button class="dropdown-item" onclick="window.location.href='/analytics'">📊 Analytics Dashboard</button>
+        <button class="dropdown-item" onclick="window.location.href='/products-feed'">🆕 Products Feed</button>
       </div>
     </div>
 

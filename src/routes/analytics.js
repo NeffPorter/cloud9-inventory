@@ -68,10 +68,19 @@ router.get('/transactions', auth, requireAnalyticsAccess, async (req, res) => {
   }
 });
 
-// GET /api/analytics/google?start=&end=
+// Helper: load stores with platform credentials from DB
+async function getPlatformStores(storeId) {
+  let q = supabase.from('stores').select('id, name, google_location_id, apple_location_id, facebook_page_id, facebook_page_token');
+  if (storeId) q = q.eq('id', storeId);
+  const { data } = await q;
+  return data || [];
+}
+
+// GET /api/analytics/google?start=&end=&store_id=
 router.get('/google', auth, requireAnalyticsAccess, async (req, res) => {
   try {
-    const result = await fetchGoogleInsights(req.query.start, req.query.end);
+    const stores = await getPlatformStores(req.query.store_id);
+    const result = await fetchGoogleInsights(req.query.start, req.query.end, stores);
     res.json(result);
   } catch (err) {
     console.error('[Route] Google analytics error:', err.message);
@@ -79,10 +88,11 @@ router.get('/google', auth, requireAnalyticsAccess, async (req, res) => {
   }
 });
 
-// GET /api/analytics/apple?start=&end=
+// GET /api/analytics/apple?start=&end=&store_id=
 router.get('/apple', auth, requireAnalyticsAccess, async (req, res) => {
   try {
-    const result = await fetchAppleInsights(req.query.start, req.query.end);
+    const stores = await getPlatformStores(req.query.store_id);
+    const result = await fetchAppleInsights(req.query.start, req.query.end, stores);
     res.json(result);
   } catch (err) {
     console.error('[Route] Apple analytics error:', err.message);
@@ -90,10 +100,11 @@ router.get('/apple', auth, requireAnalyticsAccess, async (req, res) => {
   }
 });
 
-// GET /api/analytics/facebook?start=&end=
+// GET /api/analytics/facebook?start=&end=&store_id=
 router.get('/facebook', auth, requireAnalyticsAccess, async (req, res) => {
   try {
-    const result = await fetchFacebookInsights(req.query.start, req.query.end);
+    const stores = await getPlatformStores(req.query.store_id);
+    const result = await fetchFacebookInsights(req.query.start, req.query.end, stores);
     res.json(result);
   } catch (err) {
     console.error('[Route] Facebook analytics error:', err.message);

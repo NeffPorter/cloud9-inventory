@@ -7,259 +7,275 @@
   <script src="/navbar.js?v=5"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #f0f2f5;
-      min-height: 100vh;
-    }
-    .container { max-width: 800px; margin: 0 auto; padding: 32px 24px; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; min-height: 100vh; }
+    .container { max-width: 860px; margin: 0 auto; padding: 32px 24px; }
     .page-title { font-size: 24px; font-weight: 700; color: #1a1a2e; margin-bottom: 8px; }
     .page-subtitle { color: #666; font-size: 14px; margin-bottom: 32px; }
-    .card {
-      background: white;
-      border-radius: 12px;
-      padding: 32px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-      margin-bottom: 24px;
-    }
-    .card-title {
-      font-size: 18px;
-      font-weight: 700;
-      color: #1a1a2e;
-      margin-bottom: 24px;
-      padding-bottom: 16px;
-      border-bottom: 1px solid #f0f0f0;
-    }
-    .form-group { margin-bottom: 20px; }
-    label {
-      display: block;
-      font-size: 13px;
-      font-weight: 600;
-      color: #444;
-      margin-bottom: 6px;
-    }
-    .label-hint { font-weight: 400; color: #999; font-size: 12px; }
-    input {
-      width: 100%;
-      padding: 12px 16px;
-      border: 2px solid #e0e0e0;
-      border-radius: 8px;
-      font-size: 15px;
-      transition: border-color 0.2s;
-      outline: none;
-    }
-    input:focus { border-color: #2f5597; }
-    .submit-btn {
-      background: #2f5597;
-      color: white;
-      border: none;
-      padding: 14px 32px;
-      border-radius: 8px;
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .submit-btn:hover { background: #1e3a6e; }
-    .submit-btn:disabled { background: #999; cursor: not-allowed; }
-    .error {
-      background: #fee;
-      color: #c00;
-      padding: 12px;
-      border-radius: 8px;
-      font-size: 14px;
-      margin-top: 16px;
-      display: none;
-    }
-    .success {
-      background: #efe;
-      color: #060;
-      padding: 12px;
-      border-radius: 8px;
-      font-size: 14px;
-      margin-top: 16px;
-      display: none;
-    }
-    .store-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 16px 0;
-      border-bottom: 1px solid #f0f0f0;
-    }
+    .card { background: white; border-radius: 12px; padding: 28px 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 24px; }
+    .card-title { font-size: 17px; font-weight: 700; color: #1a1a2e; margin-bottom: 20px; padding-bottom: 14px; border-bottom: 1px solid #f0f0f0; }
+    .form-group { margin-bottom: 16px; }
+    label { display: block; font-size: 12px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+    .label-hint { text-transform: none; font-weight: 400; color: #999; font-size: 12px; letter-spacing: 0; }
+    input, textarea { width: 100%; padding: 10px 14px; border: 1.5px solid #e0e0e0; border-radius: 8px; font-size: 14px; font-family: inherit; transition: border-color .2s; outline: none; }
+    input:focus, textarea:focus { border-color: #2563eb; }
+    textarea { resize: vertical; min-height: 80px; font-size: 12px; }
+    .submit-btn { background: #2563eb; color: white; border: none; padding: 11px 28px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .submit-btn:hover { background: #1d4ed8; }
+    .submit-btn:disabled { background: #93c5fd; cursor: not-allowed; }
+    .msg { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-top: 14px; display: none; }
+    .msg-error { background: #fee2e2; color: #dc2626; }
+    .msg-success { background: #d1fae5; color: #065f46; }
+
+    /* Store list */
+    .store-row { padding: 16px 0; border-bottom: 1px solid #f3f4f6; display: flex; align-items: flex-start; gap: 16px; }
     .store-row:last-child { border-bottom: none; }
-    .store-info h3 { font-size: 15px; font-weight: 600; color: #1a1a2e; }
+    .store-info { flex: 1; min-width: 0; }
+    .store-info h3 { font-size: 15px; font-weight: 700; color: #1a1a2e; }
     .store-info p { font-size: 12px; color: #999; margin-top: 2px; }
-    .delete-btn {
-      background: #fee;
-      color: #c00;
-      border: none;
-      padding: 6px 12px;
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
-    }
+    .platform-dots { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+    .platform-dot { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; }
+    .dot-on  { background: #d1fae5; color: #065f46; }
+    .dot-off { background: #f3f4f6; color: #9ca3af; }
+    .store-actions { display: flex; gap: 8px; flex-shrink: 0; padding-top: 2px; }
+    .edit-btn { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; padding: 6px 14px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .edit-btn:hover { background: #dbeafe; }
+    .delete-btn { background: #fee2e2; color: #dc2626; border: none; padding: 6px 12px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .delete-btn:hover { background: #fecaca; }
     .empty { color: #999; font-size: 14px; text-align: center; padding: 24px 0; }
-    .banner {
-      padding: 14px 16px;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 500;
-      margin-bottom: 24px;
-      display: none;
-    }
-    .banner.success { background: #efe; color: #060; display: block; }
-    .banner.error   { background: #fee; color: #c00; display: block; }
+
+    /* Edit modal */
+    .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 500; align-items: center; justify-content: center; padding: 16px; }
+    .modal-bg.open { display: flex; }
+    .modal { background: white; border-radius: 14px; padding: 28px 32px; width: 100%; max-width: 580px; max-height: 90vh; overflow-y: auto; }
+    .modal-title { font-size: 17px; font-weight: 700; color: #1a1a2e; margin-bottom: 6px; }
+    .modal-sub { font-size: 13px; color: #888; margin-bottom: 22px; }
+    .section-divider { font-size: 11px; font-weight: 700; color: #2563eb; text-transform: uppercase; letter-spacing: .08em; margin: 20px 0 14px; padding-bottom: 6px; border-bottom: 1px solid #e5e7eb; }
+    .modal-actions { display: flex; gap: 10px; margin-top: 24px; justify-content: flex-end; }
+    .btn-cancel { background: white; border: 1.5px solid #ddd; color: #555; padding: 9px 22px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .btn-save { background: #2563eb; color: white; border: none; padding: 10px 28px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .btn-save:hover { background: #1d4ed8; }
+
+    .banner { padding: 12px 16px; border-radius: 8px; font-size: 14px; font-weight: 500; margin-bottom: 20px; display: none; }
+    .banner.success { background: #d1fae5; color: #065f46; display: block; }
+    .banner.error   { background: #fee2e2; color: #dc2626; display: block; }
   </style>
 </head>
 <body>
-  <script>loadNavbar();</script>
+<script>loadNavbar();</script>
 
-  <div class="container">
-    <div class="page-title">Manage Stores</div>
-    <div class="page-subtitle">Add and manage your Clover store connections</div>
+<div class="container">
+  <div class="page-title">🏪 Manage Stores</div>
+  <div class="page-subtitle">Add stores and configure platform analytics credentials</div>
 
-    <div id="pageBanner" class="banner"></div>
+  <div id="pageBanner" class="banner"></div>
 
-    <div class="card">
-      <div class="card-title">➕ Add New Store</div>
-      <div class="form-group">
-        <label>Store Name</label>
-        <input type="text" id="storeName" placeholder="e.g. Cloud 9 - Phoenix">
-      </div>
-      <div class="form-group">
-        <label>Merchant ID <span class="label-hint">(from Clover dashboard)</span></label>
-        <input type="text" id="merchantId" placeholder="e.g. ABC123DEF456">
-      </div>
-      <div class="form-group">
-        <label>API Token <span class="label-hint">(keep this secret!)</span></label>
-        <input type="password" id="apiToken" placeholder="••••••••••••••••">
-      </div>
-      <button class="submit-btn" onclick="addStore()" id="addBtn">Add Store</button>
-      <div class="error" id="errorMsg"></div>
-      <div class="success" id="successMsg"></div>
+  <!-- Add Store -->
+  <div class="card">
+    <div class="card-title">➕ Add New Store</div>
+    <div class="form-group">
+      <label>Store Name</label>
+      <input type="text" id="storeName" placeholder="e.g. Cloud 9 - Phoenix">
     </div>
-
-    <div class="card">
-      <div class="card-title">🏪 Your Stores</div>
-      <div id="storesList"><div class="empty">Loading stores...</div></div>
+    <div class="form-group">
+      <label>Merchant ID <span class="label-hint">— from Clover dashboard</span></label>
+      <input type="text" id="merchantId" placeholder="e.g. ABC123DEF456">
     </div>
+    <div class="form-group">
+      <label>API Token <span class="label-hint">— keep this secret</span></label>
+      <input type="password" id="apiToken" placeholder="••••••••••••••••">
+    </div>
+    <button class="submit-btn" onclick="addStore()" id="addBtn">Add Store</button>
+    <div class="msg msg-error" id="addError"></div>
+    <div class="msg msg-success" id="addSuccess"></div>
   </div>
 
-  <script>
-    const token = localStorage.getItem('token');
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    if (!token) window.location.href = '/';
-    if (!['admin', 'him', 'regional_manager'].includes(user.role)) window.location.href = '/dashboard';
+  <!-- Store List -->
+  <div class="card">
+    <div class="card-title">Your Stores</div>
+    <div id="storesList"><div class="empty">Loading...</div></div>
+  </div>
+</div>
 
-    // Show banner based on query params
-    const params = new URLSearchParams(window.location.search);
-    const banner = document.getElementById('pageBanner');
-    if (params.get('connected') === '1') {
-      banner.textContent = '✅ Store connected successfully!';
-      banner.className = 'banner success';
-      history.replaceState({}, '', '/stores');
-    }
+<!-- Edit Modal -->
+<div class="modal-bg" id="editModal">
+  <div class="modal">
+    <div class="modal-title" id="editModalTitle">Edit Store</div>
+    <div class="modal-sub">Update platform analytics credentials for this store. These are stored securely in the database.</div>
 
-    async function loadStores() {
-      try {
-        const res = await fetch('/api/inventory/stores', {
-          headers: { 'Authorization': 'Bearer ' + token }
-        });
-        const data = await res.json();
-        const stores = data.stores || [];
-        const list = document.getElementById('storesList');
+    <div class="section-divider">🔍 Google Business Profile</div>
+    <div class="form-group">
+      <label>Location ID <span class="label-hint">— e.g. accounts/123456789/locations/987654321</span></label>
+      <input type="text" id="editGoogleLocationId" placeholder="accounts/xxx/locations/yyy">
+    </div>
 
-        if (stores.length === 0) {
-          list.innerHTML = '<div class="empty">No stores added yet</div>';
-          return;
-        }
+    <div class="section-divider">🍎 Apple Business Connect</div>
+    <div class="form-group">
+      <label>Location ID <span class="label-hint">— Apple Business Connect location identifier</span></label>
+      <input type="text" id="editAppleLocationId" placeholder="e.g. 1234567890">
+    </div>
 
-        list.innerHTML = stores.map(store => `
-          <div class="store-row">
-            <div class="store-info">
-              <h3>${store.name}</h3>
-              <p>MID: ${store.merchant_id}</p>
-            </div>
-            <button class="delete-btn" onclick="deleteStore('${store.id}')">Remove</button>
+    <div class="section-divider">📘 Facebook Page</div>
+    <div class="form-group">
+      <label>Page ID</label>
+      <input type="text" id="editFacebookPageId" placeholder="e.g. 123456789012345">
+    </div>
+    <div class="form-group">
+      <label>Page Access Token</label>
+      <input type="password" id="editFacebookToken" placeholder="••••••••••••••••">
+      <div style="font-size:11px;color:#888;margin-top:4px;">Leave blank to keep the existing token.</div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" onclick="saveStore()" id="saveBtn">Save Credentials</button>
+    </div>
+    <div class="msg msg-error" id="editError" style="margin-top:12px"></div>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem('token');
+const user  = JSON.parse(localStorage.getItem('user') || '{}');
+if (!token) window.location.href = '/';
+if (!['admin','him','regional_manager'].includes(user.role)) window.location.href = '/dashboard';
+
+const params = new URLSearchParams(window.location.search);
+const banner = document.getElementById('pageBanner');
+if (params.get('connected') === '1') {
+  banner.textContent = '✅ Store connected successfully!';
+  banner.className = 'banner success';
+  history.replaceState({}, '', '/stores');
+}
+
+let editingStoreId = null;
+
+async function loadStores() {
+  try {
+    const res = await fetch('/api/inventory/stores', { headers: { Authorization: 'Bearer ' + token } });
+    const data = await res.json();
+    const stores = data.stores || [];
+    const list = document.getElementById('storesList');
+    if (!stores.length) { list.innerHTML = '<div class="empty">No stores added yet.</div>'; return; }
+    list.innerHTML = stores.map(s => `
+      <div class="store-row">
+        <div class="store-info">
+          <h3>${s.name}</h3>
+          <p>MID: ${s.merchant_id}</p>
+          <div class="platform-dots">
+            <span class="platform-dot ${s.google_location_id ? 'dot-on' : 'dot-off'}">🔍 Google ${s.google_location_id ? '✓' : '—'}</span>
+            <span class="platform-dot ${s.apple_location_id  ? 'dot-on' : 'dot-off'}">🍎 Apple ${s.apple_location_id  ? '✓' : '—'}</span>
+            <span class="platform-dot ${s.facebook_page_id   ? 'dot-on' : 'dot-off'}">📘 Facebook ${s.facebook_page_id ? '✓' : '—'}</span>
           </div>
-        `).join('');
-      } catch (err) {
-        document.getElementById('storesList').innerHTML = '<div class="empty">Error loading stores</div>';
-      }
-    }
+        </div>
+        <div class="store-actions">
+          <button class="edit-btn" onclick='openModal(${JSON.stringify(s)})'>✏️ Credentials</button>
+          <button class="delete-btn" onclick="deleteStore('${s.id}')">Remove</button>
+        </div>
+      </div>`).join('');
+  } catch (err) {
+    document.getElementById('storesList').innerHTML = '<div class="empty">Error loading stores.</div>';
+  }
+}
 
-    async function addStore() {
-      const name = document.getElementById('storeName').value.trim();
-      const merchant_id = document.getElementById('merchantId').value.trim();
-      const api_token = document.getElementById('apiToken').value.trim();
-      const btn = document.getElementById('addBtn');
-      const errorMsg = document.getElementById('errorMsg');
-      const successMsg = document.getElementById('successMsg');
+function openModal(store) {
+  editingStoreId = store.id;
+  document.getElementById('editModalTitle').textContent = '✏️ ' + store.name;
+  document.getElementById('editGoogleLocationId').value = store.google_location_id || '';
+  document.getElementById('editAppleLocationId').value  = store.apple_location_id  || '';
+  document.getElementById('editFacebookPageId').value   = store.facebook_page_id   || '';
+  document.getElementById('editFacebookToken').value    = '';
+  document.getElementById('editError').style.display = 'none';
+  document.getElementById('editModal').classList.add('open');
+}
 
-      errorMsg.style.display = 'none';
-      successMsg.style.display = 'none';
+function closeModal() {
+  document.getElementById('editModal').classList.remove('open');
+  editingStoreId = null;
+}
 
-      if (!name || !merchant_id || !api_token) {
-        errorMsg.textContent = 'All fields are required.';
-        errorMsg.style.display = 'block';
-        return;
-      }
+async function saveStore() {
+  if (!editingStoreId) return;
+  const btn = document.getElementById('saveBtn');
+  const errEl = document.getElementById('editError');
+  errEl.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Saving...';
 
-      btn.disabled = true;
-      btn.textContent = 'Adding...';
+  const body = {
+    google_location_id:  document.getElementById('editGoogleLocationId').value.trim() || null,
+    apple_location_id:   document.getElementById('editAppleLocationId').value.trim()  || null,
+    facebook_page_id:    document.getElementById('editFacebookPageId').value.trim()   || null,
+  };
+  const fbToken = document.getElementById('editFacebookToken').value.trim();
+  if (fbToken) body.facebook_page_token = fbToken;
 
-      try {
-        const res = await fetch('/api/inventory/stores', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + token
-          },
-          body: JSON.stringify({ name, merchant_id, api_token })
-        });
-
-        const data = await res.json();
-
-        if (res.ok) {
-          successMsg.textContent = '✅ Store added successfully!';
-          successMsg.style.display = 'block';
-          document.getElementById('storeName').value = '';
-          document.getElementById('merchantId').value = '';
-          document.getElementById('apiToken').value = '';
-          loadStores();
-        } else {
-          errorMsg.textContent = data.error || 'Failed to add store.';
-          errorMsg.style.display = 'block';
-        }
-      } catch (err) {
-        errorMsg.textContent = 'Could not connect to server.';
-        errorMsg.style.display = 'block';
-      }
-
-      btn.disabled = false;
-      btn.textContent = 'Add Store';
-    }
-
-    async function deleteStore(id) {
-      if (!confirm('Remove this store? This will permanently delete ALL inventory, sales, and schedule data for this store.')) return;
-      try {
-        const res = await fetch(`/api/inventory/stores/${id}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': 'Bearer ' + token }
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          alert('Error removing store: ' + (data.error || res.statusText));
-          return;
-        }
-        loadStores();
-      } catch (err) {
-        alert('Error removing store: ' + err.message);
-      }
-    }
-
+  try {
+    const res = await fetch(`/api/inventory/stores/${editingStoreId}`, {
+      method: 'PUT',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Failed');
+    closeModal();
     loadStores();
-  </script>
+  } catch (e) {
+    errEl.textContent = 'Error: ' + e.message;
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save Credentials';
+  }
+}
+
+async function addStore() {
+  const name = document.getElementById('storeName').value.trim();
+  const merchant_id = document.getElementById('merchantId').value.trim();
+  const api_token   = document.getElementById('apiToken').value.trim();
+  const errEl = document.getElementById('addError');
+  const okEl  = document.getElementById('addSuccess');
+  const btn   = document.getElementById('addBtn');
+  errEl.style.display = 'none'; okEl.style.display = 'none';
+  if (!name || !merchant_id || !api_token) {
+    errEl.textContent = 'All fields required.'; errEl.style.display = 'block'; return;
+  }
+  btn.disabled = true; btn.textContent = 'Adding...';
+  try {
+    const res = await fetch('/api/inventory/stores', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, merchant_id, api_token })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      okEl.textContent = '✅ Store added! Click "Credentials" to set up platform analytics.';
+      okEl.style.display = 'block';
+      document.getElementById('storeName').value = '';
+      document.getElementById('merchantId').value = '';
+      document.getElementById('apiToken').value = '';
+      loadStores();
+    } else {
+      errEl.textContent = data.error || 'Failed to add store.';
+      errEl.style.display = 'block';
+    }
+  } catch (err) {
+    errEl.textContent = 'Could not connect to server.'; errEl.style.display = 'block';
+  }
+  btn.disabled = false; btn.textContent = 'Add Store';
+}
+
+async function deleteStore(id) {
+  if (!confirm('Remove this store? This permanently deletes ALL inventory, sales, and schedule data.')) return;
+  try {
+    const res = await fetch(`/api/inventory/stores/${id}`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
+    if (!res.ok) { const d = await res.json().catch(()=>{}); alert('Error: ' + (d?.error || res.statusText)); return; }
+    loadStores();
+  } catch (err) { alert('Error: ' + err.message); }
+}
+
+document.getElementById('editModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('editModal')) closeModal();
+});
+
+loadStores();
+</script>
 </body>
 </html>

@@ -6,7 +6,6 @@
  *   owner             — read-only reports
  *   gm                — store-level + expense log
  *   store_user        — store-level inventory manager (IM)
- *   media             — analytics, products feed, product lookup, sale events, expenses (add)
  */
 
 // Roles that have HIM-level access (all-store management)
@@ -54,6 +53,7 @@ function requireOwnerLevel(req, res, next) {
   if (!isOwnerLevel(req.user?.role)) return res.status(403).json({ error: 'Owner access required' });
   next();
 }
+
 module.exports = {
   HIM_ROLES, USER_ADMIN_ROLES, OWNER_ROLES, STORE_ROLES,
   isHim, isUserAdmin, isOwnerLevel, isStoreLevel,

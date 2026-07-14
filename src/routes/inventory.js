@@ -124,6 +124,26 @@ async function triggerBackgroundSync(store) {
 }
 
 // Delete a store (admin only) — cascades through all related tables first
+// PUT /stores/:id -- update platform credentials
+router.put('/stores/:id', auth, async (req, res) => {
+  try {
+    if (!isHim(req.user.role)) return res.status(403).json({ error: 'Admin only' });
+    const { google_location_id, apple_location_id, facebook_page_id, facebook_page_token, name } = req.body;
+    const updates = {};
+    if (name                !== undefined) updates.name                = name;
+    if (google_location_id  !== undefined) updates.google_location_id  = google_location_id  || null;
+    if (apple_location_id   !== undefined) updates.apple_location_id   = apple_location_id   || null;
+    if (facebook_page_id    !== undefined) updates.facebook_page_id    = facebook_page_id    || null;
+    if (facebook_page_token !== undefined) updates.facebook_page_token = facebook_page_token || null;
+    const { error } = await supabase.from('stores').update(updates).eq('id', req.params.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Update store error:', err.message);
+    res.status(500).json({ error: 'Failed to update store' });
+  }
+});
+
 router.delete('/stores/:id', auth, async (req, res) => {
   try {
     if (!isHim(req.user.role)) {
