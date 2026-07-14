@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analytics - Cloud 9</title>
+  <script src="/navbar.js?v=5"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; color: #1a1a2e; }
+    .page { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+
+    /* Section headers */
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin: 32px 0 16px; flex-wrap: wrap; gap: 12px; }
+    .section-title { font-size: 20px; font-weight: 700; color: #1a1a2e; }
+    .section-sub { font-size: 13px; color: #888; margin-top: 2px; }
+
+    /* Date range bar */
+    .date-bar { background: white; border-radius: 12px; border: 1px solid #e5e7eb; padding: 14px 18px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 24px; }
+    .date-bar label { font-size: 12px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: .04em; }
+    .date-bar input { padding: 7px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 13px; }
+    .btn { padding: 8px 18px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+    .preset-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+    .preset-btn { padding: 5px 12px; border: 1.5px solid #ddd; border-radius: 20px; font-size: 12px; font-weight: 600; color: #555; background: white; cursor: pointer; }
+    .preset-btn:hover, .preset-btn.active { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
+
+    /* Platform grid */
+    .platform-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; margin-bottom: 28px; }
+    .platform-card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; }
+    .platform-card-header { padding: 16px 18px 12px; border-bottom: 1px solid #f3f4f6; display: flex; align-items: center; gap: 12px; }
+    .platform-logo { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+    .logo-google { background: #fef2f2; }
+    .logo-apple { background: #f5f5f5; }
+    .logo-facebook { background: #eff6ff; }
+    .platform-name { font-size: 15px; font-weight: 700; color: #1a1a2e; }
+    .platform-status { margin-left: auto; }
+    .badge { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 11px; font-weight: 700; letter-spacing: .02em; }
+    .badge-live { background: #d1fae5; color: #065f46; }
+    .badge-unconfigured { background: #f3f4f6; color: #6b7280; }
+    .badge-error { background: #fee2e2; color: #dc2626; }
+    .badge-loading { background: #dbeafe; color: #1d4ed8; }
+    .platform-card-body { padding: 14px 18px 18px; }
+
+    /* Metric rows */
+    .metric-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
+    .metric-box { flex: 1; min-width: 90px; background: #f9fafb; border-radius: 8px; padding: 10px 12px; }
+    .metric-val { font-size: 22px; font-weight: 700; color: #1a1a2e; }
+    .metric-lbl { font-size: 11px; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-top: 2px; }
+
+    /* Setup banner */
+    .setup-banner { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px; padding: 12px 14px; font-size: 13px; color: #92400e; }
+    .setup-banner code { background: #fef3c7; padding: 1px 5px; border-radius: 4px; font-size: 12px; font-family: monospace; }
+
+    /* Per-location breakdown */
+    .breakdown-toggle { font-size: 12px; font-weight: 600; color: #2563eb; cursor: pointer; margin-top: 8px; display: inline-block; }
+    .breakdown-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
+    .breakdown-table th { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e5e7eb; color: #888; font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: .04em; }
+    .breakdown-table td { padding: 7px 8px; border-bottom: 1px solid #f3f4f6; color: #374151; }
+
+    /* Transaction section */
+    .store-filter { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .store-pill { padding: 6px 14px; border: 1.5px solid #ddd; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; background: white; color: #555; transition: all .15s; }
+    .store-pill:hover { border-color: #2563eb; color: #2563eb; }
+    .store-pill.active { background: #2563eb; color: white; border-color: #2563eb; }
+
+    .summary-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; margin-bottom: 24px; }
+    .summary-card { background: white; border-radius: 10px; border: 1px solid #e5e7eb; padding: 16px 18px; }
+    .summary-card .val { font-size: 26px; font-weight: 700; }
+    .summary-card .lbl { font-size: 11px; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; margin-top: 4px; }
+    .val-green { color: #16a34a; }
+    .val-red { color: #dc2626; }
+    .val-blue { color: #2563eb; }
+
+    .stores-table-wrap { background: white; border-radius: 12px; border: 1px solid #e5e7eb; overflow: hidden; }
+    .stores-table { width: 100%; border-collapse: collapse; }
+    .stores-table th { text-align: left; padding: 11px 16px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: .04em; }
+    .stores-table td { padding: 13px 16px; border-bottom: 1px solid #f3f4f6; font-size: 13px; }
+    .stores-table tr:last-child td { border-bottom: none; }
+    .stores-table .store-name { font-weight: 600; color: #1a1a2e; }
+    .refund-val { color: #dc2626; }
+
+    .loading-msg { text-align: center; padding: 32px; color: #999; font-size: 14px; }
+    .error-msg { text-align: center; padding: 24px; color: #dc2626; font-size: 13px; }
+  </style>
+</head>
+<body>
+<script>loadNavbar();</script>
+
+<div class="page">
+
+  <!-- ===== DATE RANGE ===== -->
+  <div class="date-bar">
+    <label>Range</label>
+    <input type="date" id="startDate">
+    <span style="color:#aaa">—</span>
+    <input type="date" id="endDate">
+    <button class="btn btn-primary btn-sm" onclick="applyRange()">Apply</button>
+    <div class="preset-btns">
+      <button class="preset-btn" onclick="setPreset(7,this)">7 days</button>
+      <button class="preset-btn" onclick="setPreset(30,this)">30 days</button>
+      <button class="preset-btn active" onclick="setPreset('month',this)">This month</button>
+    </div>
+  </div>
+
+  <!-- ===== PLATFORM ANALYTICS ===== -->
+  <div class="section-header">
+    <div>
+      <div class="section-title">📊 Platform Analytics</div>
+      <div class="section-sub">Google Business, Apple Business Connect, Facebook</div>
+    </div>
+  </div>
+
+  <div class="platform-grid">
+    <!-- Google -->
+    <div class="platform-card" id="card-google">
+      <div class="platform-card-header">
+        <div class="platform-logo logo-google">🔍</div>
+        <div>
+          <div class="platform-name">Google Business</div>
+        </div>
+        <div class="platform-status">
+          <span class="badge badge-loading" id="badge-google">Loading...</span>
+        </div>
+      </div>
+      <div class="platform-card-body" id="body-google">
+        <div class="loading-msg">Fetching data...</div>
+      </div>
+    </div>
+
+    <!-- Apple -->
+    <div class="platform-card" id="card-apple">
+      <div class="platform-card-header">
+        <div class="platform-logo logo-apple">🍎</div>
+        <div>
+          <div class="platform-name">Apple Business Connect</div>
+        </div>
+        <div class="platform-status">
+          <span class="badge badge-loading" id="badge-apple">Loading...</span>
+        </div>
+      </div>
+      <div class="platform-card-body" id="body-apple">
+        <div class="loading-msg">Fetching data...</div>
+      </div>
+    </div>
+
+    <!-- Facebook -->
+    <div class="platform-card" id="card-facebook">
+      <div class="platform-card-header">
+        <div class="platform-logo logo-facebook">📘</div>
+        <div>
+          <div class="platform-name">Facebook Pages</div>
+        </div>
+        <div class="platform-status">
+          <span class="badge badge-loading" id="badge-facebook">Loading...</span>
+        </div>
+      </div>
+      <div class="platform-card-body" id="body-facebook">
+        <div class="loading-msg">Fetching data...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TRANSACTION ANALYTICS ===== -->
+  <div class="section-header">
+    <div>
+      <div class="section-title">💰 Sales Analytics</div>
+      <div class="section-sub">Transaction data from Clover</div>
+    </div>
+    <div class="store-filter" id="storePills"></div>
+  </div>
+
+  <div id="summaryCards" class="summary-cards"></div>
+  <div id="storesTable"></div>
+
+</div>
+
+<script>
+const token = localStorage.getItem('token');
+const user  = JSON.parse(localStorage.getItem('user') || '{}');
+const ALLOWED = ['regional_manager', 'him', 'admin', 'owner', 'media'];
+if (!token || !ALLOWED.includes(user.role)) window.location.href = '/dashboard';
+
+let currentStoreId = null;
+let currentStart = '', currentEnd = '';
+
+// ---- Date helpers ----
+function todayStr() { return new Date().toISOString().split('T')[0]; }
+function daysAgo(n) {
+  const d = new Date(); d.setDate(d.getDate() - n + 1);
+  return d.toISOString().split('T')[0];
+}
+function monthStart() {
+  const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
+}
+
+function setPreset(val, btn) {
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  if (val === 'month') {
+    document.getElementById('startDate').value = monthStart();
+    document.getElementById('endDate').value   = todayStr();
+  } else {
+    document.getElementById('startDate').value = daysAgo(val);
+    document.getElementById('endDate').value   = todayStr();
+  }
+  applyRange();
+}
+
+function applyRange() {
+  currentStart = document.getElementById('startDate').value;
+  currentEnd   = document.getElementById('endDate').value;
+  loadAllPlatforms();
+  loadTransactions();
+}
+
+// ---- Platform loaders ----
+function fmt(n) { return (n || 0).toLocaleString(); }
+
+async function loadPlatform(key, start, end) {
+  const badge = document.getElementById('badge-' + key);
+  const body  = document.getElementById('body-'  + key);
+  badge.className = 'badge badge-loading'; badge.textContent = 'Loading...';
+  body.innerHTML = '<div class="loading-msg">Fetching data...</div>';
+  try {
+    const params = start && end ? `?start=${start}&end=${end}` : '';
+    const res = await fetch(`/api/analytics/${key}${params}`, { headers: { Authorization: 'Bearer ' + token } });
+    const d = await res.json();
+
+    if (!d.configured) {
+      badge.className = 'badge badge-unconfigured'; badge.textContent = 'Not Configured';
+      body.innerHTML = setupBanner(key);
+      return;
+    }
+    if (d.error) {
+      badge.className = 'badge badge-error'; badge.textContent = 'Error';
+      body.innerHTML = `<div class="error-msg">⚠️ ${d.error}</div>`;
+      return;
+    }
+
+    badge.className = 'badge badge-live'; badge.textContent = 'Live';
+    body.innerHTML = renderPlatformBody(key, d);
+  } catch (e) {
+    badge.className = 'badge badge-error'; badge.textContent = 'Error';
+    body.innerHTML = `<div class="error-msg">⚠️ Network error: ${e.message}</div>`;
+  }
+}
+
+function setupBanner(key) {
+  const envMap = {
+    google:   ['GOOGLE_CLIENT_EMAIL', 'GOOGLE_PRIVATE_KEY', 'GOOGLE_LOCATION_NAMES'],
+    apple:    ['APPLE_CLIENT_ID', 'APPLE_TEAM_ID', 'APPLE_KEY_ID', 'APPLE_PRIVATE_KEY', 'APPLE_LOCATION_IDS'],
+    facebook: ['FACEBOOK_PAGE_TOKENS']
+  };
+  const vars = envMap[key] || [];
+  return `<div class="setup-banner">
+    <strong>Not configured.</strong> Add these Railway env vars to enable:<br>
+    <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;">${vars.map(v => `<code>${v}</code>`).join('')}</div>
+  </div>`;
+}
+
+function renderPlatformBody(key, d) {
+  if (key === 'google') return renderGoogle(d);
+  if (key === 'apple')  return renderApple(d);
+  if (key === 'facebook') return renderFacebook(d);
+  return '';
+}
+
+function renderGoogle(d) {
+  const t = d.totals || {};
+  let html = `<div class="metric-row">
+    <div class="metric-box"><div class="metric-val">${fmt(t.impressions)}</div><div class="metric-lbl">Impressions</div></div>
+    <div class="metric-box"><div class="metric-val">${fmt(t.calls)}</div><div class="metric-lbl">Calls</div></div>
+    <div class="metric-box"><div class="metric-val">${fmt(t.directions)}</div><div class="metric-lbl">Directions</div></div>
+    <div class="metric-box"><div class="metric-val">${fmt(t.websiteClicks)}</div><div class="metric-lbl">Website</div></div>
+  </div>`;
+  const locs = d.locations || [];
+  if (locs.length > 1) {
+    html += `<span class="breakdown-toggle" onclick="toggleBreakdown(this)">▼ Per-location breakdown</span>
+    <table class="breakdown-table" style="display:none">
+      <tr><th>Location</th><th>Impr.</th><th>Calls</th><th>Dir.</th><th>Web</th></tr>
+      ${locs.map(l => `<tr>
+        <td>${l.name || l.locationId}</td>
+        <td>${fmt(l.impressions)}</td>
+        <td>${fmt(l.calls)}</td>
+        <td>${fmt(l.directions)}</td>
+        <td>${fmt(l.websiteClicks)}</td>
+      </tr>`).join('')}
+    </table>`;
+  }
+  return html;
+}
+
+function renderApple(d) {
+  const t = d.totals || {};
+  let html = `<div class="metric-row">
+    <div class="metric-box"><div class="metric-val">${fmt(t.impressions)}</div><div class="metric-lbl">Impressions</div></div>
+    <div class="metric-box"><div class="metric-val">${fmt(t.taps)}</div><div class="metric-lbl">Taps</div></div>
+    <div class="metric-box"><div class="metric-val">${fmt(t.calls)}</div><div class="metric-lbl">Calls</div></div>
+    <div class="metric-box"><div class="metric-val">${fmt(t.directions)}</div><div class="metric-lbl">Directions</div></div>
+  </div>`;
+  const locs = d.locations || [];
+  if (locs.length > 1) {
+    html += `<span class="breakdown-toggle" onclick="toggleBreakdown(this)">▼ Per-location breakdown</span>
+    <table class="breakdown-table" style="display:none">
+      <tr><th>Location</th><th>Impr.</th><th>Taps</th><th>Calls</th><th>Dir.</th></tr>
+      ${locs.map(l => `<tr>
+        <td>${l.name || l.locationId}</td>
+        <td>${fmt(l.impressions)}</td>
+        <td>${fmt(l.taps)}</td>
+        <td>${fmt(l.calls)}</td>
+        <td>${fmt(l.directions)}</td>
+      </tr>`).join('')}
+    </table>`;
+  }
+  return html;
+}
+
+function renderFacebook(d) {
+  const t = d.totals || {};
+  let html = `<div class="metric-row">
+    <div class="metric-box"><div class="metric-val">${fmt(t.fans)}</div><div class="metric-lbl">Page Likes</div></div>
+    <div class="metric-box"><div class="metric-val">${fmt(t.impressions)}</div><div class="metric-lbl">Impressions</div></div>
+    <div class="metric-box"><div class="metric-val">${fmt(t.engaged)}</div><div class="metric-lbl">Engaged</div></div>
+    <div class="metric-box"><div class="metric-val">${fmt(t.views)}</div><div class="metric-lbl">Page Views</div></div>
+  </div>`;
+  const pages = d.pages || [];
+  if (pages.length > 1) {
+    html += `<span class="breakdown-toggle" onclick="toggleBreakdown(this)">▼ Per-page breakdown</span>
+    <table class="breakdown-table" style="display:none">
+      <tr><th>Page</th><th>Likes</th><th>Followers</th><th>Impressions</th><th>Views</th></tr>
+      ${pages.map(p => `<tr>
+        <td>${p.name}</td>
+        <td>${fmt(p.fans)}</td>
+        <td>${fmt(p.followers)}</td>
+        <td>${fmt(p.impressions)}</td>
+        <td>${fmt(p.views)}</td>
+      </tr>`).join('')}
+    </table>`;
+  }
+  return html;
+}
+
+function toggleBreakdown(el) {
+  const table = el.nextElementSibling;
+  const open = table.style.display !== 'none';
+  table.style.display = open ? 'none' : 'table';
+  el.textContent = (open ? '▼' : '▲') + el.textContent.slice(1);
+}
+
+function loadAllPlatforms() {
+  ['google','apple','facebook'].forEach(k => loadPlatform(k, currentStart, currentEnd));
+}
+
+// ---- Transaction analytics ----
+function $$(n) { return document.getElementById(n); }
+function fmtMoney(v) { return '$' + Math.abs(v / 100).toFixed(2); }
+
+async function loadTransactions() {
+  const params = new URLSearchParams();
+  if (currentStart) params.set('start', currentStart);
+  if (currentEnd)   params.set('end',   currentEnd);
+  if (currentStoreId) params.set('store_id', currentStoreId);
+
+  $$('summaryCards').innerHTML = '<div class="loading-msg" style="grid-column:1/-1">Loading sales data...</div>';
+  $$('storesTable').innerHTML = '';
+
+  try {
+    const res = await fetch('/api/analytics/transactions?' + params.toString(), {
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    const data = await res.json();
+    const stores = data.stores || [];
+
+    if (!stores.length) {
+      $$('summaryCards').innerHTML = '<div class="loading-msg" style="grid-column:1/-1">No data for this period.</div>';
+      return;
+    }
+
+    // Render store filter pills (only if multiple stores)
+    if (stores.length > 1) {
+      const pills = $$('storePills');
+      const allActive = !currentStoreId;
+      pills.innerHTML = `<button class="store-pill${allActive ? ' active' : ''}" onclick="filterStore(null,this)">All Stores</button>` +
+        stores.map(s => `<button class="store-pill${s.id === currentStoreId ? ' active' : ''}" onclick="filterStore('${s.id}',this)">${s.name}</button>`).join('');
+    }
+
+    // Aggregate totals
+    const totals = stores.reduce((acc, s) => {
+      acc.sales   += s.sales   || 0;
+      acc.refunds += s.refunds || 0;
+      acc.gross   += s.gross   || 0;
+      acc.net     += s.net     || 0;
+      return acc;
+    }, { sales: 0, refunds: 0, gross: 0, net: 0 });
+
+    const netIsNeg = totals.net < 0;
+    $$('summaryCards').innerHTML = `
+      <div class="summary-card"><div class="val val-blue">${totals.sales}</div><div class="lbl">Transactions</div></div>
+      <div class="summary-card"><div class="val val-red">${totals.refunds}</div><div class="lbl">Refunds</div></div>
+      <div class="summary-card"><div class="val val-green">${fmtMoney(totals.gross)}</div><div class="lbl">Gross Sales</div></div>
+      <div class="summary-card"><div class="val ${netIsNeg ? 'val-red' : 'val-green'}">${fmtMoney(totals.net)}</div><div class="lbl">Net Revenue</div></div>
+    `;
+
+    if (stores.length > 1) {
+      $$('storesTable').innerHTML = `
+      <div class="stores-table-wrap">
+        <table class="stores-table">
+          <thead><tr>
+            <th>Store</th>
+            <th>Transactions</th>
+            <th>Refunds</th>
+            <th>Gross</th>
+            <th>Net</th>
+          </tr></thead>
+          <tbody>
+            ${stores.map(s => `<tr>
+              <td class="store-name">${s.name}</td>
+              <td>${s.sales}</td>
+              <td class="refund-val">${s.refunds}</td>
+              <td>${fmtMoney(s.gross)}</td>
+              <td class="${s.net < 0 ? 'refund-val' : ''}">${fmtMoney(s.net)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+    }
+  } catch (e) {
+    $$('summaryCards').innerHTML = `<div class="error-msg" style="grid-column:1/-1">Failed to load transactions: ${e.message}</div>`;
+  }
+}
+
+function filterStore(storeId, btn) {
+  document.querySelectorAll('#storePills .store-pill').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  currentStoreId = storeId;
+  loadTransactions();
+}
+
+// ---- Init ----
+// Set default to this month
+document.getElementById('startDate').value = monthStart();
+document.getElementById('endDate').value   = todayStr();
+currentStart = monthStart();
+currentEnd   = todayStr();
+loadAllPlatforms();
+loadTransactions();
+</script>
+</body>
+</html>

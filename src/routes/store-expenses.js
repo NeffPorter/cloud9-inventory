@@ -8,16 +8,16 @@ const { isHim } = require('../lib/roles');
 // Multer 2.x: store in memory so we can pipe to Supabase Storage
 const upload = multer({ storage: multer.memoryStorage, limits: { fileSize: 10 * 1024 * 1024 } });
 
-const STORE_ROLES = ['regional_manager', 'him', 'admin', 'gm', 'store_user'];
+const STORE_ROLES = ['regional_manager', 'him', 'admin', 'gm', 'store_user', 'media'];
 
 function requireStoreAccess(req, res, next) {
   if (!STORE_ROLES.includes(req.user.role)) return res.status(403).json({ error: 'Forbidden' });
   next();
 }
 
-// Only GM, HIM, and Regional Manager can write expenses
+// GM, HIM, Regional Manager, and Media can write expenses
 function requireGmOrAdmin(req, res, next) {
-  if (!['regional_manager', 'him', 'admin', 'owner', 'gm'].includes(req.user.role)) return res.status(403).json({ error: 'GM or admin only' });
+  if (!['regional_manager', 'him', 'admin', 'owner', 'gm', 'media'].includes(req.user.role)) return res.status(403).json({ error: 'GM or admin only' });
   next();
 }
 
