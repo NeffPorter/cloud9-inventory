@@ -125,18 +125,6 @@ router.get('/events', auth, async (req, res) => {
         }
       });
 
-      // ── 3. Discount schedules ─────────────────────────────────────────
-      let dsQuery = supabase.from('discount_schedules')
-        .select('id, name, start_date, end_date, store_id, status')
-        .lte('start_date', end)
-        .neq('status', 'cancelled');
-      if (!elevated && storeId) dsQuery = dsQuery.eq('store_id', storeId);
-
-      const { data: discounts } = await dsQuery;
-      (discounts || []).filter(d => (d.end_date || d.start_date) >= start).forEach(d => {
-        events.push({ id: `ds-${d.id}`, source: 'discount', title: `🏷️ ${d.name}`, type: 'discount', date: d.start_date, end_date: d.end_date, color: TYPE_COLORS.discount, editable: false });
-      });
-
       // ── 4. Store tasks ────────────────────────────────────────────────
       let stQuery = supabase.from('store_tasks')
         .select('id, title, due_date, store_id')
@@ -168,9 +156,10 @@ router.get('/events', auth, async (req, res) => {
         return;
       }
       const occurrences = expandRecurring(e, start, end);
+      // Always clear end_date on expanded occurrences — prevents i===0 from inheriting
+      // a stale end_date that would cause the event to appear on every day in between.
       occurrences.forEach((date, i) => {
-        if (i === 0) { expandedEvents.push({ ...e, date }); }
-        else { expandedEvents.push({ ...e, id: `${e.id}_${i}`, date, end_date: null }); }
+        expandedEvents.push({ ...e, id: i === 0 ? e.id : `${e.id}_${i}`, date, end_date: null });
       });
     });
 

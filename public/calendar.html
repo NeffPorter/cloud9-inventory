@@ -96,11 +96,13 @@
 
   /* Users multi-select */
   .user-select-box { max-height: 180px; overflow-y: auto; border: 1px solid #2a2a38; border-radius: 8px; background: #111118; padding: 6px; }
-  .user-select-item { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 6px; cursor: pointer; }
+  .user-select-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; }
   .user-select-item:hover { background: #1e1e2a; }
-  .user-select-item input[type=checkbox] { accent-color: #6366f1; }
-  .user-select-item label { font-size: 13px; color: #ccc; cursor: pointer; flex: 1; }
-  .role-badge { font-size: 10px; color: #888; background: #1c1c24; border-radius: 4px; padding: 1px 5px; margin-left: 5px; }
+  .user-select-item input[type=checkbox] { accent-color: #6366f1; flex-shrink: 0; }
+  .user-select-item .user-info { display: flex; align-items: center; justify-content: space-between; flex: 1; gap: 8px; }
+  .user-info .user-name { font-size: 13px; color: #ddd; }
+  .user-info .user-email { font-size: 11px; color: #666; }
+  .role-badge { font-size: 10px; color: #aaa; background: #252530; border-radius: 4px; padding: 2px 6px; white-space: nowrap; flex-shrink: 0; }
 
   /* More popup */
   .more-popup { position: fixed; background: #1a1a24; border: 1px solid #2a2a38; border-radius: 10px; padding: 12px; z-index: 600; min-width: 200px; max-width: 280px; box-shadow: 0 8px 32px rgba(0,0,0,.5); }
@@ -139,7 +141,6 @@
     <div class="filter-chip on" data-f="custom" onclick="toggleFilter(this)">Events &amp; Meetings</div>
     <div class="filter-chip on" data-f="sale_event" onclick="toggleFilter(this)">Sale Events</div>
     <div class="filter-chip on" data-f="proposal_due" onclick="toggleFilter(this)">Proposals</div>
-    <div class="filter-chip on" data-f="discount" onclick="toggleFilter(this)">Discounts</div>
     <div class="filter-chip on" data-f="task" onclick="toggleFilter(this)">Tasks</div>
   </div>
 
@@ -151,7 +152,6 @@
     <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div>Deadline</div>
     <div class="legend-item"><div class="legend-dot" style="background:#f97316"></div>Sale Event</div>
     <div class="legend-item"><div class="legend-dot" style="background:#dc2626"></div>Proposal Due</div>
-    <div class="legend-item"><div class="legend-dot" style="background:#a855f7"></div>Discount</div>
     <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div>Task</div>
   </div>
 
@@ -256,7 +256,7 @@ let allUsers = [];
 let currentUser = null;
 let editingId = null;
 let selectedType = 'event';
-let activeFilters = new Set(['custom','sale_event','proposal_due','discount','task']);
+let activeFilters = new Set(['custom','sale_event','proposal_due','task']);
 
 function isElevated(role) {
   return ['regional_manager','him','admin','owner','marketing'].includes(role);
@@ -567,9 +567,19 @@ function renderUserSelect(selectedIds) {
   const box = document.getElementById('userSelectBox');
   if (!allUsers.length) { box.innerHTML = '<div style="color:#666;padding:8px;font-size:12px">No users found</div>'; return; }
   box.innerHTML = allUsers.map(function(u) {
+    const name  = u.name  || '';
+    const email = u.email || '';
+    const role  = (u.role || '').replace(/_/g,' ');
     return '<div class="user-select-item">' +
       '<input type="checkbox" id="uu_' + u.id + '" value="' + u.id + '"' + (selectedIds.includes(u.id) ? ' checked' : '') + '>' +
-      '<label for="uu_' + u.id + '">' + (u.name || u.email) + '<span class="role-badge">' + u.role + '</span></label>' +
+      '<label for="uu_' + u.id + '" style="cursor:pointer;flex:1">' +
+        '<div class="user-info">' +
+          '<div><div class="user-name">' + (name || email) + '</div>' +
+            (name && email ? '<div class="user-email">' + email + '</div>' : '') +
+          '</div>' +
+          '<span class="role-badge">' + role + '</span>' +
+        '</div>' +
+      '</label>' +
       '</div>';
   }).join('');
 }
@@ -613,4 +623,3 @@ init();
 </script>
 </body>
 </html>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                          
