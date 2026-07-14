@@ -8,7 +8,7 @@ const { isHim } = require('../lib/roles');
 // Multer 2.x: store in memory so we can pipe to Supabase Storage
 const upload = multer({ storage: multer.memoryStorage, limits: { fileSize: 10 * 1024 * 1024 } });
 
-const STORE_ROLES = ['regional_manager', 'him', 'admin', 'gm', 'store_user', 'marketing'];
+const STORE_ROLES = ['regional_manager', 'him', 'admin', 'owner', 'gm', 'store_user', 'marketing'];
 
 function requireStoreAccess(req, res, next) {
   if (!STORE_ROLES.includes(req.user.role)) return res.status(403).json({ error: 'Forbidden' });
@@ -26,9 +26,10 @@ router.get('/', auth, requireStoreAccess, async (req, res) => {
   try {
     const { store_id, start, end } = req.query;
 
-    // Non-admins can only see their own store; HIM/RM/admin can see all or filter by store_id
-    const effectiveStoreId = isHim(req.user.role) ? (store_id || null) : req.user.store_id;
-    if (!effectiveStoreId && !isHim(req.user.role)) return res.status(400).json({ error: 'store_id required' });
+    // Non-admins can only see their own store; HIM/RM/admin/owner can see all or filter by store_id
+    const elevated = isHim(req.user.role) || req.user.role === 'owner';
+    const effectiveStoreId = elevated ? (store_id || null) : req.user.store_id;
+    if (!effectiveStoreId && !elevated) return res.status(400).json({ error: 'store_id required' });
 
     let query = supabase
       .from('store_expenses')
@@ -82,7 +83,7 @@ router.post('/', auth, requireGmOrAdmin, upload.single('receipt'), async (req, r
     const { store_id, category, description, amount, expense_date,
             is_recurring, recur_frequency, recur_day } = req.body;
 
-    const effectiveStoreId = isHim(req.user.role) ? store_id : req.user.store_id;
+    const effectiveStoreId = (isHim(req.user.role) || req.user.role === 'owner') ? store_id : req.user.store_id;
     if (!effectiveStoreId) return res.status(400).json({ error: 'store_id required' });
     if (!category || !amount || !expense_date) return res.status(400).json({ error: 'category, amount, and expense_date are required' });
 
@@ -180,8 +181,9 @@ router.delete('/:id', auth, requireGmOrAdmin, async (req, res) => {
 router.get('/summary', auth, requireStoreAccess, async (req, res) => {
   try {
     const { store_id, start, end } = req.query;
-    const effectiveStoreId = isHim(req.user.role) ? (store_id || null) : req.user.store_id;
-    if (!effectiveStoreId && !isHim(req.user.role)) return res.status(400).json({ error: 'store_id required' });
+    const elevated = isHim(req.user.role) || req.user.role === 'owner';
+    const effectiveStoreId = elevated ? (store_id || null) : req.user.store_id;
+    if (!effectiveStoreId && !elevated) return res.status(400).json({ error: 'store_id required' });
 
     let query = supabase.from('store_expenses').select('category, amount, store_id');
     if (effectiveStoreId) query = query.eq('store_id', effectiveStoreId);

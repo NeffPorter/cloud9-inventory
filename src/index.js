@@ -214,5 +214,8 @@ app.get('/products-feed', (req, res) => {
 app.get('/task-manager', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/task-manager.html'));
 });
+app.get('/promotions', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/promotions.html'));
+});
 
 module.exports = app;

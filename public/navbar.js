@@ -52,12 +52,18 @@ function buildNavItems(user) {
         <div class="dropdown" id="mediaDropdown">
           <div class="dropdown-header">Analytics</div>
             <button class="dropdown-item" onclick="window.location.href='/analytics'">📊 Analytics Dashboard</button>
-            <button class="dropdown-item" onclick="window.location.href='/products-feed'">🆕 Products Feed</button>
-          <button class="dropdown-item" onclick="window.location.href='/owner-inventory'">🔍 Product Lookup</button>
-          <button class="dropdown-item" onclick="window.location.href='/sale-events'">📅 Sale Events</button>
-          <button class="dropdown-item" onclick="window.location.href='/gm-expenses'">💼 Expenses</button>
         </div>
       </div>
+      <div class="nav-item" style="position:relative">
+        <button class="nav-btn" onclick="toggleDropdown('mediaPromoDropdown', this)">🎯 Promotions <span style="font-size:10px">▼</span></button>
+        <div class="dropdown" id="mediaPromoDropdown">
+          <div class="dropdown-header">Promotions</div>
+          <button class="dropdown-item" onclick="window.location.href='/products-feed'">🆕 Products Feed</button>
+          <button class="dropdown-item" onclick="window.location.href='/promotions'">📅 Sale Events</button>
+        </div>
+      </div>
+      <button class="nav-btn" onclick="window.location.href='/owner-inventory'">🔍 Inventory Lookup</button>
+      <button class="nav-btn" onclick="window.location.href='/gm-expenses'">💼 Expenses</button>
       <div class="nav-item">
         <button class="nav-btn" onclick="window.location.href='${todoHref}'">✅ To-Do</button>
       </div>`;
@@ -78,16 +84,23 @@ function buildNavItems(user) {
 
     <!-- Inventory Management -->
     <div class="nav-item" style="position:relative">
-      <button class="nav-btn" onclick="toggleDropdown('invMgmtDropdown', this)">📦 Inventory Management <span style="font-size:10px">▼</span></button>
+      <button class="nav-btn" onclick="toggleDropdown('invMgmtDropdown', this)">📦 Inventory <span style="font-size:10px">▼</span></button>
       <div class="dropdown" id="invMgmtDropdown">
-        <div class="dropdown-header">Inventory Management</div>
+        <div class="dropdown-header">Inventory</div>
         ${item('/inventory',       '📦', 'Inventory')}
         ${item('/stocktake',       '📋', 'Stock Take')}
         ${item('/suggested',       '📋', 'Purchase Planner')}
-        ${item('/schedules',       '🎯', 'Discount Scheduler')}
-        <button class="dropdown-item" onclick="window.location.href='/sale-events'">📅 Sale Events</button>
         <button class="dropdown-item" onclick="window.location.href='/owner-inventory'">🔍 Inventory Lookup</button>
+      </div>
+    </div>
+
+    <!-- Promotions -->
+    <div class="nav-item" style="position:relative">
+      <button class="nav-btn" onclick="toggleDropdown('promotionsDropdown', this)">🎯 Promotions <span style="font-size:10px">▼</span></button>
+      <div class="dropdown" id="promotionsDropdown">
+        <div class="dropdown-header">Promotions</div>
         <button class="dropdown-item" onclick="window.location.href='/products-feed'">🆕 Products Feed</button>
+        <button class="dropdown-item" onclick="window.location.href='/promotions'">📅 Sale Events &amp; Discounts</button>
       </div>
     </div>
 
@@ -484,26 +497,4 @@ async function markAllNotificationsRead(event) {
 
 function toggleMobileMenu() {
   const items = document.getElementById('navItems');
-  if (items) items.classList.toggle('open');
-}
-
-function toggleDropdown(id, btn) {
-  const dropdown = document.getElementById(id);
-  const isOpen = dropdown.classList.contains('open');
-  closeAllDropdowns();
-  if (!isOpen) {
-    dropdown.classList.add('open');
-    btn.classList.add('active');
-  }
-}
-
-function closeAllDropdowns() {
-  document.querySelectorAll('.dropdown').forEach(d => d.classList.remove('open'));
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-}
-
-function logout() {
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
-  window.location.href = '/';
-}
+  if (items) items

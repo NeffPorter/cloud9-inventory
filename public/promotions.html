@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Promotions</title>
+<script src="/navbar.js?v=6"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; color: #1a1a1a; }
+#navbar-container { position: sticky; top: 0; z-index: 100; }
+.page { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+.page-title { font-size: 22px; font-weight: 600; }
+
+/* Tab switcher */
+.tab-bar { display: flex; gap: 4px; background: white; border: 1px solid #e5e7eb; border-radius: 10px; padding: 4px; margin-bottom: 24px; width: fit-content; }
+.tab-btn { padding: 8px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; color: #666; background: transparent; transition: all .15s; }
+.tab-btn.active { background: #2563eb; color: white; }
+.tab-btn:hover:not(.active) { background: #f0f4ff; color: #2563eb; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.btn { padding: 9px 18px; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: opacity .15s; }
+.btn:hover { opacity: .85; }
+.btn-primary { background: #2563eb; color: white; }
+.btn-success { background: #16a34a; color: white; }
+.btn-danger { background: #dc2626; color: white; }
+.btn-warning { background: #d97706; color: white; }
+.btn-ghost { background: transparent; border: 1px solid #ddd; color: #444; }
+.btn-sm { padding: 5px 12px; font-size: 13px; }
+.badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+.badge-draft { background: #f3f4f6; color: #6b7280; }
+.badge-active { background: #dcfce7; color: #16a34a; }
+.badge-completed { background: #dbeafe; color: #1d4ed8; }
+.badge-cancelled { background: #fef2f2; color: #dc2626; }
+.badge-pending { background: #fef9c3; color: #854d0e; }
+.badge-submitted { background: #dbeafe; color: #1d4ed8; }
+.badge-approved { background: #dcfce7; color: #16a34a; }
+.badge-rejected { background: #fef2f2; color: #dc2626; }
+.badge-under_review { background: #ede9fe; color: #6d28d9; }
+.badge-scheduled { background: #dbeafe; color: #1d4ed8; }
+.badge-expired { background: #f3f4f6; color: #6b7280; }
+
+.empty { text-align: center; padding: 60px 20px; color: #888; }
+.empty-icon { font-size: 48px; margin-bottom: 12px; }
+
+/* ── Sale Events ── */
+.event-card { background: white; border-radius: 12px; border: 1px solid #e5e7eb; margin-bottom: 12px; overflow: hidden; }
+.event-card-header { padding: 18px 20px; display: flex; align-items: flex-start; gap: 16px; cursor: pointer; }
+.event-card-header:hover { background: #fafafa; }
+.event-info { flex: 1; min-width: 0; }
+.event-name { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.event-meta { font-size: 13px; color: #666; display: flex; flex-wrap: wrap; gap: 10px; }
+.event-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.event-body { padding: 0 20px 18px; border-top: 1px solid #f0f0f0; display: none; }
+.event-body.open { display: block; padding-top: 16px; }
+.proposal-list { display: grid; gap: 8px; }
+.proposal-row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #fafafa; border: 1px solid #e5e7eb; border-radius: 8px; }
+.proposal-store { font-size: 14px; font-weight: 500; flex: 1; }
+.proposal-actions { display: flex; gap: 8px; }
+.store-checkboxes { display: grid; gap: 6px; }
+.store-check { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer; }
+.store-check input { width: 16px; height: 16px; cursor: pointer; }
+.store-check:hover { background: #f9fafb; }
+.review-items { display: grid; gap: 6px; margin-top: 8px; }
+.review-item-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: #f9fafb; border-radius: 6px; font-size: 13px; }
+.review-item-name { flex: 1; font-weight: 500; }
+.review-discount { color: #16a34a; font-weight: 600; }
+.report-stats { display: grid; grid-template-columns: repeat(auto-fit,minmax(120px,1fr)); gap: 10px; margin-bottom: 20px; }
+.report-stat { background: #f8fafc; border-radius: 10px; padding: 12px 14px; }
+.report-stat-val { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
+.report-stat-lbl { font-size: 12px; color: #666; }
+.report-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.report-table th { background: #f3f4f6; padding: 8px 10px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb; }
+.report-table td { padding: 8px 10px; border-bottom: 1px solid #f3f4f6; }
+.report-table tr:last-child td { border-bottom: none; }
+.vs-up { color: #16a34a; font-weight: 600; }
+.vs-down { color: #dc2626; font-weight: 600; }
+
+/* ── Discount Schedules ── */
+.store-pills { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 20px; }
+.store-pill { padding: 6px 16px; border: 1.5px solid #ddd; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; background: white; color: #555; transition: all .15s; white-space: nowrap; }
+.store-pill:hover { border-color: #2563eb; color: #2563eb; }
+.store-pill.active { background: #2563eb; color: white; border-color: #2563eb; }
+.schedule-grid { display: grid; gap: 12px; }
+.schedule-card { background: white; border-radius: 12px; padding: 18px 20px; border: 1px solid #e5e7eb; display: flex; align-items: flex-start; gap: 16px; }
+.schedule-card:hover { border-color: #2563eb44; }
+.schedule-info { flex: 1; min-width: 0; }
+.schedule-name { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.schedule-meta { font-size: 13px; color: #666; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.schedule-meta span { display: flex; align-items: center; gap: 4px; }
+.schedule-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.type-btns { display: flex; gap: 8px; }
+.type-btn { flex: 1; padding: 10px; border: 2px solid #e5e7eb; border-radius: 10px; background: white; cursor: pointer; font-size: 13px; font-weight: 500; text-align: center; transition: all .15s; }
+.type-btn.active { border-color: #2563eb; background: #eff6ff; color: #2563eb; }
+.target-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 20px; font-size: 13px; color: #1d4ed8; }
+.chip-remove { background: none; border: none; cursor: pointer; color: #6b7280; font-size: 16px; padding: 0; line-height: 1; }
+.chip-remove:hover { color: #dc2626; }
+.add-target-row { display: flex; gap: 8px; margin-top: 8px; }
+.add-target-row select, .add-target-row input { flex: 1; }
+.search-picker { position: relative; flex: 1; }
+.search-picker-input { width: 100%; padding: 9px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+.search-picker-input:focus { outline: none; border-color: #2563eb; }
+.search-list { display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: white; border: 1px solid #e5e7eb; border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.12); max-height: 220px; overflow-y: auto; z-index: 500; }
+.search-list.open { display: block; }
+.search-list-item { padding: 10px 14px; font-size: 13px; cursor: pointer; border-bottom: 1px solid #f5f5f5; }
+.search-list-item:last-child { border-bottom: none; }
+.search-list-item:hover { background: #eff6ff; color: #2563eb; }
+.search-list-empty { padding: 10px 14px; font-size: 13px; color: #aaa; font-style: italic; }
+.conflict-banner { background: #fef9c3; border: 1px solid #fde047; border-radius: 8px; padding: 12px 14px; font-size: 13px; color: #854d0e; }
+.conflict-banner strong { display: block; margin-bottom: 4px; }
+.toggle-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.time-inputs { display: flex; gap: 8px; align-items: center; }
+.time-inputs input[type="time"] { padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+.inline-label { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 400; cursor: pointer; white-space: nowrap; }
+.ds-report-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 12px; }
+.ds-report-table th { background: #f3f4f6; padding: 8px 10px; text-align: left; font-weight: 600; border-bottom: 1px solid #e5e7eb; }
+.ds-report-table td { padding: 7px 10px; border-bottom: 1px solid #f3f4f6; }
+.ds-report-table tr:last-child td { border-bottom: none; }
+.ds-report-totals { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.ds-report-stat { flex: 1; min-width: 100px; background: #f3f4f6; border-radius: 10px; padding: 12px 14px; }
+.ds-report-stat-val { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
+.ds-report-stat-lbl { font-size: 12px; color: #666; }
+
+/* Modal */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 200; align-items: center; justify-content: center; padding: 16px; }
+.modal-overlay.open { display: flex; }
+.modal { background: white; border-radius: 16px; width: 100%; max-width: 580px; max-height: 90vh; overflow-y: auto; }
+.modal-lg { max-width: 680px; }
+.modal-header { padding: 20px 24px 0; display: flex; align-items: center; justify-content: space-between; }
+.modal-header h2 { font-size: 18px; font-weight: 600; }
+.modal-close { background: none; border: none; font-size: 22px; cursor: pointer; color: #888; }
+.modal-body { padding: 20px 24px; display: grid; gap: 14px; }
+.modal-footer { padding: 0 24px 20px; display: flex; gap: 10px; justify-content: flex-end; }
+.field { display: grid; gap: 6px; }
+.field label { font-size: 13px; font-weight: 500; color: #555; }
+.field input, .field select, .field textarea { padding: 9px 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; width: 100%; }
+.field input:focus, .field select:focus, .field textarea:focus { outline: none; border-color: #2563eb; }
+.field textarea { resize: vertical; min-height: 70px; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+@media (max-width: 600px) {
+  .field-row { grid-template-columns: 1fr; }
+  .schedule-card { flex-direction: column; }
+  .event-actions { flex-wrap: wrap; }
+}
+</style>
+</head>
+<body>
+<div id="navbar-container"></div>
+<div class="page">
+  <div class="page-header">
+    <h1 class="page-title">🎯 Promotions</h1>
+    <button class="btn btn-primary" id="mainAddBtn" onclick="handleAddBtn()">+ New</button>
+  </div>
+
+  <!-- Tab bar — Discount Schedules tab only shown for HIM/admin/RM -->
+  <div class="tab-bar" id="tabBar">
+    <button class="tab-btn active" id="tabSaleEvents" onclick="switchTab('sale-events')">📅 Sale Events</button>
+    <button class="tab-btn" id="tabDiscounts" onclick="switchTab('discounts')" style="display:none">🏷️ Discount Schedules</button>
+  </div>
+
+  <!-- Sale Events Panel -->
+  <div class="tab-panel active" id="panelSaleEvents">
+    <div id="eventList"><div class="empty"><div class="empty-icon">📅</div><div>Loading...</div></div></div>
+  </div>
+
+  <!-- Discount Schedules Panel -->
+  <div class="tab-panel" id="panelDiscounts">
+    <div class="store-pills" id="storePills"></div>
+    <div id="scheduleGrid" class="schedule-grid">
+      <div class="empty"><div class="empty-icon">🏷️</div><div>Select a store to view discount schedules</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Sale Event: Create/Edit Modal ══════════════════════════════════════ -->
+<div class="modal-overlay" id="createModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="createModalTitle">New Sale Event</h2>
+      <button class="modal-close" onclick="closeCreateModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Sale name</label>
+        <input type="text" id="fName" placeholder="e.g. Summer Clearance 2026">
+      </div>
+      <div class="field">
+        <label>Purpose / description</label>
+        <textarea id="fPurpose" placeholder="What is this sale for? Any notes for store managers..."></textarea>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Sale start date</label>
+          <input type="date" id="fStart">
+        </div>
+        <div class="field">
+          <label>Sale end date</label>
+          <input type="date" id="fEnd">
+        </div>
+      </div>
+      <div class="field">
+        <label>Proposal due date <small style="color:#888">(deadline for stores to submit)</small></label>
+        <input type="date" id="fDue">
+      </div>
+      <div class="field">
+        <label>Assign to stores</label>
+        <div class="store-checkboxes" id="storeCheckboxes">
+          <div style="color:#888;font-size:13px">Loading stores...</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeCreateModal()">Cancel</button>
+      <button class="btn btn-primary" id="createSaveBtn" onclick="saveEvent()">Create Sale Event</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Sale Event: Review Proposal Modal ════════════════════════════════ -->
+<div class="modal-overlay" id="reviewModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="reviewTitle">Review Proposal</h2>
+      <button class="modal-close" onclick="closeReviewModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="reviewStoreInfo" style="font-size:13px;color:#666;margin-bottom:4px"></div>
+      <div id="reviewStatusBadge"></div>
+      <div class="field" style="margin-top:12px">
+        <label>Proposed items &amp; discounts</label>
+        <div class="review-items" id="reviewItems"></div>
+      </div>
+      <div id="reviewStoreNotes" style="display:none" class="field">
+        <label>Store notes</label>
+        <div id="reviewStoreNotesText" style="background:#f9fafb;padding:10px;border-radius:8px;font-size:13px;"></div>
+      </div>
+      <div class="field">
+        <label>Your notes / feedback <small style="color:#888">(visible to store)</small></label>
+        <textarea id="reviewHimNotes" placeholder="Optional feedback or adjustments..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer" id="reviewFooter">
+      <button class="btn btn-ghost" onclick="closeReviewModal()">Cancel</button>
+      <button class="btn btn-danger btn-sm" onclick="rejectProposal()">Send Back for Revision</button>
+      <button class="btn btn-success" onclick="approveProposal()">Approve</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Sale Event: Report Modal ═════════════════════════════════════════ -->
+<div class="modal-overlay" id="reportModal" onclick="if(event.target===this)closeReportModal()">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h2 id="reportModalTitle">📊 Sale Event Report</h2>
+      <button class="modal-close" onclick="closeReportModal()">×</button>
+    </div>
+    <div class="modal-body" id="reportModalBody" style="display:block">
+      <div class="empty"><div class="empty-icon">⏳</div><div>Loading report...</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Discount Schedule: Create/Edit Modal ═════════════════════════════ -->
+<div class="modal-overlay" id="dsModalOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="dsModalTitle">New Discount Schedule</h2>
+      <button class="modal-close" onclick="closeDsModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Schedule name</label>
+        <input type="text" id="dsFName" placeholder="e.g. Summer Sale, Weekly Clearance">
+      </div>
+      <div class="field">
+        <label>Discount type</label>
+        <div class="type-btns">
+          <button class="type-btn active" id="dsBtnPercent" onclick="setDsDiscountType('percent')">% Percentage off</button>
+          <button class="type-btn" id="dsBtnFixed" onclick="setDsDiscountType('fixed')">$ Fixed amount off</button>
+        </div>
+      </div>
+      <div class="field">
+        <label id="dsValueLabel">Percentage off (e.g. 10 for 10%)</label>
+        <input type="number" id="dsFValue" min="0.01" step="0.01" placeholder="10">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Start date</label>
+          <input type="date" id="dsFStart">
+        </div>
+        <div class="field">
+          <label>End date</label>
+          <div class="toggle-row">
+            <input type="date" id="dsFEnd" style="flex:1">
+            <label class="inline-label"><input type="checkbox" id="dsFIndefinite" onchange="dToggleIndefinite()"> No end date</label>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Time</label>
+        <div class="toggle-row">
+          <label class="inline-label"><input type="checkbox" id="dsFAllDay" checked onchange="dToggleAllDay()"> All day</label>
+          <div class="time-inputs" id="dsTimeInputs" style="display:none">
+            <input type="time" id="dsFStartTime">
+            <span style="color:#888">to</span>
+            <input type="time" id="dsFEndTime">
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Apply to</label>
+        <div class="type-btns">
+          <button class="type-btn active" id="dsBtnCategory" onclick="setDsTargetType('category')">Category</button>
+          <button class="type-btn" id="dsBtnItemGroup" onclick="setDsTargetType('item_group')">Item Group</button>
+          <button class="type-btn" id="dsBtnItem" onclick="setDsTargetType('item')">Specific Items</button>
+        </div>
+      </div>
+      <div class="field" id="dsTargetPickerField">
+        <label id="dsTargetPickerLabel">Select categories</label>
+        <div class="add-target-row">
+          <div class="search-picker">
+            <input type="text" class="search-picker-input" id="dsTargetSearch" placeholder="Type to search..." autocomplete="off"
+              oninput="dFilterPicker()" onfocus="dFilterPicker()">
+            <div class="search-list" id="dsTargetList"></div>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="dAddTarget()">Add</button>
+        </div>
+        <div class="target-chips" id="dsTargetChips"></div>
+      </div>
+      <div id="dsConflictBanner" style="display:none" class="conflict-banner">
+        <strong>⚠️ Schedule conflict detected</strong>
+        <span id="dsConflictDetails"></span>
+        <div style="margin-top:8px">
+          <button class="btn btn-ghost btn-sm" onclick="saveDsSchedule(true)">Save anyway</button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeDsModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveDsSchedule(false)" id="dsSaveBtn">Create Schedule</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Discount Schedule: Report Modal ══════════════════════════════════ -->
+<div class="modal-overlay" id="dsReportOverlay">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <h2 id="dsReportTitle">Sales Report</h2>
+      <button class="modal-close" onclick="closeDsReport()">×</button>
+    </div>
+    <div class="modal-body" id="dsReportBody">
+      <div style="text-align:center;padding:40px;color:#888">Loading...</div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeDsReport()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem('token');
+const user = JSON.parse(localStorage.getItem('user') || '{}');
+const role = user.role || '';
+const canManageDiscounts = ['regional_manager', 'him', 'admin'].includes(role);
+
+// ── Tab management ─────────────────────────────────────────────────────────
+let currentTab = 'sale-events';
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('panelSaleEvents').classList.toggle('active', tab === 'sale-events');
+  document.getElementById('panelDiscounts').classList.toggle('active', tab === 'discounts');
+  document.getElementById('tabSaleEvents').classList.toggle('active', tab === 'sale-events');
+  document.getElementById('tabDiscounts').classList.toggle('active', tab === 'discounts');
+  const btn = document.getElementById('mainAddBtn');
+  if (tab === 'sale-events') {
+    btn.textContent = '+ New Sale Event';
+  } else {
+    btn.textContent = '+ New Schedule';
+  }
+}
+
+function handleAddBtn() {
+  if (currentTab === 'sale-events') openCreateModal();
+  else openDsCreateModal();
+}
+
+// ── Shared API helper ───────────────────────────────────────────────────────
+async function api(path, opts = {}) {
+  const res = await fetch(path, { headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, ...opts });
+  return res.json();
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// SALE EVENTS
+// ══════════════════════════════════════════════════════════════════════════
+let allStores = [], events = [], reviewingProposalId = null, editingEventId = null;
+
+async function loadEvents() {
+  const list = document.getElementById('eventList');
+  list.innerHTML = '<div class="empty"><div class="empty-icon">📅</div><div>Loading...</div></div>';
+  events = await api('/api/sale-events');
+
+  if (!Array.isArray(events) || events.length === 0) {
+    list.innerHTML = '<div class="empty"><div class="empty-icon">📅</div><div>No sale events yet.<br><small>Create one to assign discount proposals to your stores.</small></div></div>';
+    return;
+  }
+
+  list.innerHTML = events.map(ev => {
+    const proposalSummary = buildProposalSummary(ev.proposals || []);
+    return `
+    <div class="event-card" id="event-${ev.id}">
+      <div class="event-card-header" onclick="toggleEvent('${ev.id}')">
+        <div class="event-info">
+          <div class="event-name">${ev.name} <span class="badge badge-${ev.status}">${ev.status}</span></div>
+          <div class="event-meta">
+            <span>📅 ${ev.start_date} → ${ev.end_date}</span>
+            <span>🗓️ Proposals due ${ev.proposal_due_date}</span>
+            <span>🏪 ${(ev.assigned_stores || []).map(s=>s.name).join(', ') || 'No stores'}</span>
+            <span>${proposalSummary}</span>
+          </div>
+        </div>
+        <div class="event-actions" onclick="event.stopPropagation()">
+          ${canManageDiscounts ? `<button class="btn btn-ghost btn-sm" onclick="openEditModal('${ev.id}')">Edit</button>` : ''}
+          <button class="btn btn-ghost btn-sm" onclick="openEventReport('${ev.id}')">&#128202; Report</button>
+          ${canManageDiscounts ? `<button class="btn btn-danger btn-sm" onclick="deleteEvent('${ev.id}','${ev.name.replace(/'/g,"\\'")}')">Delete</button>` : ''}
+        </div>
+      </div>
+      <div class="event-body" id="body-${ev.id}">
+        <div style="font-size:13px;color:#555;margin-bottom:12px">${ev.purpose || ev.description || '<em style="color:#999">No description</em>'}</div>
+        <div class="proposal-list">
+          ${(ev.proposals || []).map(p => {
+            const store = allStores.find(s => s.id === p.store_id) || { name: 'Unknown Store' };
+            return `
+            <div class="proposal-row">
+              <div class="proposal-store">${store.name}</div>
+              <span class="badge badge-${p.status}">${p.status}</span>
+              <div class="proposal-actions">
+                ${(p.status === 'submitted' || p.status === 'under_review') && canManageDiscounts ? `<button class="btn btn-primary btn-sm" onclick="openReview('${p.id}')">Review</button>` : ''}
+                ${p.status === 'approved' ? `<button class="btn btn-ghost btn-sm" onclick="openReview('${p.id}')">View</button>` : ''}
+                ${p.status === 'pending' ? `<span style="font-size:12px;color:#888">Awaiting submission</span>` : ''}
+                ${p.status === 'rejected' ? `<span style="font-size:12px;color:#d97706;font-weight:600">⚠️ Sent back for revision</span>` : ''}
+              </div>
+            </div>`;
+          }).join('') || '<div style="color:#999;font-size:13px;padding:8px 0">No stores assigned yet</div>'}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function buildProposalSummary(proposals) {
+  if (!proposals.length) return '📋 No proposals';
+  const approved = proposals.filter(p => p.status === 'approved').length;
+  const submitted = proposals.filter(p => p.status === 'submitted' || p.status === 'under_review').length;
+  const rejected = proposals.filter(p => p.status === 'rejected').length;
+  const pending = proposals.filter(p => p.status === 'pending').length;
+  const parts = [];
+  if (approved) parts.push(`✅ ${approved} approved`);
+  if (submitted) parts.push(`⏳ ${submitted} awaiting review`);
+  if (rejected) parts.push(`⚠️ ${rejected} needs revision`);
+  if (pending) parts.push(`📝 ${pending} pending`);
+  return parts.join(' · ');
+}
+
+function toggleEvent(id) {
+  document.getElementById(`body-${id}`).classList.toggle('open');
+}
+
+function openCreateModal() {
+  editingEventId = null;
+  document.getElementById('createModalTitle').textContent = 'New Sale Event';
+  document.getElementById('createSaveBtn').textContent = 'Create Sale Event';
+  document.getElementById('fName').value = '';
+  document.getElementById('fPurpose').value = '';
+  document.getElementById('fStart').value = '';
+  document.getElementById('fEnd').value = '';
+  document.getElementById('fDue').value = '';
+  renderStoreCheckboxes([]);
+  document.getElementById('createModal').classList.add('open');
+}
+
+async function openEditModal(eventId) {
+  editingEventId = eventId;
+  const ev = events.find(e => e.id === eventId);
+  if (!ev) return;
+  document.getElementById('createModalTitle').textContent = 'Edit Sale Event';
+  document.getElementById('createSaveBtn').textContent = 'Save Changes';
+  document.getElementById('fName').value = ev.name;
+  document.getElementById('fPurpose').value = ev.purpose || ev.description || '';
+  document.getElementById('fStart').value = ev.start_date;
+  document.getElementById('fEnd').value = ev.end_date;
+  document.getElementById('fDue').value = ev.proposal_due_date;
+  renderStoreCheckboxes((ev.assigned_stores || []).map(s => s.id));
+  document.getElementById('createModal').classList.add('open');
+}
+
+function renderStoreCheckboxes(checkedIds) {
+  document.getElementById('storeCheckboxes').innerHTML = allStores.map(s =>
+    `<label class="store-check">
+      <input type="checkbox" value="${s.id}" ${checkedIds.includes(s.id) ? 'checked' : ''}>
+      ${s.name}
+    </label>`
+  ).join('') || '<div style="color:#888;font-size:13px">No stores found</div>';
+}
+
+function closeCreateModal() { document.getElementById('createModal').classList.remove('open'); }
+
+async function saveEvent() {
+  const name = document.getElementById('fName').value.trim();
+  const purpose = document.getElementById('fPurpose').value.trim();
+  const start_date = document.getElementById('fStart').value;
+  const end_date = document.getElementById('fEnd').value;
+  const proposal_due_date = document.getElementById('fDue').value;
+  const store_ids = [...document.querySelectorAll('#storeCheckboxes input:checked')].map(el => el.value);
+  if (!name || !start_date || !end_date || !proposal_due_date) { alert('Please fill in name, dates, and proposal due date.'); return; }
+
+  const btn = document.getElementById('createSaveBtn');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  const payload = { name, description: purpose, purpose, start_date, end_date, proposal_due_date, store_ids };
+
+  let res, data;
+  if (editingEventId) {
+    res = await fetch(`/api/sale-events/${editingEventId}`, { method: 'PUT', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    data = await res.json();
+    if (res.ok && store_ids.length) {
+      await fetch(`/api/sale-events/${editingEventId}/stores`, { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ store_ids }) });
+    }
+  } else {
+    res = await fetch('/api/sale-events', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    data = await res.json();
+  }
+
+  btn.disabled = false; btn.textContent = editingEventId ? 'Save Changes' : 'Create Sale Event';
+  if (!res.ok) { alert('Error: ' + (data.error || 'Unknown')); return; }
+  closeCreateModal(); loadEvents();
+}
+
+async function openReview(proposalId) {
+  reviewingProposalId = proposalId;
+  const data = await api(`/api/sale-events/proposals/${proposalId}`);
+  document.getElementById('reviewTitle').textContent = `Review: ${data.sale_events?.name || 'Proposal'}`;
+  document.getElementById('reviewStoreInfo').textContent = `Store: ${data.stores?.name || '—'} · Submitted: ${data.submitted_at ? new Date(data.submitted_at).toLocaleDateString() : 'Not yet'}`;
+  document.getElementById('reviewStatusBadge').innerHTML = `<span class="badge badge-${data.status}">${data.status}</span>`;
+  const items = data.items || [];
+  document.getElementById('reviewItems').innerHTML = items.length
+    ? items.map(i => `
+      <div class="review-item-row">
+        <div class="review-item-name">${i.item_name}${i.sku ? ' <span style="color:#999;font-weight:400">('+i.sku+')</span>' : ''}</div>
+        <div class="review-discount">${i.discount_type === 'percent' ? i.discount_value + '% off' : '$' + Number(i.discount_value).toFixed(2) + ' off'}</div>
+      </div>`).join('')
+    : '<div style="color:#999;font-size:13px;padding:8px 0">No items in this proposal</div>';
+
+  if (data.store_notes) {
+    document.getElementById('reviewStoreNotes').style.display = '';
+    document.getElementById('reviewStoreNotesText').textContent = data.store_notes;
+  } else {
+    document.getElementById('reviewStoreNotes').style.display = 'none';
+  }
+  document.getElementById('reviewHimNotes').value = data.status === 'submitted' ? '' : (data.him_notes || '');
+  const footer = document.getElementById('reviewFooter');
+  if (data.status === 'approved') {
+    footer.innerHTML = '<button class="btn btn-ghost" onclick="closeReviewModal()">Close</button>';
+  } else {
+    footer.innerHTML = `
+      <button class="btn btn-ghost" onclick="closeReviewModal()">Cancel</button>
+      <button class="btn btn-danger btn-sm" onclick="rejectProposal()">Send Back for Revision</button>
+      <button class="btn btn-success" onclick="approveProposal()">Approve</button>`;
+  }
+  document.getElementById('reviewModal').classList.add('open');
+}
+
+function closeReviewModal() { document.getElementById('reviewModal').classList.remove('open'); }
+
+async function approveProposal() {
+  const him_notes = document.getElementById('reviewHimNotes').value.trim();
+  const res = await fetch(`/api/sale-events/proposals/${reviewingProposalId}/approve`, {
+    method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ him_notes })
+  });
+  if (res.ok) { closeReviewModal(); loadEvents(); }
+  else { const d = await res.json(); alert('Error: ' + d.error); }
+}
+
+async function rejectProposal() {
+  const him_notes = document.getElementById('reviewHimNotes').value.trim();
+  if (!him_notes) { alert('Please add feedback notes before sending back for revision.'); return; }
+  const res = await fetch(`/api/sale-events/proposals/${reviewingProposalId}/reject`, {
+    method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ him_notes })
+  });
+  if (res.ok) { closeReviewModal(); loadEvents(); }
+  else { const d = await res.json(); alert('Error: ' + d.error); }
+}
+
+async function deleteEvent(id, name) {
+  if (!confirm(`Permanently delete "${name}" and all its proposals and tasks?\n\nThis cannot be undone.`)) return;
+  const res = await fetch(`/api/sale-events/${id}`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
+  if (res.ok) { loadEvents(); } else { const d = await res.json(); alert('Error: ' + (d.error || 'Failed to delete')); }
+}
+
+async function openEventReport(id) {
+  const ev = events.find(e => e.id === id);
+  document.getElementById('reportModalTitle').textContent = ev ? `📊 ${ev.name} — Report` : '📊 Report';
+  document.getElementById('reportModal').classList.add('open');
+  const body = document.getElementById('reportModalBody');
+  body.innerHTML = '<div class="empty"><div class="empty-icon">⏳</div><div>Loading...</div></div>';
+  try {
+    const data = await api(`/api/sale-events/${id}/report`);
+    const t = data.totals || {};
+    const fmt = v => '$' + (v || 0).toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2});
+    const pct = v => v == null ? '–' : (v >= 0 ? `<span class="vs-up">▲ ${v.toFixed(1)}%</span>` : `<span class="vs-down">▼ ${Math.abs(v).toFixed(1)}%</span>`);
+    const storeRows = (data.stores || []).map(s => `<tr><td>${s.name}</td><td>${s.orders}</td><td>${fmt(s.net_sales)}</td><td>${fmt(s.gross_sales)}</td><td>${fmt(s.discounts)}</td><td>${fmt(s.gross_profit)}</td><td>${s.margin != null ? s.margin.toFixed(1)+'%' : '–'}</td><td>${pct(s.vs_prior)}</td></tr>`).join('');
+    body.innerHTML = `
+      <div class="report-stats">
+        <div class="report-stat"><div class="report-stat-val">${t.orders||0}</div><div class="report-stat-lbl">Orders</div></div>
+        <div class="report-stat"><div class="report-stat-val">${fmt(t.net_sales)}</div><div class="report-stat-lbl">Net Sales</div></div>
+        <div class="report-stat"><div class="report-stat-val">${fmt(t.gross_sales)}</div><div class="report-stat-lbl">Gross Sales</div></div>
+        <div class="report-stat"><div class="report-stat-val">${fmt(t.discounts)}</div><div class="report-stat-lbl">Discounts</div></div>
+        <div class="report-stat"><div class="report-stat-val">${fmt(t.gross_profit)}</div><div class="report-stat-lbl">Gross Profit</div></div>
+        <div class="report-stat"><div class="report-stat-val">${t.margin!=null?t.margin.toFixed(1)+'%':'–'}</div><div class="report-stat-lbl">Margin</div></div>
+      </div>
+      <table class="report-table">
+        <thead><tr><th>Store</th><th>Orders</th><th>Net Sales</th><th>Gross Sales</th><th>Discounts</th><th>Gross Profit</th><th>Margin</th><th>vs Prior</th></tr></thead>
+        <tbody>${storeRows || '<tr><td colspan="8" style="text-align:center;color:#888">No sales data</td></tr>'}</tbody>
+      </table>`;
+  } catch(e) {
+    body.innerHTML = '<div class="empty"><div class="empty-icon">❌</div><div>Failed to load report</div></div>';
+  }
+}
+
+function closeReportModal() { document.getElementById('reportModal').classList.remove('open'); }
+
+// ══════════════════════════════════════════════════════════════════════════
+// DISCOUNT SCHEDULES
+// ══════════════════════════════════════════════════════════════════════════
+let dsStores = [], dsCurrentStoreId = null;
+let dsDiscountType = 'percent', dsTargetType = 'category';
+let dsSelectedTargets = [];
+let dsAllItems = [], dsAllCategories = [], dsAllGroups = [];
+let dsEditingId = null, _lastSchedules = [];
+let dsPicVal = null, dsPicLabel = null, dsPicOptions = [];
+
+function dToggleAllDay() {
+  document.getElementById('dsTimeInputs').style.display = document.getElementById('dsFAllDay').checked ? 'none' : 'flex';
+}
+function dToggleIndefinite() {
+  const indef = document.getElementById('dsFIndefinite').checked;
+  const fEnd = document.getElementById('dsFEnd');
+  fEnd.disabled = indef; fEnd.style.opacity = indef ? '0.4' : '1';
+  if (indef) fEnd.value = '';
+}
+
+function setDsDiscountType(type) {
+  dsDiscountType = type;
+  document.getElementById('dsBtnPercent').classList.toggle('active', type === 'percent');
+  document.getElementById('dsBtnFixed').classList.toggle('active', type === 'fixed');
+  document.getElementById('dsValueLabel').textContent = type === 'percent' ? 'Percentage off (e.g. 10 for 10%)' : 'Fixed amount off in dollars (e.g. 2.00)';
+  document.getElementById('dsFValue').placeholder = type === 'percent' ? '10' : '2.00';
+}
+
+function setDsTargetType(type) {
+  dsTargetType = type;
+  dsSelectedTargets = []; dsPicVal = null; dsPicLabel = null;
+  document.getElementById('dsBtnCategory').classList.toggle('active', type === 'category');
+  document.getElementById('dsBtnItemGroup').classList.toggle('active', type === 'item_group');
+  document.getElementById('dsBtnItem').classList.toggle('active', type === 'item');
+  document.getElementById('dsTargetPickerLabel').textContent = type === 'category' ? 'Select categories' : type === 'item_group' ? 'Select item groups' : 'Select items';
+  document.getElementById('dsTargetSearch').value = '';
+  document.getElementById('dsTargetSearch').placeholder = type === 'category' ? 'Search categories...' : type === 'item_group' ? 'Search item groups...' : 'Search items...';
+  document.getElementById('dsTargetList').classList.remove('open');
+  if (type === 'category') dsPicOptions = dsAllCategories.map(c => ({ value: c, label: c }));
+  else if (type === 'item_group') dsPicOptions = dsAllGroups.map(g => ({ value: g, label: g }));
+  else dsPicOptions = dsAllItems.map(i => ({ value: i.id, label: (i.group_name ? i.group_name + ' · ' : '') + (i.variant_name || '') }));
+  dsRenderChips();
+}
+
+function dFilterPicker() {
+  const q = document.getElementById('dsTargetSearch').value.toLowerCase().trim();
+  const list = document.getElementById('dsTargetList');
+  const filtered = q ? dsPicOptions.filter(o => o.label.toLowerCase().includes(q)) : dsPicOptions.slice(0, 80);
+  list.innerHTML = filtered.length
+    ? filtered.slice(0, 80).map(o => `<div class="search-list-item" onmousedown="dSelectPickerItem('${o.value.replace(/'/g,"\\'")}','${o.label.replace(/'/g,"\\'")}')">${o.label}</div>`).join('')
+    : '<div class="search-list-empty">No matches found</div>';
+  list.classList.add('open');
+}
+
+function dSelectPickerItem(value, label) {
+  dsPicVal = value; dsPicLabel = label;
+  document.getElementById('dsTargetSearch').value = label;
+  document.getElementById('dsTargetList').classList.remove('open');
+}
+
+function dAddTarget() {
+  if (!dsPicVal) return;
+  if (dsSelectedTargets.find(t => t.id === dsPicVal)) { dsPicVal = null; dsPicLabel = null; document.getElementById('dsTargetSearch').value = ''; return; }
+  dsSelectedTargets.push({ id: dsPicVal, label: dsPicLabel });
+  dsPicVal = null; dsPicLabel = null;
+  document.getElementById('dsTargetSearch').value = '';
+  document.getElementById('dsTargetList').classList.remove('open');
+  dsRenderChips();
+}
+
+function dsRemoveTarget(id) {
+  dsSelectedTargets = dsSelectedTargets.filter(t => t.id !== id);
+  dsRenderChips();
+}
+
+function dsRenderChips() {
+  document.getElementById('dsTargetChips').innerHTML = dsSelectedTargets.map(t =>
+    `<div class="chip">${t.label}<button class="chip-remove" onclick="dsRemoveTarget('${t.id}')">×</button></div>`
+  ).join('');
+}
+
+async function dsPreloadInventoryData() {
+  if (!dsCurrentStoreId) return;
+  const items = await api(`/api/inventory/items?store_id=${dsCurrentStoreId}`);
+  dsAllItems = items.items || items || [];
+  const catSet = new Set(), groupSet = new Set();
+  dsAllItems.forEach(i => { if (i.category) catSet.add(i.category); if (i.group_name) groupSet.add(i.group_name); });
+  dsAllCategories = [...catSet].sort();
+  dsAllGroups = [...groupSet].sort();
+}
+
+function dsSelectStore(storeId, btn) {
+  document.querySelectorAll('#storePills .store-pill').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  dsCurrentStoreId = storeId;
+  loadSchedules();
+}
+
+async function loadSchedules() {
+  const grid = document.getElementById('scheduleGrid');
+  if (!dsCurrentStoreId) { grid.innerHTML = '<div class="empty"><div class="empty-icon">🏷️</div><div>Select a store to view discount schedules</div></div>'; return; }
+  grid.innerHTML = '<div style="padding:40px;text-align:center;color:#888">Loading...</div>';
+  const [schedules] = await Promise.all([api(`/api/schedules?store_id=${dsCurrentStoreId}`), dsPreloadInventoryData()]);
+  _lastSchedules = Array.isArray(schedules) ? schedules : [];
+  if (!_lastSchedules.length) {
+    grid.innerHTML = '<div class="empty"><div class="empty-icon">🏷️</div><div>No discount schedules yet.<br><small>Create one to automatically apply discounts to Clover items on a date range.</small></div></div>';
+    return;
+  }
+  grid.innerHTML = _lastSchedules.map(s => {
+    const typeLabel = s.discount_type === 'percent' ? `${s.discount_value}% off` : `$${Number(s.discount_value).toFixed(2)} off`;
+    const targetLabel = s.target_type === 'category' ? 'Categories' : s.target_type === 'item_group' ? 'Item Groups' : 'Items';
+    const dateLabel = s.indefinite ? `📅 ${s.start_date} → No end date` : `📅 ${s.start_date} → ${s.end_date}`;
+    const timeLabel = (!s.start_time && !s.end_time) ? '' : `<span>🕐 ${(s.start_time||'').slice(0,5)} – ${(s.end_time||'').slice(0,5)}</span>`;
+    const safeName = s.name.replace(/'/g,"\\'");
+    const canEdit = s.status === 'scheduled';
+    const canCancel = s.status === 'scheduled' || s.status === 'active';
+    return `
+    <div class="schedule-card">
+      <div class="schedule-info">
+        <div class="schedule-name">${s.name}</div>
+        <div class="schedule-meta">
+          <span><span class="badge badge-${s.status}">${s.status}</span></span>
+          <span>🏷️ ${typeLabel}</span>
+          <span>${dateLabel}</span>
+          ${timeLabel}
+          <span>🎯 ${targetLabel}: ${(s.target_ids || []).join(', ') || '—'}</span>
+          ${s.status === 'active' && s.applied_item_ids?.length ? `<span>✅ ${s.applied_item_ids.length} items on Clover</span>` : ''}
+        </div>
+      </div>
+      <div class="schedule-actions">
+        <button class="btn btn-ghost btn-sm" onclick="openDsReport('${s.id}')">📊 Report</button>
+        ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick="openEditDsSchedule('${s.id}')">Edit</button>` : ''}
+        ${s.status === 'active' ? `<button class="btn btn-primary btn-sm" onclick="dsApplyNow('${s.id}')">⚡ Apply Now</button>` : ''}
+        ${canCancel ? `<button class="btn btn-ghost btn-sm" style="color:#d97706;border-color:#d97706" onclick="cancelDsSchedule('${s.id}','${safeName}')">Cancel</button>` : ''}
+        <button class="btn btn-danger btn-sm" onclick="deleteDsSchedule('${s.id}','${safeName}')">Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openDsCreateModal() {
+  if (!dsCurrentStoreId) { alert('Select a store first'); return; }
+  dsEditingId = null;
+  document.getElementById('dsModalTitle').textContent = 'New Discount Schedule';
+  document.getElementById('dsSaveBtn').textContent = 'Create Schedule';
+  document.getElementById('dsFName').value = '';
+  document.getElementById('dsFValue').value = '';
+  document.getElementById('dsFStart').value = '';
+  document.getElementById('dsFEnd').value = '';
+  document.getElementById('dsFEnd').disabled = false;
+  document.getElementById('dsFEnd').style.opacity = '1';
+  document.getElementById('dsFIndefinite').checked = false;
+  document.getElementById('dsFAllDay').checked = true;
+  document.getElementById('dsFStartTime').value = '';
+  document.getElementById('dsFEndTime').value = '';
+  document.getElementById('dsTimeInputs').style.display = 'none';
+  document.getElementById('dsConflictBanner').style.display = 'none';
+  dsSelectedTargets = [];
+  setDsDiscountType('percent');
+  setDsTargetType('category');
+  dsRenderChips();
+  document.getElementById('dsModalOverlay').classList.add('open');
+}
+
+function closeDsModal() { document.getElementById('dsModalOverlay').classList.remove('open'); }
+
+async function saveDsSchedule(force = false) {
+  const name = document.getElementById('dsFName').value.trim();
+  const value = parseFloat(document.getElementById('dsFValue').value);
+  const start = document.getElementById('dsFStart').value;
+  const indefinite = document.getElementById('dsFIndefinite').checked;
+  const end = indefinite ? null : document.getElementById('dsFEnd').value;
+  const allDay = document.getElementById('dsFAllDay').checked;
+  const startTime = allDay ? null : document.getElementById('dsFStartTime').value || null;
+  const endTime = allDay ? null : document.getElementById('dsFEndTime').value || null;
+
+  if (!name || !value || !start || dsSelectedTargets.length === 0) { alert('Please fill in all fields and add at least one target.'); return; }
+  if (!indefinite && !end) { alert('Enter an end date or check "No end date".'); return; }
+  if (!indefinite && end < start) { alert('End date must be after start date.'); return; }
+
+  document.getElementById('dsSaveBtn').disabled = true;
+  document.getElementById('dsSaveBtn').textContent = 'Saving...';
+  const payload = { store_id: dsCurrentStoreId, name, discount_type: dsDiscountType, discount_value: value, start_date: start, end_date: end, indefinite, start_time: startTime, end_time: endTime, target_type: dsTargetType, target_ids: dsSelectedTargets.map(t => t.id), force };
+  const url = dsEditingId ? `/api/schedules/${dsEditingId}` : '/api/schedules';
+  const method = dsEditingId ? 'PUT' : 'POST';
+  const res = await fetch(url, { method, headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  const data = await res.json();
+  document.getElementById('dsSaveBtn').disabled = false;
+  document.getElementById('dsSaveBtn').textContent = dsEditingId ? 'Save Changes' : 'Create Schedule';
+  if (res.status === 409 && data.conflicts) {
+    const details = data.conflicts.map(c => `"${c.schedule}" (${c.overlappingCount} item${c.overlappingCount !== 1 ? 's' : ''} overlap)`).join(', ');
+    document.getElementById('dsConflictDetails').textContent = details;
+    document.getElementById('dsConflictBanner').style.display = 'block';
+    return;
+  }
+  if (!res.ok) { alert('Error: ' + (data.error || 'Unknown error')); return; }
+  closeDsModal(); loadSchedules();
+}
+
+function openEditDsSchedule(id) {
+  const s = _lastSchedules.find(x => x.id === id);
+  if (!s) return;
+  dsEditingId = id;
+  document.getElementById('dsModalTitle').textContent = 'Edit Discount Schedule';
+  document.getElementById('dsSaveBtn').textContent = 'Save Changes';
+  document.getElementById('dsFName').value = s.name;
+  document.getElementById('dsFValue').value = s.discount_value;
+  document.getElementById('dsFStart').value = s.start_date;
+  document.getElementById('dsFIndefinite').checked = !!s.indefinite;
+  document.getElementById('dsFEnd').value = s.indefinite ? '' : (s.end_date || '');
+  document.getElementById('dsFEnd').disabled = !!s.indefinite;
+  document.getElementById('dsFEnd').style.opacity = s.indefinite ? '0.4' : '1';
+  const hasTime = !!(s.start_time || s.end_time);
+  document.getElementById('dsFAllDay').checked = !hasTime;
+  document.getElementById('dsFStartTime').value = s.start_time ? s.start_time.slice(0,5) : '';
+  document.getElementById('dsFEndTime').value = s.end_time ? s.end_time.slice(0,5) : '';
+  document.getElementById('dsTimeInputs').style.display = hasTime ? 'flex' : 'none';
+  document.getElementById('dsConflictBanner').style.display = 'none';
+  setDsDiscountType(s.discount_type);
+  setDsTargetType(s.target_type);
+  dsSelectedTargets = (s.target_ids || []).map(tid => {
+    if (s.target_type === 'item') {
+      const item = dsAllItems.find(i => i.id === tid);
+      return { id: tid, label: item ? (item.group_name ? item.group_name + ' · ' : '') + (item.variant_name || '') : tid };
+    }
+    return { id: tid, label: tid };
+  });
+  dsRenderChips();
+  document.getElementById('dsModalOverlay').classList.add('open');
+}
+
+async function dsApplyNow(id) {
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = 'Applying...';
+  const res = await fetch(`/api/schedules/${id}/apply`, { method: 'POST', headers: { Authorization: 'Bearer ' + token } });
+  const data = await res.json();
+  if (res.ok) {
+    const count = data.applied?.length || 0; const errors = data.errors || []; const total = data.itemCount || 0;
+    let msg = `✅ Applied to ${count}/${total} items on Clover.`;
+    if (errors.length) msg += `\n\nFailed (${errors.length}):\n` + errors.slice(0, 5).join('\n');
+    alert(msg); loadSchedules();
+  } else { alert('Error: ' + (data.error || 'Failed')); btn.disabled = false; btn.textContent = '⚡ Apply Now'; }
+}
+
+async function cancelDsSchedule(id, name) {
+  if (!confirm(`Cancel the discount schedule "${name}"?\n\nIf it's currently active on Clover, prices will be restored to normal.`)) return;
+  const res = await fetch(`/api/schedules/${id}/cancel`, { method: 'PUT', headers: { Authorization: 'Bearer ' + token } });
+  if (res.ok) { loadSchedules(); } else { alert('Failed to cancel schedule'); }
+}
+
+async function deleteDsSchedule(id, name) {
+  if (!confirm(`Permanently delete "${name}"?\n\nThis cannot be undone. If it's active on Clover, prices will be restored first.`)) return;
+  const res = await fetch(`/api/schedules/${id}`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
+  if (res.ok) { loadSchedules(); } else { alert('Failed to delete schedule'); }
+}
+
+async function openDsReport(id) {
+  document.getElementById('dsReportTitle').textContent = 'Sales Report';
+  document.getElementById('dsReportBody').innerHTML = '<div style="text-align:center;padding:40px;color:#888">Loading...</div>';
+  document.getElementById('dsReportOverlay').classList.add('open');
+  const res = await fetch(`/api/schedules/${id}/report`, { headers: { Authorization: 'Bearer ' + token } });
+  if (!res.ok) { document.getElementById('dsReportBody').innerHTML = '<div style="color:#dc2626;padding:20px">Failed to load report.</div>'; return; }
+  const data = await res.json();
+  const s = data.schedule;
+  const dateRange = s.indefinite ? `${s.start_date} → No end date` : `${s.start_date} → ${s.end_date}`;
+  const discLabel = s.discount_type === 'percent' ? `${s.discount_value}% off` : `$${Number(s.discount_value).toFixed(2)} off`;
+  document.getElementById('dsReportTitle').textContent = `📊 ${s.name}`;
+  const rows = data.items.map(item => `<tr><td>${item.name}</td><td style="text-align:right">${item.units_sold}</td><td style="text-align:right">$${item.orig_price.toFixed(2)}</td><td style="text-align:right">$${item.sale_price.toFixed(2)}</td><td style="text-align:right">$${item.revenue.toFixed(2)}</td><td style="text-align:right;color:#dc2626">-$${item.discount_given.toFixed(2)}</td></tr>`).join('');
+  document.getElementById('dsReportBody').innerHTML = `
+    <div style="font-size:13px;color:#666;margin-bottom:16px"><strong>${discLabel}</strong> · ${dateRange} · <span class="badge badge-${s.status}">${s.status}</span></div>
+    <div class="ds-report-totals">
+      <div class="ds-report-stat"><div class="ds-report-stat-val">${data.totals.units}</div><div class="ds-report-stat-lbl">Units sold</div></div>
+      <div class="ds-report-stat"><div class="ds-report-stat-val">$${data.totals.revenue.toFixed(2)}</div><div class="ds-report-stat-lbl">Revenue</div></div>
+      <div class="ds-report-stat"><div class="ds-report-stat-val" style="color:#dc2626">-$${data.totals.discount_given.toFixed(2)}</div><div class="ds-report-stat-lbl">Discount given</div></div>
+    </div>
+    ${data.items.length === 0 ? '<div style="text-align:center;color:#888;padding:20px">No sales data found for this period.</div>' : `<div style="overflow-x:auto"><table class="ds-report-table"><thead><tr><th>Item</th><th style="text-align:right">Units</th><th style="text-align:right">Reg. Price</th><th style="text-align:right">Sale Price</th><th style="text-align:right">Revenue</th><th style="text-align:right">Discount</th></tr></thead><tbody>${rows}</tbody></table></div>`}`;
+}
+
+function closeDsReport() { document.getElementById('dsReportOverlay').classList.remove('open'); }
+
+// ── Init ────────────────────────────────────────────────────────────────────
+async function init() {
+  if (!token) { window.location.href = '/'; return; }
+  const ALLOWED = ['regional_manager', 'him', 'admin', 'owner', 'marketing', 'gm', 'store_user'];
+  if (!ALLOWED.includes(role)) { window.location.href = '/dashboard'; return; }
+
+  // Show Discount Schedules tab only for HIM/admin/RM
+  if (canManageDiscounts) {
+    document.getElementById('tabDiscounts').style.display = '';
+  }
+
+  // Load stores
+  const storeData = await api('/api/inventory/stores');
+  allStores = storeData.stores || [];
+  dsStores = allStores;
+
+  // Build discount schedule store pills
+  const urlStore = new URLSearchParams(location.search).get('store');
+  const defaultStore = urlStore || (dsStores.length === 1 ? dsStores[0].id : null);
+  const pills = document.getElementById('storePills');
+  if (dsStores.length <= 1 && !canManageDiscounts) {
+    pills.style.display = 'none';
+  } else {
+    pills.innerHTML = dsStores.map(s =>
+      `<button class="store-pill${s.id === defaultStore ? ' active' : ''}" onclick="dsSelectStore('${s.id}', this)">${s.name}</button>`
+    ).join('');
+  }
+  if (defaultStore) { dsCurrentStoreId = defaultStore; }
+
+  // Load sale events
+  await loadEvents();
+
+  // Update the main add button label
+  document.getElementById('mainAddBtn').textContent = '+ New Sale Event';
+}
+
+// Close modals on overlay click
+document.getElementById('createModal').addEventListener('click', e => { if (e.target === document.getElementById('createModal')) closeCreateModal(); });
+document.getElementById('reviewModal').addEventListener('click', e => { if (e.target === document.getElementById('reviewModal')) closeReviewModal(); });
+document.getElementById('dsModalOverlay').addEventListener('click', e => { if (e.target === document.getElementById('dsModalOverlay')) closeDsModal(); });
+document.getElementById('dsReportOverlay').addEventListener('click', e => { if (e.target === document.getElementById('dsReportOverlay')) closeDsReport(); });
+document.addEventListener('click', e => { if (!e.target.closest('.search-picker')) document.querySelectorAll('.search-list').forEach(l => l.classList.remove('open')); });
+
+init();
+</script>
+<script>loadNavbar();</script>
+</body>
+</html>
