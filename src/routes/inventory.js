@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const { cloverFetch, updateItemPriceAndCost, setStockInClover, getValidApiToken } = require('../services/clover');
+const { cloverFetch, updateItemPriceAndCost, setStockInClover, deleteItemFromClover, getValidApiToken } = require('../services/clover');
 const { isHim } = require('../lib/roles');
 const supabase = require('../lib/supabase');
 
@@ -115,6 +115,24 @@ async function triggerBackgroundSync(store) {
         clover_qty: cloverQty,
         last_synced: new Date().toISOString()
       }], { onConflict: 'id' });
+    }
+
+    // After sync: auto-delete any Dropping items that reached 0 stock
+    const { data: droppingZero } = await supabase
+      .from('inventory_items')
+      .select('id')
+      .eq('store_id', store.id)
+      .eq('status', 'Dropping')
+      .lte('clover_qty', 0);
+
+    for (const di of droppingZero || []) {
+      try {
+        await deleteItemFromClover(store.merchant_id, apiToken, di.id);
+        await supabase.from('inventory_items').delete().eq('id', di.id);
+        console.log(`[AutoDelete] Dropping item ${di.id} at 0 after sync — deleted from Clover + DB (${store.name})`);
+      } catch (delErr) {
+        console.error(`[AutoDelete] Failed for ${di.id}:`, delErr.message);
+      }
     }
 
     console.log(`✅ Background sync complete for ${store.name}: ${allItems.length} items`);
@@ -266,6 +284,18 @@ router.put('/items/:id', auth, async (req, res) => {
             req.params.id,
             clover_qty
           );
+        }
+
+        // Auto-delete: if this item is marked Dropping and stock is now 0, remove from Clover + DB
+        if (data.status === 'Dropping' && (data.clover_qty || 0) <= 0) {
+          try {
+            await deleteItemFromClover(store.merchant_id, apiToken, req.params.id);
+            await supabase.from('inventory_items').delete().eq('id', req.params.id);
+            console.log(`[AutoDelete] Dropping item ${req.params.id} at 0 qty — deleted from Clover + DB (${store.name})`);
+            return res.json({ item: data, auto_deleted: true });
+          } catch (delErr) {
+            console.error('[AutoDelete] Failed:', delErr.message);
+          }
         }
       }
     }

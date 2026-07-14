@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
-const { fetchFullOrder, fetchOrderRefunds, fetchItem, pushStockToClover, extractLineItems, extractRefundedItems, createCashSale, getCashTenderId, getValidApiToken } = require('../services/clover');
+const { fetchFullOrder, fetchOrderRefunds, fetchPayment, fetchItem, pushStockToClover, deleteItemFromClover, extractLineItems, extractRefundedItems, createCashSale, getCashTenderId, getValidApiToken } = require('../services/clover');
 const { calculateSuggestedOrder } = require('../services/suggested');
 const { notify } = require('../services/notify');
 const supabase = require('../lib/supabase');
@@ -57,12 +57,23 @@ router.post('/webhook', async (req, res) => {
           continue;
         }
         if (isPaymentEvent) {
-          const isRefund = eventType.includes('REFUND') || eventType.includes('CREDIT');
-          if (isRefund && event.data?.order?.id) {
-            await processOrderEvent(store, event.data.order.id);
-          } else if (!isRefund) {
-            // Payment event — treat as order event to catch paid orders
-            console.log('[Webhook] Payment event, no order id in data:', JSON.stringify(event));
+          try {
+            const apiToken = await getValidApiToken(store);
+            const payment = await fetchPayment(store.merchant_id, apiToken, objectId);
+            const orderId = payment?.order?.id;
+            const payResult = (payment?.result || '').toUpperCase();
+            const isRefundPayment = payResult === 'VOID' ||
+                                    (payment?.refundAmount || 0) > 0 ||
+                                    (payment?.refunds?.elements?.length || 0) > 0;
+            if (orderId) {
+              console.log(`[Webhook] Payment ${objectId} → order ${orderId} result=${payResult} refund=${isRefundPayment}`);
+              await sleep(2000); // wait for Clover order state to update
+              await processOrderEvent(store, orderId, isRefundPayment);
+            } else {
+              console.log('[Webhook] Payment event, no order id:', JSON.stringify(event));
+            }
+          } catch (err) {
+            console.error('[Webhook] Payment lookup error:', err.message);
           }
         }
       }
@@ -75,7 +86,7 @@ router.post('/webhook', async (req, res) => {
 });
 
 
-async function processOrderEvent(store, orderId) {
+async function processOrderEvent(store, orderId, forceRefund = false) {
   try {
     const cleanId = orderId.replace(/^O:/, '');
     console.log(`[processOrderEvent] store=${store.name} orderId=${cleanId}`);
@@ -91,13 +102,26 @@ async function processOrderEvent(store, orderId) {
     const fullOrder = await fetchFullOrder(store.merchant_id, apiToken, cleanId);
     console.log(`[processOrderEvent] order state=${fullOrder.state} paymentState=${fullOrder.paymentState} total=${fullOrder.total}`);
 
+    // Try to fetch refunds — some Clover setups return 405, so we handle gracefully.
+    // Primary refund detection comes from forceRefund (set by payment webhook) or paymentState.
+    let refundsData = null;
+    let hasRefunds = false;
+    try {
+      refundsData = await fetchOrderRefunds(store.merchant_id, apiToken, cleanId);
+      hasRefunds = (refundsData?.elements?.length || 0) > 0;
+    } catch (e) {
+      console.log('[processOrderEvent] refunds fetch skipped:', e.message);
+    }
+    console.log(`[processOrderEvent] forceRefund=${forceRefund} hasRefunds=${hasRefunds}`);
+
     const payState = (fullOrder.paymentState || '').toUpperCase();
-    const isRefund = fullOrder.state === 'refunded' ||
+    const isRefund = forceRefund ||
+                     fullOrder.state === 'refunded' ||
                      payState === 'REFUNDED' ||
                      payState === 'CREDITED' ||
                      payState === 'PARTIALLY_REFUNDED' ||
                      (fullOrder.refundAmount || 0) > 0 ||
-                     (fullOrder.refunds?.elements?.length > 0);
+                     hasRefunds;
 
     const alreadyLogged = existingSales && existingSales.length > 0;
     if (!isRefund && alreadyLogged) { console.log('Sale already logged:', cleanId); return; }
@@ -130,16 +154,25 @@ async function processOrderEvent(store, orderId) {
     let restockThisRefund = true;
 
     if (isRefund) {
-      const refundsData = await fetchOrderRefunds(store.merchant_id, apiToken, cleanId);
-      const latestRefund = refundsData?.elements?.length > 0
+      const latestRefund = (refundsData?.elements?.length || 0) > 0
         ? refundsData.elements[refundsData.elements.length - 1]
-        : fullOrder.refunds?.elements?.[fullOrder.refunds.elements.length - 1];
+        : null;
       if (latestRefund) {
         amount = (latestRefund.amount || 0) / 100;
         tax = (latestRefund.taxAmount || 0) / 100;
         if ((latestRefund.reason || '').toLowerCase().includes('not restocked')) restockThisRefund = false;
       }
       itemMap = extractRefundedItems(fullOrder);
+      // Fallback: if no items detected, treat all line items as refunded (full refund)
+      if (Object.keys(itemMap).length === 0) {
+        (fullOrder.lineItems?.elements || []).forEach(li => {
+          const itemId = (li.item?.id || '').toString().trim();
+          if (!itemId || itemId.length < 8) return;
+          const qty = li.unitQty ? (li.unitQty / 1000) : (li.quantity || 1);
+          if (!itemMap[itemId]) itemMap[itemId] = { qty: 0 };
+          itemMap[itemId].qty += qty;
+        });
+      }
     } else {
       itemMap = extractLineItems(fullOrder);
     }
@@ -315,6 +348,18 @@ await supabase.from('inventory_items').upsert([{
           link: `/inventory?store=${store.id}`,
           store_id: store.id
         });
+      }
+    }
+
+    // Auto-delete: if item is marked Dropping and just sold out, remove from Clover + DB
+    if (itemStatus === 'Dropping' && cloverQty <= 0) {
+      try {
+        await deleteItemFromClover(store.merchant_id, apiToken, itemId);
+        await supabase.from('inventory_items').delete().eq('id', itemId);
+        console.log(`[AutoDelete] Dropping item ${itemId} sold out at ${store.name} — deleted from Clover + DB`);
+        return;
+      } catch (delErr) {
+        console.error(`[AutoDelete] Failed for ${itemId}:`, delErr.message);
       }
     }
 
