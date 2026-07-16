@@ -811,4 +811,13 @@ router.post('/add-stock', auth, async (req, res) => {
       .eq('id', item_id).eq('store_id', store_id);
 
     console.log(`[add-stock] ${store.name} — ${item.variant_name}: +${qty} → ${newQty} (suggested: ${newSuggested})`);
-    res.json(
+    console.log(`[add-stock] ${store.name} — ${item.variant_name}: +${qty} → ${newQty} (suggested: ${newSuggested})`);
+    res.json({ ok: true, new_qty: newQty, new_suggested: newSuggested });
+  } catch (err) {
+    console.error('add-stock error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+module.exports = router;
+module.exports.triggerBackgroundSync = triggerBackgroundSync;
