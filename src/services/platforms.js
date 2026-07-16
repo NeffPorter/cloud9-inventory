@@ -198,9 +198,10 @@ async function fetchFacebookInsights(start, end, stores = []) {
       const pageData = JSON.parse(pageRes.body);
       if (pageData.error) throw new Error(`Page ${pageId}: ${pageData.error.message}`);
 
-      // Post engagement (likes, comments, shares) — works without read_insights
+      // Post engagement (likes, comments, shares)
+      // Use /me/posts with the page token (page calling its own feed) to avoid (#10) permission errors
       const postsRes = await httpsRequest('GET', 'graph.facebook.com',
-        `/v21.0/${pageId}/posts?fields=likes.summary(true),comments.summary(true),shares&limit=30&access_token=${encodeURIComponent(token)}`, {});
+        `/v21.0/me/posts?fields=likes.summary(true),comments.summary(true),shares&limit=30&access_token=${encodeURIComponent(token)}`, {});
       const postsData = JSON.parse(postsRes.body);
       if (postsData.error) console.error(`[Facebook posts] Page ${pageId}:`, postsData.error.message);
 
@@ -254,16 +255,17 @@ async function fetchInstagramInsights(start, end, stores = []) {
       const token = store.facebook_page_token;
       const pageId = store.facebook_page_id;
 
-      // Get linked Instagram Business Account
+      // Get linked Instagram account — try business account first, fall back to connected account
       const igRes = await httpsRequest('GET', 'graph.facebook.com',
-        `/v21.0/${pageId}?fields=instagram_business_account{id,username,followers_count}&access_token=${encodeURIComponent(token)}`, {});
+        `/v21.0/me?fields=instagram_business_account{id,username,followers_count},connected_instagram_account{id,username,followers_count}&access_token=${encodeURIComponent(token)}`, {});
       const igData = JSON.parse(igRes.body);
       if (igData.error) throw new Error(`Page ${pageId}: ${igData.error.message}`);
+      console.log(`[Instagram] Page ${pageId} raw fields:`, JSON.stringify(igData));
 
-      const igAccount = igData.instagram_business_account;
+      const igAccount = igData.instagram_business_account || igData.connected_instagram_account;
       if (!igAccount) {
-        console.error(`[Instagram] Page ${pageId} has no linked Instagram Business Account. Fields returned:`, Object.keys(igData).join(', '));
-        return { pageId, name: store.name, followers: 0, impressions: 0, reach: 0, profileViews: 0, error: 'No Instagram Business Account linked' };
+        console.error(`[Instagram] Page ${pageId} has no linked Instagram account. Fields returned:`, Object.keys(igData).join(', '));
+        return { pageId, name: store.name, followers: 0, impressions: 0, reach: 0, profileViews: 0, error: 'No Instagram account linked' };
       }
 
       const igUserId = igAccount.id;
