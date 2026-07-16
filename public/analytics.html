@@ -318,9 +318,9 @@ async function loadFacebook() {
   $('fbSub').textContent = (d.pages||[]).length + ' page(s)';
   $('fbBody').innerHTML = `
     <div class="metric-row"><span class="metric-label">Fans / Followers</span><span class="metric-value">${fmt(d.totals.fans)} / ${fmt(d.totals.followers)}</span></div>
-    <div class="metric-row"><span class="metric-label">Impressions</span><span class="metric-value">${fmt(d.totals.impressions)}</span></div>
-    <div class="metric-row"><span class="metric-label">Engaged Users</span><span class="metric-value">${fmt(d.totals.engaged)}</span></div>
-    <div class="metric-row"><span class="metric-label">Page Views</span><span class="metric-value">${fmt(d.totals.views)}</span></div>
+    <div class="metric-row"><span class="metric-label">Post Likes</span><span class="metric-value">${fmt(d.totals.likes)}</span></div>
+    <div class="metric-row"><span class="metric-label">Comments</span><span class="metric-value">${fmt(d.totals.comments)}</span></div>
+    <div class="metric-row"><span class="metric-label">Shares</span><span class="metric-value">${fmt(d.totals.shares)}</span></div>
     ${(d.pages||[]).length > 1 ? `<div class="per-location">${(d.pages||[]).map(p=>`<div class="loc-row"><span class="loc-name">${p.name}</span><span>${fmt(p.fans)} fans</span></div>`).join('')}</div>` : ''}`;
 }
 

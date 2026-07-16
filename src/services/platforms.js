@@ -191,36 +191,45 @@ async function fetchFacebookInsights(start, end, stores = []) {
     const pages = await Promise.all(activeStores.map(async (store) => {
       const token = store.facebook_page_token;
       const pageId = store.facebook_page_id;
+
+      // Page info (fans/followers)
       const pageRes = await httpsRequest('GET', 'graph.facebook.com',
         `/v21.0/${pageId}?fields=name,fan_count,followers_count&access_token=${encodeURIComponent(token)}`, {});
       const pageData = JSON.parse(pageRes.body);
       if (pageData.error) throw new Error(`Page ${pageId}: ${pageData.error.message}`);
 
-      const insightRes = await httpsRequest('GET', 'graph.facebook.com',
-        `/v21.0/${pageId}/insights?metric=${METRICS}&period=day&since=${startTs}&until=${endTs}&access_token=${encodeURIComponent(token)}`, {});
-      const insightData = JSON.parse(insightRes.body);
-      if (insightData.error) {
-        console.error(`[Facebook insights] Page ${pageId} error:`, JSON.stringify(insightData.error));
-      }
-      const m = {};
-      (insightData.data || []).forEach(item => {
-        m[item.name] = (item.values||[]).reduce((s,v)=>s+(typeof v.value==='number'?v.value:0),0);
+      // Post engagement (likes, comments, shares) — works without read_insights
+      const postsRes = await httpsRequest('GET', 'graph.facebook.com',
+        `/v21.0/${pageId}/posts?fields=likes.summary(true),comments.summary(true),shares&limit=30&access_token=${encodeURIComponent(token)}`, {});
+      const postsData = JSON.parse(postsRes.body);
+      if (postsData.error) console.error(`[Facebook posts] Page ${pageId}:`, postsData.error.message);
+
+      let totalLikes = 0, totalComments = 0, totalShares = 0, postCount = 0;
+      (postsData.data || []).forEach(post => {
+        totalLikes    += post.likes?.summary?.total_count    || 0;
+        totalComments += post.comments?.summary?.total_count || 0;
+        totalShares   += post.shares?.count                  || 0;
+        postCount++;
       });
+
       return {
         pageId, name: store.name,
-        fans:        pageData.fan_count||0,
-        followers:   pageData.followers_count||0,
-        impressions: m.page_impressions||0,
-        engaged:     0,
-        views:       m.page_views_total||0
+        fans:        pageData.fan_count    || 0,
+        followers:   pageData.followers_count || 0,
+        posts:       postCount,
+        likes:       totalLikes,
+        comments:    totalComments,
+        shares:      totalShares,
       };
     }));
 
     const totals = {
       fans:        pages.reduce((s,p)=>s+(p.fans||0),0),
       followers:   pages.reduce((s,p)=>s+(p.followers||0),0),
-      impressions: pages.reduce((s,p)=>s+(p.impressions||0),0),
-      views:       pages.reduce((s,p)=>s+(p.views||0),0)
+      posts:       pages.reduce((s,p)=>s+(p.posts||0),0),
+      likes:       pages.reduce((s,p)=>s+(p.likes||0),0),
+      comments:    pages.reduce((s,p)=>s+(p.comments||0),0),
+      shares:      pages.reduce((s,p)=>s+(p.shares||0),0),
     };
     return { configured: true, pages, totals };
   } catch (err) { console.error('[Facebook]', err.message); return { configured: true, error: err.message }; }
@@ -252,7 +261,10 @@ async function fetchInstagramInsights(start, end, stores = []) {
       if (igData.error) throw new Error(`Page ${pageId}: ${igData.error.message}`);
 
       const igAccount = igData.instagram_business_account;
-      if (!igAccount) return { pageId, name: store.name, error: 'No Instagram Business Account linked' };
+      if (!igAccount) {
+        console.error(`[Instagram] Page ${pageId} has no linked Instagram Business Account. Fields returned:`, Object.keys(igData).join(', '));
+        return { pageId, name: store.name, followers: 0, impressions: 0, reach: 0, profileViews: 0, error: 'No Instagram Business Account linked' };
+      }
 
       const igUserId = igAccount.id;
       const followers = igAccount.followers_count || 0;
