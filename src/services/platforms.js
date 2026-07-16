@@ -186,7 +186,7 @@ async function fetchFacebookInsights(start, end, stores = []) {
   try {
     const startTs = start ? Math.floor(new Date(start).getTime()/1000) : Math.floor(new Date(new Date().getFullYear(),new Date().getMonth(),1).getTime()/1000);
     const endTs   = end   ? Math.floor(new Date(end+'T23:59:59').getTime()/1000) : Math.floor(Date.now()/1000);
-    const METRICS = 'page_impressions,page_views_total';
+    const METRICS = 'page_impressions';
 
     const pages = await Promise.all(activeStores.map(async (store) => {
       const token = store.facebook_page_token;
