@@ -156,17 +156,18 @@ if (params.get('connected') === '1') {
 }
 
 let editingStoreId = null;
+let storesCache = {};
 
 async function loadStores() {
   try {
     const res = await fetch('/api/inventory/stores', { headers: { Authorization: 'Bearer ' + token } });
     const data = await res.json();
     const stores = data.stores || [];
+    storesCache = {};
+    stores.forEach(s => { storesCache[s.id] = s; });
     const list = document.getElementById('storesList');
     if (!stores.length) { list.innerHTML = '<div class="empty">No stores added yet.</div>'; return; }
-    list.innerHTML = stores.map(s => {
-      const sd = Object.assign({}, s, { has_facebook_token: !!(s.facebook_page_token) });
-      return `
+    list.innerHTML = stores.map(s => `
       <div class="store-row">
         <div class="store-info">
           <h3>${s.name}</h3>
@@ -179,17 +180,18 @@ async function loadStores() {
           </div>
         </div>
         <div class="store-actions">
-          <button class="edit-btn" onclick='openModal(${JSON.stringify(sd).replace(/'/g, "&#39;")})'>✏️ Credentials</button>
+          <button class="edit-btn" onclick="openModal('${s.id}')">✏️ Credentials</button>
           <button class="delete-btn" onclick="deleteStore('${s.id}')">Remove</button>
         </div>
-      </div>`;
-    }).join('');
+      </div>`).join('');
   } catch (err) {
     document.getElementById('storesList').innerHTML = '<div class="empty">Error loading stores.</div>';
   }
 }
 
-function openModal(store) {
+function openModal(storeId) {
+  const store = storesCache[storeId];
+  if (!store) return;
   editingStoreId = store.id;
   document.getElementById('editModalTitle').textContent = '✏️ ' + store.name;
   document.getElementById('editGoogleLocationId').value = store.google_location_id || '';
@@ -198,7 +200,7 @@ function openModal(store) {
   document.getElementById('editFacebookToken').value    = '';
   document.getElementById('editGA4PropertyId').value    = store.ga4_property_id    || '';
   document.getElementById('editError').style.display = 'none';
-  document.getElementById('tokenStatus').style.display = store.has_facebook_token ? 'block' : 'none';
+  document.getElementById('tokenStatus').style.display = store.facebook_page_token ? 'block' : 'none';
   document.getElementById('editModal').classList.add('open');
 }
 
