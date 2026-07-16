@@ -104,8 +104,8 @@ router.get('/facebook', auth, requireAnalyticsAccess, async (req, res) => {
   } catch (err) { res.status(500).json({ configured: true, error: err.message }); }
 });
 
-// GET /api/analytics/fb-debug — shows raw token info from Facebook
-router.get('/fb-debug', auth, async (req, res) => {
+// GET /api/analytics/fb-debug — shows raw token info from Facebook (no auth for debugging)
+router.get('/fb-debug', async (req, res) => {
   try {
     const stores = await getPlatformStores('');
     const results = await Promise.all(stores.filter(s => s.facebook_page_id && s.facebook_page_token).map(async s => {
