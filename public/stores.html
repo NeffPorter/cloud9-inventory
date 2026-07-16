@@ -282,4 +282,17 @@ async function addStore() {
 async function deleteStore(id) {
   if (!confirm('Remove this store? This permanently deletes ALL inventory, sales, and schedule data.')) return;
   try {
-    const res = await fetch(`/api/inventory/stores/${id}
+    const res = await fetch(`/api/inventory/stores/${id}`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
+    if (!res.ok) { const d = await res.json().catch(()=>{}); alert('Error: ' + (d?.error || res.statusText)); return; }
+    loadStores();
+  } catch (err) { alert('Error: ' + err.message); }
+}
+
+document.getElementById('editModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('editModal')) closeModal();
+});
+
+loadStores();
+</script>
+</body>
+</html>
