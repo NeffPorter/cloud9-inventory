@@ -121,7 +121,8 @@
     </div>
     <div class="form-group">
       <label>Page Access Token</label>
-      <input type="password" id="editFacebookToken" placeholder="••••••••••••••••">
+      <div id="tokenStatus" style="display:none;font-size:12px;font-weight:600;color:#065f46;background:#d1fae5;padding:6px 10px;border-radius:6px;margin-bottom:6px;">✓ Token saved</div>
+      <input type="password" id="editFacebookToken" placeholder="Paste new token to update">
       <div style="font-size:11px;color:#888;margin-top:4px;">Leave blank to keep the existing token.</div>
     </div>
 
@@ -163,7 +164,9 @@ async function loadStores() {
     const stores = data.stores || [];
     const list = document.getElementById('storesList');
     if (!stores.length) { list.innerHTML = '<div class="empty">No stores added yet.</div>'; return; }
-    list.innerHTML = stores.map(s => `
+    list.innerHTML = stores.map(s => {
+      const sd = Object.assign({}, s, { has_facebook_token: !!(s.facebook_page_token) });
+      return `
       <div class="store-row">
         <div class="store-info">
           <h3>${s.name}</h3>
@@ -171,15 +174,16 @@ async function loadStores() {
           <div class="platform-dots">
             <span class="platform-dot ${s.google_location_id ? 'dot-on' : 'dot-off'}">🔍 Google ${s.google_location_id ? '✓' : '—'}</span>
             <span class="platform-dot ${s.apple_location_id  ? 'dot-on' : 'dot-off'}">🍎 Apple ${s.apple_location_id  ? '✓' : '—'}</span>
-            <span class="platform-dot ${s.facebook_page_id   ? 'dot-on' : 'dot-off'}">📘 Facebook ${s.facebook_page_id ? '✓' : '—'}</span>
+            <span class="platform-dot ${s.facebook_page_id && s.facebook_page_token ? 'dot-on' : 'dot-off'}">📘 Facebook ${s.facebook_page_id && s.facebook_page_token ? '✓' : '—'}</span>
             <span class="platform-dot ${s.ga4_property_id ? 'dot-on' : 'dot-off'}">📈 GA4 ${s.ga4_property_id ? '✓' : '—'}</span>
           </div>
         </div>
         <div class="store-actions">
-          <button class="edit-btn" onclick='openModal(${JSON.stringify(s)})'>✏️ Credentials</button>
+          <button class="edit-btn" onclick='openModal(${JSON.stringify(sd).replace(/'/g, "&#39;")})'>✏️ Credentials</button>
           <button class="delete-btn" onclick="deleteStore('${s.id}')">Remove</button>
         </div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
   } catch (err) {
     document.getElementById('storesList').innerHTML = '<div class="empty">Error loading stores.</div>';
   }
@@ -194,6 +198,7 @@ function openModal(store) {
   document.getElementById('editFacebookToken').value    = '';
   document.getElementById('editGA4PropertyId').value    = store.ga4_property_id    || '';
   document.getElementById('editError').style.display = 'none';
+  document.getElementById('tokenStatus').style.display = store.has_facebook_token ? 'block' : 'none';
   document.getElementById('editModal').classList.add('open');
 }
 
@@ -275,17 +280,4 @@ async function addStore() {
 async function deleteStore(id) {
   if (!confirm('Remove this store? This permanently deletes ALL inventory, sales, and schedule data.')) return;
   try {
-    const res = await fetch(`/api/inventory/stores/${id}`, { method: 'DELETE', headers: { Authorization: 'Bearer ' + token } });
-    if (!res.ok) { const d = await res.json().catch(()=>{}); alert('Error: ' + (d?.error || res.statusText)); return; }
-    loadStores();
-  } catch (err) { alert('Error: ' + err.message); }
-}
-
-document.getElementById('editModal').addEventListener('click', e => {
-  if (e.target === document.getElementById('editModal')) closeModal();
-});
-
-loadStores();
-</script>
-</body>
-</html>
+    const res = await fetch(`/api/inventory/stores/${id}

@@ -146,16 +146,17 @@ async function triggerBackgroundSync(store) {
 router.put('/stores/:id', auth, async (req, res) => {
   try {
     if (!isHim(req.user.role)) return res.status(403).json({ error: 'Admin only' });
-    const { google_location_id, apple_location_id, facebook_page_id, facebook_page_token, name } = req.body;
+    const { google_location_id, apple_location_id, facebook_page_id, facebook_page_token, ga4_property_id, name } = req.body;
     const updates = {};
     if (name                !== undefined) updates.name                = name;
     if (google_location_id  !== undefined) updates.google_location_id  = google_location_id  || null;
     if (apple_location_id   !== undefined) updates.apple_location_id   = apple_location_id   || null;
     if (facebook_page_id    !== undefined) updates.facebook_page_id    = facebook_page_id    || null;
     if (facebook_page_token !== undefined) updates.facebook_page_token = facebook_page_token || null;
-    const { error } = await supabase.from('stores').update(updates).eq('id', req.params.id);
+    if (ga4_property_id     !== undefined) updates.ga4_property_id     = ga4_property_id     || null;
+    const { data: updated, error } = await supabase.from('stores').update(updates).eq('id', req.params.id).select('id, facebook_page_id, facebook_page_token, ga4_property_id').single();
     if (error) throw error;
-    res.json({ success: true });
+    res.json({ success: true, store: { has_facebook_token: !!(updated?.facebook_page_token) } });
   } catch (err) {
     console.error('Update store error:', err.message);
     res.status(500).json({ error: 'Failed to update store' });
@@ -810,12 +811,4 @@ router.post('/add-stock', auth, async (req, res) => {
       .eq('id', item_id).eq('store_id', store_id);
 
     console.log(`[add-stock] ${store.name} — ${item.variant_name}: +${qty} → ${newQty} (suggested: ${newSuggested})`);
-    res.json({ ok: true, new_qty: newQty, new_suggested: newSuggested });
-  } catch (err) {
-    console.error('add-stock error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-module.exports = router;
-module.exports.triggerBackgroundSync = triggerBackgroundSync;
+    res.json(
