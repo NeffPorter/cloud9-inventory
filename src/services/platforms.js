@@ -255,27 +255,34 @@ async function fetchInstagramInsights(start, end, stores = []) {
       const token = store.facebook_page_token;
       const pageId = store.facebook_page_id;
 
-      // Get linked Instagram account — try business account first, fall back to connected account
+      // Step 1: get Instagram account ID only (just needs pages_read_engagement)
       const igRes = await httpsRequest('GET', 'graph.facebook.com',
-        `/v21.0/me?fields=instagram_business_account{id,username,followers_count},connected_instagram_account{id,username,followers_count}&access_token=${encodeURIComponent(token)}`, {});
+        `/v21.0/me?fields=instagram_business_account{id},connected_instagram_account{id}&access_token=${encodeURIComponent(token)}`, {});
       const igData = JSON.parse(igRes.body);
       if (igData.error) throw new Error(`Page ${pageId}: ${igData.error.message}`);
-      console.log(`[Instagram] Page ${pageId} raw fields:`, JSON.stringify(igData));
+      console.log(`[Instagram] Page ${pageId} lookup:`, JSON.stringify(igData));
 
       const igAccount = igData.instagram_business_account || igData.connected_instagram_account;
       if (!igAccount) {
-        console.error(`[Instagram] Page ${pageId} has no linked Instagram account. Fields returned:`, Object.keys(igData).join(', '));
+        console.error(`[Instagram] Page ${pageId} no linked IG account. Page fields:`, Object.keys(igData).join(', '));
         return { pageId, name: store.name, followers: 0, impressions: 0, reach: 0, profileViews: 0, error: 'No Instagram account linked' };
       }
 
       const igUserId = igAccount.id;
-      const followers = igAccount.followers_count || 0;
+
+      // Step 2: get Instagram account details (followers, username)
+      const igDetailRes = await httpsRequest('GET', 'graph.facebook.com',
+        `/v21.0/${igUserId}?fields=username,followers_count,name&access_token=${encodeURIComponent(token)}`, {});
+      const igDetail = JSON.parse(igDetailRes.body);
+      console.log(`[Instagram] IG account ${igUserId} details:`, JSON.stringify(igDetail));
+
+      const followers = igDetail.followers_count || 0;
 
       // Fetch insights
       const insightRes = await httpsRequest('GET', 'graph.facebook.com',
         `/v21.0/${igUserId}/insights?metric=impressions,reach,profile_views&period=day&since=${startTs}&until=${endTs}&access_token=${encodeURIComponent(token)}`, {});
       const insightData = JSON.parse(insightRes.body);
-      if (insightData.error) throw new Error(`IG insights: ${insightData.error.message}`);
+      if (insightData.error) console.error(`[Instagram] IG insights ${igUserId}:`, insightData.error.message);
 
       const m = {};
       (insightData.data || []).forEach(item => {
@@ -284,7 +291,7 @@ async function fetchInstagramInsights(start, end, stores = []) {
 
       return {
         pageId, igUserId, name: store.name,
-        username:     igAccount.username || '',
+        username:     igDetail.username || igDetail.name || '',
         followers,
         impressions:  m.impressions   || 0,
         reach:        m.reach         || 0,
