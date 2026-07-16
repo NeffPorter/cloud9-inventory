@@ -192,12 +192,12 @@ async function fetchFacebookInsights(start, end, stores = []) {
       const token = store.facebook_page_token;
       const pageId = store.facebook_page_id;
       const pageRes = await httpsRequest('GET', 'graph.facebook.com',
-        `/v18.0/${pageId}?fields=name,fan_count,followers_count&access_token=${encodeURIComponent(token)}`, {});
+        `/v21.0/${pageId}?fields=name,fan_count,followers_count&access_token=${encodeURIComponent(token)}`, {});
       const pageData = JSON.parse(pageRes.body);
       if (pageData.error) throw new Error(`Page ${pageId}: ${pageData.error.message}`);
 
       const insightRes = await httpsRequest('GET', 'graph.facebook.com',
-        `/v18.0/${pageId}/insights?metric=${METRICS}&period=day&since=${startTs}&until=${endTs}&access_token=${encodeURIComponent(token)}`, {});
+        `/v21.0/${pageId}/insights?metric=${METRICS}&period=day&since=${startTs}&until=${endTs}&access_token=${encodeURIComponent(token)}`, {});
       const insightData = JSON.parse(insightRes.body);
       if (insightData.error) {
         console.error(`[Facebook insights] Page ${pageId} error:`, JSON.stringify(insightData.error));
@@ -247,7 +247,7 @@ async function fetchInstagramInsights(start, end, stores = []) {
 
       // Get linked Instagram Business Account
       const igRes = await httpsRequest('GET', 'graph.facebook.com',
-        `/v18.0/${pageId}?fields=instagram_business_account{id,username,followers_count}&access_token=${encodeURIComponent(token)}`, {});
+        `/v21.0/${pageId}?fields=instagram_business_account{id,username,followers_count}&access_token=${encodeURIComponent(token)}`, {});
       const igData = JSON.parse(igRes.body);
       if (igData.error) throw new Error(`Page ${pageId}: ${igData.error.message}`);
 
@@ -259,7 +259,7 @@ async function fetchInstagramInsights(start, end, stores = []) {
 
       // Fetch insights
       const insightRes = await httpsRequest('GET', 'graph.facebook.com',
-        `/v18.0/${igUserId}/insights?metric=impressions,reach,profile_views&period=day&since=${startTs}&until=${endTs}&access_token=${encodeURIComponent(token)}`, {});
+        `/v21.0/${igUserId}/insights?metric=impressions,reach,profile_views&period=day&since=${startTs}&until=${endTs}&access_token=${encodeURIComponent(token)}`, {});
       const insightData = JSON.parse(insightRes.body);
       if (insightData.error) throw new Error(`IG insights: ${insightData.error.message}`);
 
