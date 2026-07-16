@@ -199,6 +199,9 @@ async function fetchFacebookInsights(start, end, stores = []) {
       const insightRes = await httpsRequest('GET', 'graph.facebook.com',
         `/v18.0/${pageId}/insights?metric=${METRICS}&period=total_over_range&since=${startTs}&until=${endTs}&access_token=${encodeURIComponent(token)}`, {});
       const insightData = JSON.parse(insightRes.body);
+      if (insightData.error) {
+        console.error(`[Facebook insights] Page ${pageId} error:`, JSON.stringify(insightData.error));
+      }
       const m = {};
       (insightData.data || []).forEach(item => {
         m[item.name] = (item.values||[]).reduce((s,v)=>s+(typeof v.value==='number'?v.value:0),0);
