@@ -197,7 +197,7 @@ async function fetchFacebookInsights(start, end, stores = []) {
       if (pageData.error) throw new Error(`Page ${pageId}: ${pageData.error.message}`);
 
       const insightRes = await httpsRequest('GET', 'graph.facebook.com',
-        `/v18.0/${pageId}/insights?metric=${METRICS}&period=total_over_range&since=${startTs}&until=${endTs}&access_token=${encodeURIComponent(token)}`, {});
+        `/v18.0/${pageId}/insights?metric=${METRICS}&period=day&since=${startTs}&until=${endTs}&access_token=${encodeURIComponent(token)}`, {});
       const insightData = JSON.parse(insightRes.body);
       if (insightData.error) {
         console.error(`[Facebook insights] Page ${pageId} error:`, JSON.stringify(insightData.error));
