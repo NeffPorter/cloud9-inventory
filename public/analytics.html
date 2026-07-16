@@ -316,14 +316,18 @@ async function loadFacebook() {
     return;
   }
   if (d.error) { $('fbBody').innerHTML = `<div class="error-msg">${d.error}</div>`; return; }
-  $('fbSub').textContent = (d.pages||[]).length + ' page(s)';
-  const fbRating = d.totals.starRating > 0
-    ? `${d.totals.starRating.toFixed(1)} ★ (${fmt(d.totals.ratingCount)} ratings)` : '—';
+  const fbPages = d.pages || [];
+  $('fbSub').textContent = fbPages.length + ' page(s)';
+  const fbPage1 = fbPages.length === 1 ? fbPages[0] : null;
+  const fbStarRating = fbPage1 ? fbPage1.starRating : d.totals.starRating;
+  const fbRatingCount = fbPage1 ? fbPage1.ratingCount : d.totals.ratingCount;
+  const fbRating = fbStarRating > 0
+    ? `${fbStarRating.toFixed(1)} ★${fbRatingCount > 0 ? ' (' + fmt(fbRatingCount) + ' ratings)' : ''}` : '—';
   $('fbBody').innerHTML = `
     <div class="metric-row"><span class="metric-label">Fans / Followers</span><span class="metric-value">${fmt(d.totals.fans)} / ${fmt(d.totals.followers)}</span></div>
     <div class="metric-row"><span class="metric-label">New Likes (7 days)</span><span class="metric-value">${fmt(d.totals.newLikes)}</span></div>
     <div class="metric-row"><span class="metric-label">Facebook Rating</span><span class="metric-value">${fbRating}</span></div>
-    ${(d.pages||[]).length > 1 ? `<div class="per-location">${(d.pages||[]).map(p=>`<div class="loc-row"><span class="loc-name">${p.name}</span><span>${fmt(p.fans)} fans${p.starRating > 0 ? ' · ⭐ ' + p.starRating.toFixed(1) : ''}</span></div>`).join('')}</div>` : ''}`;
+    ${fbPages.length > 1 ? `<div class="per-location">${fbPages.map(p=>`<div class="loc-row"><span class="loc-name">${p.name}</span><span>${fmt(p.fans)} fans${p.starRating > 0 ? ' · ⭐ ' + p.starRating.toFixed(1) : ''}</span></div>`).join('')}</div>` : ''}`;
 }
 
 // ── Instagram ─────────────────────────────────────────────────────────────────

@@ -213,13 +213,11 @@ async function fetchFacebookInsights(start, end, stores = []) {
       followers:   pages.reduce((s,p)=>s+(p.followers||0),0),
       newLikes:    pages.reduce((s,p)=>s+(p.newLikes||0),0),
       ratingCount: pages.reduce((s,p)=>s+(p.ratingCount||0),0),
-      // weighted avg star rating across pages that have ratings
+      // average star rating across pages that have a rating
       starRating: (() => {
-        const rated = pages.filter(p => p.ratingCount > 0);
+        const rated = pages.filter(p => p.starRating > 0);
         if (!rated.length) return 0;
-        const weighted = rated.reduce((s,p) => s + p.starRating * p.ratingCount, 0);
-        const total    = rated.reduce((s,p) => s + p.ratingCount, 0);
-        return total > 0 ? Math.round((weighted / total) * 10) / 10 : 0;
+        return Math.round((rated.reduce((s,p) => s + p.starRating, 0) / rated.length) * 10) / 10;
       })(),
     };
     return { configured: true, pages, totals };
