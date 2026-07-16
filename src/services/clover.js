@@ -264,5 +264,3 @@ module.exports = {
   getCashTenderId,
   getValidApiToken
 };
-etValidApiToken
-};
