@@ -283,6 +283,7 @@ function filterStore(storeId, btn) {
   selectedStore = storeId;
   document.querySelectorAll('.store-filter-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  loadAll();
 }
 
 function qs() {
@@ -316,12 +317,13 @@ async function loadFacebook() {
   }
   if (d.error) { $('fbBody').innerHTML = `<div class="error-msg">${d.error}</div>`; return; }
   $('fbSub').textContent = (d.pages||[]).length + ' page(s)';
+  const fbRating = d.totals.starRating > 0
+    ? `${d.totals.starRating.toFixed(1)} ★ (${fmt(d.totals.ratingCount)} ratings)` : '—';
   $('fbBody').innerHTML = `
     <div class="metric-row"><span class="metric-label">Fans / Followers</span><span class="metric-value">${fmt(d.totals.fans)} / ${fmt(d.totals.followers)}</span></div>
-    <div class="metric-row"><span class="metric-label">Post Likes</span><span class="metric-value">${fmt(d.totals.likes)}</span></div>
-    <div class="metric-row"><span class="metric-label">Comments</span><span class="metric-value">${fmt(d.totals.comments)}</span></div>
-    <div class="metric-row"><span class="metric-label">Shares</span><span class="metric-value">${fmt(d.totals.shares)}</span></div>
-    ${(d.pages||[]).length > 1 ? `<div class="per-location">${(d.pages||[]).map(p=>`<div class="loc-row"><span class="loc-name">${p.name}</span><span>${fmt(p.fans)} fans</span></div>`).join('')}</div>` : ''}`;
+    <div class="metric-row"><span class="metric-label">New Likes (7 days)</span><span class="metric-value">${fmt(d.totals.newLikes)}</span></div>
+    <div class="metric-row"><span class="metric-label">Facebook Rating</span><span class="metric-value">${fbRating}</span></div>
+    ${(d.pages||[]).length > 1 ? `<div class="per-location">${(d.pages||[]).map(p=>`<div class="loc-row"><span class="loc-name">${p.name}</span><span>${fmt(p.fans)} fans${p.starRating > 0 ? ' · ⭐ ' + p.starRating.toFixed(1) : ''}</span></div>`).join('')}</div>` : ''}`;
 }
 
 // ── Instagram ─────────────────────────────────────────────────────────────────
@@ -337,10 +339,8 @@ async function loadInstagram() {
   $('igSub').textContent = (d.accounts||[]).length + ' account(s)';
   $('igBody').innerHTML = `
     <div class="metric-row"><span class="metric-label">Total Followers</span><span class="metric-value">${fmt(d.totals.followers)}</span></div>
-    <div class="metric-row"><span class="metric-label">Impressions</span><span class="metric-value">${fmt(d.totals.impressions)}</span></div>
-    <div class="metric-row"><span class="metric-label">Reach</span><span class="metric-value">${fmt(d.totals.reach)}</span></div>
-    <div class="metric-row"><span class="metric-label">Profile Views</span><span class="metric-value">${fmt(d.totals.profileViews)}</span></div>
-    ${(d.accounts||[]).length > 1 ? `<div class="per-location">${(d.accounts||[]).map(a=>`<div class="loc-row"><span class="loc-name">${a.name}${a.username?' (@'+a.username+')':''}</span><span>${fmt(a.followers)} followers</span></div>`).join('')}</div>` : ''}`;
+    <div class="metric-row"><span class="metric-label">Total Posts</span><span class="metric-value">${fmt(d.totals.mediaCount)}</span></div>
+    ${(d.accounts||[]).length > 1 ? `<div class="per-location">${(d.accounts||[]).map(a=>`<div class="loc-row"><span class="loc-name">${a.name}${a.username?' (@'+a.username+')':''}</span><span>${fmt(a.followers)} followers${a.mediaCount ? ' · ' + fmt(a.mediaCount) + ' posts' : ''}</span></div>`).join('')}</div>` : ''}`;
 }
 
 // ── Google Business ───────────────────────────────────────────────────────────

@@ -192,45 +192,35 @@ async function fetchFacebookInsights(start, end, stores = []) {
       const token = store.facebook_page_token;
       const pageId = store.facebook_page_id;
 
-      // Page info (fans/followers)
+      // Page info (fans, followers, star rating, new likes)
       const pageRes = await httpsRequest('GET', 'graph.facebook.com',
-        `/v21.0/${pageId}?fields=name,fan_count,followers_count&access_token=${encodeURIComponent(token)}`, {});
+        `/v21.0/${pageId}?fields=name,fan_count,followers_count,overall_star_rating,rating_count,new_like_count&access_token=${encodeURIComponent(token)}`, {});
       const pageData = JSON.parse(pageRes.body);
       if (pageData.error) throw new Error(`Page ${pageId}: ${pageData.error.message}`);
 
-      // Post engagement (likes, comments, shares)
-      // Use /me/posts with the page token (page calling its own feed) to avoid (#10) permission errors
-      const postsRes = await httpsRequest('GET', 'graph.facebook.com',
-        `/v21.0/me/posts?fields=likes.summary(true),comments.summary(true),shares&limit=30&access_token=${encodeURIComponent(token)}`, {});
-      const postsData = JSON.parse(postsRes.body);
-      if (postsData.error) console.error(`[Facebook posts] Page ${pageId}:`, postsData.error.message);
-
-      let totalLikes = 0, totalComments = 0, totalShares = 0, postCount = 0;
-      (postsData.data || []).forEach(post => {
-        totalLikes    += post.likes?.summary?.total_count    || 0;
-        totalComments += post.comments?.summary?.total_count || 0;
-        totalShares   += post.shares?.count                  || 0;
-        postCount++;
-      });
-
       return {
         pageId, name: store.name,
-        fans:        pageData.fan_count    || 0,
-        followers:   pageData.followers_count || 0,
-        posts:       postCount,
-        likes:       totalLikes,
-        comments:    totalComments,
-        shares:      totalShares,
+        fans:        pageData.fan_count         || 0,
+        followers:   pageData.followers_count   || 0,
+        starRating:  pageData.overall_star_rating || 0,
+        ratingCount: pageData.rating_count      || 0,
+        newLikes:    pageData.new_like_count     || 0,
       };
     }));
 
     const totals = {
       fans:        pages.reduce((s,p)=>s+(p.fans||0),0),
       followers:   pages.reduce((s,p)=>s+(p.followers||0),0),
-      posts:       pages.reduce((s,p)=>s+(p.posts||0),0),
-      likes:       pages.reduce((s,p)=>s+(p.likes||0),0),
-      comments:    pages.reduce((s,p)=>s+(p.comments||0),0),
-      shares:      pages.reduce((s,p)=>s+(p.shares||0),0),
+      newLikes:    pages.reduce((s,p)=>s+(p.newLikes||0),0),
+      ratingCount: pages.reduce((s,p)=>s+(p.ratingCount||0),0),
+      // weighted avg star rating across pages that have ratings
+      starRating: (() => {
+        const rated = pages.filter(p => p.ratingCount > 0);
+        if (!rated.length) return 0;
+        const weighted = rated.reduce((s,p) => s + p.starRating * p.ratingCount, 0);
+        const total    = rated.reduce((s,p) => s + p.ratingCount, 0);
+        return total > 0 ? Math.round((weighted / total) * 10) / 10 : 0;
+      })(),
     };
     return { configured: true, pages, totals };
   } catch (err) { console.error('[Facebook]', err.message); return { configured: true, error: err.message }; }
@@ -270,13 +260,14 @@ async function fetchInstagramInsights(start, end, stores = []) {
 
       const igUserId = igAccount.id;
 
-      // Step 2: get Instagram account details (followers, username)
+      // Step 2: get Instagram account details (followers, username, post count)
       const igDetailRes = await httpsRequest('GET', 'graph.facebook.com',
-        `/v21.0/${igUserId}?fields=username,followers_count,name&access_token=${encodeURIComponent(token)}`, {});
+        `/v21.0/${igUserId}?fields=username,followers_count,name,media_count&access_token=${encodeURIComponent(token)}`, {});
       const igDetail = JSON.parse(igDetailRes.body);
       console.log(`[Instagram] IG account ${igUserId} details:`, JSON.stringify(igDetail));
 
-      const followers = igDetail.followers_count || 0;
+      const followers  = igDetail.followers_count || 0;
+      const mediaCount = igDetail.media_count     || 0;
 
       // Fetch insights
       const insightRes = await httpsRequest('GET', 'graph.facebook.com',
@@ -291,19 +282,15 @@ async function fetchInstagramInsights(start, end, stores = []) {
 
       return {
         pageId, igUserId, name: store.name,
-        username:     igDetail.username || igDetail.name || '',
+        username:   igDetail.username || igDetail.name || '',
         followers,
-        impressions:  m.impressions   || 0,
-        reach:        m.reach         || 0,
-        profileViews: m.profile_views || 0
+        mediaCount,
       };
     }));
 
     const totals = {
-      followers:    accounts.reduce((s, a) => s + (a.followers    || 0), 0),
-      impressions:  accounts.reduce((s, a) => s + (a.impressions  || 0), 0),
-      reach:        accounts.reduce((s, a) => s + (a.reach        || 0), 0),
-      profileViews: accounts.reduce((s, a) => s + (a.profileViews || 0), 0)
+      followers:  accounts.reduce((s, a) => s + (a.followers  || 0), 0),
+      mediaCount: accounts.reduce((s, a) => s + (a.mediaCount || 0), 0),
     };
     return { configured: true, accounts, totals };
   } catch (err) { console.error('[Instagram]', err.message); return { configured: true, error: err.message }; }
