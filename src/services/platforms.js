@@ -186,7 +186,7 @@ async function fetchFacebookInsights(start, end, stores = []) {
   try {
     const startTs = start ? Math.floor(new Date(start).getTime()/1000) : Math.floor(new Date(new Date().getFullYear(),new Date().getMonth(),1).getTime()/1000);
     const endTs   = end   ? Math.floor(new Date(end+'T23:59:59').getTime()/1000) : Math.floor(Date.now()/1000);
-    const METRICS = 'page_impressions,page_engaged_users,page_views_total';
+    const METRICS = 'page_impressions,page_views_total';
 
     const pages = await Promise.all(activeStores.map(async (store) => {
       const token = store.facebook_page_token;
@@ -211,7 +211,7 @@ async function fetchFacebookInsights(start, end, stores = []) {
         fans:        pageData.fan_count||0,
         followers:   pageData.followers_count||0,
         impressions: m.page_impressions||0,
-        engaged:     m.page_engaged_users||0,
+        engaged:     0,
         views:       m.page_views_total||0
       };
     }));
@@ -220,7 +220,6 @@ async function fetchFacebookInsights(start, end, stores = []) {
       fans:        pages.reduce((s,p)=>s+(p.fans||0),0),
       followers:   pages.reduce((s,p)=>s+(p.followers||0),0),
       impressions: pages.reduce((s,p)=>s+(p.impressions||0),0),
-      engaged:     pages.reduce((s,p)=>s+(p.engaged||0),0),
       views:       pages.reduce((s,p)=>s+(p.views||0),0)
     };
     return { configured: true, pages, totals };
