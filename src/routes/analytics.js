@@ -104,6 +104,35 @@ router.get('/facebook', auth, requireAnalyticsAccess, async (req, res) => {
   } catch (err) { res.status(500).json({ configured: true, error: err.message }); }
 });
 
+// GET /api/analytics/fb-debug — shows raw token info from Facebook
+router.get('/fb-debug', auth, async (req, res) => {
+  try {
+    const stores = await getPlatformStores('');
+    const results = await Promise.all(stores.filter(s => s.facebook_page_id && s.facebook_page_token).map(async s => {
+      const https = require('https');
+      const token = s.facebook_page_token;
+      const pageId = s.facebook_page_id;
+      const tokenPreview = token.substring(0, 20) + '...' + token.substring(token.length - 10);
+
+      // Check token info
+      const debugUrl = `https://graph.facebook.com/debug_token?input_token=${encodeURIComponent(token)}&access_token=${encodeURIComponent(token)}`;
+      const debugRes = await new Promise((resolve) => {
+        https.get(debugUrl, r => { let d=''; r.on('data',c=>d+=c); r.on('end',()=>resolve(d)); });
+      });
+      const debugData = JSON.parse(debugRes);
+
+      return {
+        store: s.name,
+        pageId,
+        tokenPreview,
+        tokenLength: token.length,
+        tokenDebug: debugData.data || debugData.error || debugData
+      };
+    }));
+    res.json(results);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // GET /api/analytics/instagram
 router.get('/instagram', auth, requireAnalyticsAccess, async (req, res) => {
   try {
