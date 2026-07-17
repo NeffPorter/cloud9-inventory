@@ -67,6 +67,15 @@
   <div class="page-title">🏪 Manage Stores</div>
   <div class="page-subtitle">Add stores and configure platform analytics credentials</div>
 
+  <div id="fbBanner" style="display:none;padding:12px 18px;border-radius:10px;font-size:14px;font-weight:600;margin-bottom:20px;"></div>
+
+  <div style="margin-bottom:20px;">
+    <button onclick="connectFacebook()" style="background:#1877f2;color:white;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:8px;">
+      📘 Reconnect Facebook & Instagram
+    </button>
+    <div style="font-size:12px;color:#888;margin-top:6px;">Refreshes tokens for all stores at once. Required every ~60 days.</div>
+  </div>
+
   <div id="pageBanner" class="banner"></div>
 
   <!-- Add Store -->
@@ -146,6 +155,33 @@ const token = localStorage.getItem('token');
 const user  = JSON.parse(localStorage.getItem('user') || '{}');
 if (!token) window.location.href = '/';
 if (!['admin','him','regional_manager'].includes(user.role)) window.location.href = '/dashboard';
+
+// Show Facebook OAuth result banner
+(function() {
+  const p = new URLSearchParams(window.location.search);
+  const banner = document.getElementById('fbBanner');
+  if (p.get('fb') === 'success') {
+    const n = p.get('updated') || '0';
+    banner.textContent = `✅ Facebook connected! Permanent tokens saved for ${n} store(s).`;
+    banner.style.background = '#d1fae5'; banner.style.color = '#065f46'; banner.style.display = 'block';
+  } else if (p.get('fb') === 'error') {
+    banner.textContent = `❌ Facebook connection failed: ${p.get('msg') || 'Unknown error'}`;
+    banner.style.background = '#fee2e2'; banner.style.color = '#dc2626'; banner.style.display = 'block';
+  }
+  if (banner.style.display === 'block') {
+    history.replaceState({}, '', '/stores');
+    setTimeout(() => banner.style.display = 'none', 8000);
+  }
+})();
+
+async function connectFacebook() {
+  try {
+    const r = await fetch('/api/analytics/fb-auth-url', { headers: { Authorization: 'Bearer ' + token } });
+    const d = await r.json();
+    if (d.error) { alert('Error: ' + d.error); return; }
+    window.location.href = d.url;
+  } catch (e) { alert('Could not start Facebook login: ' + e.message); }
+}
 
 const params = new URLSearchParams(window.location.search);
 const banner = document.getElementById('pageBanner');

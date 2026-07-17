@@ -1,5 +1,7 @@
 const express = require('express');
 const router = express.Router();
+const https   = require('https');
+const crypto  = require('crypto');
 const auth = require('../middleware/auth');
 const supabase = require('../lib/supabase');
 const { isHim } = require('../lib/roles');
@@ -7,6 +9,23 @@ const {
   fetchGoogleInsights, fetchAppleInsights, fetchFacebookInsights,
   fetchInstagramInsights, fetchGoogleReviews, fetchGA4Insights
 } = require('../services/platforms');
+
+// In-memory state store for OAuth (expires after 10 min)
+const oauthStates = new Map();
+function cleanStates() {
+  const cutoff = Date.now() - 10 * 60 * 1000;
+  for (const [k, v] of oauthStates) if (v.ts < cutoff) oauthStates.delete(k);
+}
+
+function httpsGet(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, r => {
+      let d = '';
+      r.on('data', c => d += c);
+      r.on('end', () => resolve(d));
+    }).on('error', reject);
+  });
+}
 
 const ALLOWED = ['regional_manager', 'him', 'admin', 'owner', 'marketing', 'gm', 'store_user'];
 
@@ -217,6 +236,67 @@ router.get('/expense-revenue', auth, requireAnalyticsAccess, async (req, res) =>
   } catch (err) {
     console.error('Expense-revenue error:', err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/analytics/fb-auth-url — returns Facebook OAuth URL (requires JWT auth header)
+router.get('/fb-auth-url', auth, async (req, res) => {
+  if (!isHim(req.user.role)) return res.status(403).json({ error: 'Admin only' });
+  cleanStates();
+  const state = crypto.randomBytes(16).toString('hex');
+  oauthStates.set(state, { ts: Date.now() });
+  const appId      = process.env.FB_APP_ID || '3526602337498943';
+  const redirectUri = process.env.FB_REDIRECT_URI;
+  if (!redirectUri) return res.status(500).json({ error: 'FB_REDIRECT_URI not set in Railway env vars' });
+  const scope = 'pages_read_engagement,pages_show_list,business_management,read_insights,public_profile';
+  const url = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&state=${state}&response_type=code`;
+  res.json({ url });
+});
+
+// GET /api/analytics/fb-callback — Facebook redirects here after user authorizes
+router.get('/fb-callback', async (req, res) => {
+  const { code, state, error } = req.query;
+  if (error) return res.redirect(`/stores?fb=error&msg=${encodeURIComponent(req.query.error_description || error)}`);
+  if (!state || !oauthStates.has(state)) return res.redirect('/stores?fb=error&msg=Invalid+or+expired+state');
+  oauthStates.delete(state);
+
+  const appId       = process.env.FB_APP_ID || '3526602337498943';
+  const appSecret   = process.env.FB_APP_SECRET;
+  const redirectUri = process.env.FB_REDIRECT_URI;
+  if (!appSecret || !redirectUri) return res.redirect('/stores?fb=error&msg=Server+not+configured');
+
+  try {
+    // 1. Exchange code → short-lived user token
+    const tokenRes  = await httpsGet(`https://graph.facebook.com/v21.0/oauth/access_token?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${appSecret}&code=${code}`);
+    const tokenData = JSON.parse(tokenRes);
+    if (tokenData.error) throw new Error(tokenData.error.message);
+
+    // 2. Exchange short-lived → long-lived user token
+    const longRes  = await httpsGet(`https://graph.facebook.com/oauth/access_token?grant_type=fb_exchange_token&client_id=${appId}&client_secret=${appSecret}&fb_exchange_token=${encodeURIComponent(tokenData.access_token)}`);
+    const longData = JSON.parse(longRes);
+    if (longData.error) throw new Error(longData.error.message);
+
+    // 3. Get all managed pages — page tokens from a long-lived user token never expire
+    const accountsRes  = await httpsGet(`https://graph.facebook.com/v21.0/me/accounts?access_token=${encodeURIComponent(longData.access_token)}&limit=50`);
+    const accountsData = JSON.parse(accountsRes);
+    if (accountsData.error) throw new Error(accountsData.error.message);
+
+    // 4. Match pages to stores by facebook_page_id and save tokens
+    const { data: stores } = await supabase.from('stores').select('id, name, facebook_page_id').not('facebook_page_id', 'is', null);
+    let updated = 0;
+    for (const page of (accountsData.data || [])) {
+      const store = (stores || []).find(s => s.facebook_page_id === page.id);
+      if (store && page.access_token) {
+        await supabase.from('stores').update({ facebook_page_token: page.access_token }).eq('id', store.id);
+        updated++;
+        console.log(`[FB OAuth] Saved permanent token for ${store.name} (page ${page.id})`);
+      }
+    }
+
+    res.redirect(`/stores?fb=success&updated=${updated}`);
+  } catch (err) {
+    console.error('[FB OAuth]', err.message);
+    res.redirect(`/stores?fb=error&msg=${encodeURIComponent(err.message)}`);
   }
 });
 

@@ -209,6 +209,7 @@ app.get('/settings', (req, res) => {
 app.get('/analytics', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/analytics.html'));
 });
+// Facebook OAuth callback — handled by analytics router, no HTML needed
 app.get('/products-feed', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/products-feed.html'));
 });
