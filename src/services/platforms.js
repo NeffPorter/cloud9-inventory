@@ -100,9 +100,12 @@ async function fetchGoogleInsights(start, end, stores = []) {
 
     const locations = await Promise.all(activeStores.map(async (store) => {
       const locId = store.google_location_id.startsWith('locations/') ? store.google_location_id : `locations/${store.google_location_id}`;
-      const path = `/v1/${encodeURIComponent(locId)}:fetchMultiDailyMetricsTimeSeries?${metricQS}&${dateQS}`;
+      const path = `/v1/${locId}:fetchMultiDailyMetricsTimeSeries?${metricQS}&${dateQS}`;
       const r = await httpsRequest('GET', 'businessprofileperformance.googleapis.com', path, { 'Authorization': `Bearer ${token}` });
-      if (r.status !== 200) return { locationId: locId, name: store.name, error: `API ${r.status}` };
+      if (r.status !== 200) {
+        console.error(`[Google] ${store.name} API ${r.status}:`, r.body);
+        return { locationId: locId, name: store.name, error: `API ${r.status}` };
+      }
       const data = JSON.parse(r.body);
       const t = {};
       (data.multiDailyMetricTimeSeries || []).forEach(s => {
