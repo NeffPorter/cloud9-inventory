@@ -69,11 +69,19 @@
 
   <div id="fbBanner" style="display:none;padding:12px 18px;border-radius:10px;font-size:14px;font-weight:600;margin-bottom:20px;"></div>
 
-  <div style="margin-bottom:20px;">
-    <button onclick="connectFacebook()" style="background:#1877f2;color:white;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:8px;">
-      📘 Reconnect Facebook & Instagram
-    </button>
-    <div style="font-size:12px;color:#888;margin-top:6px;">Refreshes tokens for all stores at once. Required every ~60 days.</div>
+  <div style="margin-bottom:20px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start;">
+    <div>
+      <button onclick="connectFacebook()" style="background:#1877f2;color:white;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">
+        📘 Reconnect Facebook & Instagram
+      </button>
+      <div style="font-size:12px;color:#888;margin-top:4px;">Refreshes tokens for all stores. Do this every ~60 days.</div>
+    </div>
+    <div>
+      <button onclick="connectGoogle()" style="background:#fff;color:#374151;border:1.5px solid #d1d5db;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">
+        🔍 Connect Google Business Profile
+      </button>
+      <div style="font-size:12px;color:#888;margin-top:4px;">One-time setup. Refresh token doesn't expire.</div>
+    </div>
   </div>
 
   <div id="pageBanner" class="banner"></div>
@@ -156,22 +164,25 @@ const user  = JSON.parse(localStorage.getItem('user') || '{}');
 if (!token) window.location.href = '/';
 if (!['admin','him','regional_manager'].includes(user.role)) window.location.href = '/dashboard';
 
-// Show Facebook OAuth result banner
+// Show OAuth result banners
 (function() {
   const p = new URLSearchParams(window.location.search);
   const banner = document.getElementById('fbBanner');
+  let shown = false;
   if (p.get('fb') === 'success') {
-    const n = p.get('updated') || '0';
-    banner.textContent = `✅ Facebook connected! Permanent tokens saved for ${n} store(s).`;
-    banner.style.background = '#d1fae5'; banner.style.color = '#065f46'; banner.style.display = 'block';
+    banner.textContent = `✅ Facebook connected! Permanent tokens saved for ${p.get('updated')||'0'} store(s).`;
+    banner.style.background = '#d1fae5'; banner.style.color = '#065f46'; banner.style.display = 'block'; shown = true;
   } else if (p.get('fb') === 'error') {
     banner.textContent = `❌ Facebook connection failed: ${p.get('msg') || 'Unknown error'}`;
-    banner.style.background = '#fee2e2'; banner.style.color = '#dc2626'; banner.style.display = 'block';
+    banner.style.background = '#fee2e2'; banner.style.color = '#dc2626'; banner.style.display = 'block'; shown = true;
+  } else if (p.get('google') === 'success') {
+    banner.textContent = '✅ Google Business Profile connected! Now add Location IDs to each store below.';
+    banner.style.background = '#d1fae5'; banner.style.color = '#065f46'; banner.style.display = 'block'; shown = true;
+  } else if (p.get('google') === 'error') {
+    banner.textContent = `❌ Google connection failed: ${p.get('msg') || 'Unknown error'}`;
+    banner.style.background = '#fee2e2'; banner.style.color = '#dc2626'; banner.style.display = 'block'; shown = true;
   }
-  if (banner.style.display === 'block') {
-    history.replaceState({}, '', '/stores');
-    setTimeout(() => banner.style.display = 'none', 8000);
-  }
+  if (shown) { history.replaceState({}, '', '/stores'); setTimeout(() => banner.style.display = 'none', 10000); }
 })();
 
 async function connectFacebook() {
@@ -181,6 +192,15 @@ async function connectFacebook() {
     if (d.error) { alert('Error: ' + d.error); return; }
     window.location.href = d.url;
   } catch (e) { alert('Could not start Facebook login: ' + e.message); }
+}
+
+async function connectGoogle() {
+  try {
+    const r = await fetch('/api/analytics/google-auth-url', { headers: { Authorization: 'Bearer ' + token } });
+    const d = await r.json();
+    if (d.error) { alert('Error: ' + d.error); return; }
+    window.location.href = d.url;
+  } catch (e) { alert('Could not start Google login: ' + e.message); }
 }
 
 const params = new URLSearchParams(window.location.search);

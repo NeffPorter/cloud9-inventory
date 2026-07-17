@@ -1,11 +1,12 @@
 /**
  * Platform analytics service.
- * Google/Apple shared auth stays in Railway env vars (service accounts).
+ * Google uses OAuth2 refresh token stored in platform_credentials table.
  * Per-store identifiers (location IDs, Facebook tokens) live in the stores DB table.
  */
 
-const https  = require('https');
-const crypto = require('crypto');
+const https   = require('https');
+const crypto  = require('crypto');
+const supabase = require('../lib/supabase');
 
 function httpsRequest(method, hostname, path, headers, body) {
   return new Promise((resolve, reject) => {
@@ -43,6 +44,28 @@ function makeGoogleJWT() {
 }
 
 async function getGoogleToken() {
+  const clientId     = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+
+  if (clientId && clientSecret) {
+    // Load refresh token from DB
+    const { data } = await supabase.from('platform_credentials').select('refresh_token').eq('platform', 'google').single();
+    const refreshToken = data?.refresh_token;
+    if (refreshToken) {
+      const body = `client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}&refresh_token=${encodeURIComponent(refreshToken)}&grant_type=refresh_token`;
+      const r = await httpsRequest('POST', 'oauth2.googleapis.com', '/token', {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(body)
+      }, body);
+      try {
+        const d = JSON.parse(r.body);
+        if (d.access_token) return d.access_token;
+        console.error('[Google token] refresh failed:', d.error_description || d.error);
+      } catch (e) { console.error('[Google token] parse error:', e.message); }
+    }
+  }
+
+  // Fallback: service account JWT
   const jwt = makeGoogleJWT();
   if (!jwt) return null;
   const body = `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`;

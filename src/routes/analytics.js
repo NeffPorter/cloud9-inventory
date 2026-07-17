@@ -239,6 +239,60 @@ router.get('/expense-revenue', auth, requireAnalyticsAccess, async (req, res) =>
   }
 });
 
+// ── Google OAuth ──────────────────────────────────────────────────────────────
+
+// GET /api/analytics/google-auth-url — returns Google OAuth URL
+router.get('/google-auth-url', auth, async (req, res) => {
+  if (!isHim(req.user.role)) return res.status(403).json({ error: 'Admin only' });
+  cleanStates();
+  const state = crypto.randomBytes(16).toString('hex');
+  oauthStates.set(state, { ts: Date.now() });
+  const clientId    = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const redirectUri = process.env.GOOGLE_OAUTH_REDIRECT_URI;
+  if (!clientId || !redirectUri) return res.status(500).json({ error: 'GOOGLE_OAUTH_CLIENT_ID or GOOGLE_OAUTH_REDIRECT_URI not set in Railway' });
+  const scope = 'https://www.googleapis.com/auth/business.manage';
+  const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent&state=${state}`;
+  res.json({ url });
+});
+
+// GET /api/analytics/google-callback — Google redirects here after authorization
+router.get('/google-callback', async (req, res) => {
+  const { code, state, error } = req.query;
+  if (error) return res.redirect(`/stores?google=error&msg=${encodeURIComponent(error)}`);
+  if (!state || !oauthStates.has(state)) return res.redirect('/stores?google=error&msg=Invalid+or+expired+state');
+  oauthStates.delete(state);
+
+  const clientId     = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  const redirectUri  = process.env.GOOGLE_OAUTH_REDIRECT_URI;
+  if (!clientId || !clientSecret || !redirectUri) return res.redirect('/stores?google=error&msg=Server+not+configured');
+
+  try {
+    const body = `code=${encodeURIComponent(code)}&client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}&redirect_uri=${encodeURIComponent(redirectUri)}&grant_type=authorization_code`;
+    const tokenRes = await new Promise((resolve, reject) => {
+      const req2 = https.request({ hostname: 'oauth2.googleapis.com', path: '/token', method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(body) }
+      }, r => { let d=''; r.on('data',c=>d+=c); r.on('end',()=>resolve(d)); });
+      req2.on('error', reject); req2.write(body); req2.end();
+    });
+    const tokenData = JSON.parse(tokenRes);
+    if (tokenData.error) throw new Error(tokenData.error_description || tokenData.error);
+    if (!tokenData.refresh_token) throw new Error('No refresh token returned — try revoking app access at myaccount.google.com/permissions and reconnecting');
+
+    // Save refresh token to DB
+    const { error: dbErr } = await supabase.from('platform_credentials').upsert({ platform: 'google', refresh_token: tokenData.refresh_token, updated_at: new Date().toISOString() });
+    if (dbErr) throw new Error('DB save failed: ' + dbErr.message);
+
+    console.log('[Google OAuth] Refresh token saved successfully');
+    res.redirect('/stores?google=success');
+  } catch (err) {
+    console.error('[Google OAuth]', err.message);
+    res.redirect(`/stores?google=error&msg=${encodeURIComponent(err.message)}`);
+  }
+});
+
+// ── Facebook OAuth ────────────────────────────────────────────────────────────
+
 // GET /api/analytics/fb-auth-url — returns Facebook OAuth URL (requires JWT auth header)
 router.get('/fb-auth-url', auth, async (req, res) => {
   if (!isHim(req.user.role)) return res.status(403).json({ error: 'Admin only' });
