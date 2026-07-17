@@ -333,16 +333,30 @@ async function fetchGoogleReviews(stores = []) {
     const token = await getGoogleToken();
     if (!token) return { configured: true, error: 'Auth failed' };
 
+    // Get account ID to build full location path
+    const acctRes = await httpsRequest('GET', 'mybusinessaccountmanagement.googleapis.com', '/v1/accounts', { 'Authorization': `Bearer ${token}` });
+    const acctData = JSON.parse(acctRes.body);
+    if (acctData.error) {
+      console.error('[GoogleReviews] accounts error:', acctData.error.message);
+      return { configured: true, error: acctData.error.message };
+    }
+    const accountName = acctData.accounts?.[0]?.name;
+    if (!accountName) return { configured: true, error: 'No Google Business accounts found' };
+    console.log('[GoogleReviews] Using account:', accountName);
+
     const locations = await Promise.all(activeStores.map(async (store) => {
-      const locId = store.google_location_id.startsWith('locations/')
-        ? store.google_location_id : `locations/${store.google_location_id}`;
+      const locNum = store.google_location_id.replace('locations/', '');
+      const fullPath = `${accountName}/locations/${locNum}`;
       const r = await httpsRequest('GET', 'mybusiness.googleapis.com',
-        `/v4/${locId}/reviews?pageSize=1`,
+        `/v4/${fullPath}/reviews?pageSize=1`,
         { 'Authorization': `Bearer ${token}` });
-      if (r.status !== 200) return { locationId: locId, name: store.name, error: `API ${r.status}` };
+      if (r.status !== 200) {
+        console.error(`[GoogleReviews] ${store.name} ${r.status}:`, r.body.substring(0, 300));
+        return { name: store.name, error: `API ${r.status}` };
+      }
       const data = JSON.parse(r.body);
       return {
-        locationId: locId, name: store.name,
+        name: store.name,
         averageRating:    data.averageRating    || 0,
         totalReviewCount: data.totalReviewCount || 0
       };
