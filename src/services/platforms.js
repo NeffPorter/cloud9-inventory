@@ -77,7 +77,7 @@ async function getGoogleToken() {
 }
 
 async function fetchGoogleInsights(start, end, stores = []) {
-  const hasAuth = !!(process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY);
+  const hasAuth = !!(process.env.GOOGLE_OAUTH_CLIENT_ID || (process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY));
   const activeStores = stores.filter(s => s.google_location_id);
   if (!hasAuth || !activeStores.length) return { configured: false };
 
@@ -322,7 +322,7 @@ async function fetchInstagramInsights(start, end, stores = []) {
 // Per-store DB: google_location_id
 
 async function fetchGoogleReviews(stores = []) {
-  const hasAuth = !!(process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY);
+  const hasAuth = !!(process.env.GOOGLE_OAUTH_CLIENT_ID || (process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY));
   const activeStores = stores.filter(s => s.google_location_id);
   if (!hasAuth || !activeStores.length) return { configured: false };
 
@@ -379,7 +379,7 @@ async function getGA4Token() {
 }
 
 async function fetchGA4Insights(start, end, stores = []) {
-  const hasAuth = !!(process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY);
+  const hasAuth = !!(process.env.GOOGLE_OAUTH_CLIENT_ID || (process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY));
   const activeStores = stores.filter(s => s.ga4_property_id);
   if (!hasAuth || !activeStores.length) return { configured: false };
 
