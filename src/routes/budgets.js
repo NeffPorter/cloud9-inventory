@@ -62,7 +62,7 @@ async function recalcTotal(budgetId) {
     await notify({
       type: 'budget_pending_approval',
       title: 'Budget needs approval',
-      message: `${store?.name || 'A store'}'s budget for week ${budget.week_start} – ${budget.week_end} has exceeded its 30% limit and needs approval to extend to 45%.`,
+      message: `${store?.name || 'A store'}'s budget for week ${budget.week_start} – ${budget.week_end} has exceeded its 45% limit and needs approval to continue spending.`,
       link: `/budget-view?id=${budgetId}`,
       store_id: budget.store_id
     });
@@ -137,7 +137,7 @@ async function getOrCreateCurrentBudget(store_id) {
   });
   prevNet = Math.max(0, Math.round(prevNet * 100) / 100);
 
-  const budget30 = Math.round(prevNet * 0.30 * 100) / 100;
+  const budget30 = Math.round(prevNet * 0.45 * 100) / 100;
   const budget45 = Math.round(prevNet * 0.45 * 100) / 100;
 
   const { data: created, error } = await supabase
@@ -237,7 +237,7 @@ router.get('/:id', auth, async (req, res) => {
 
 router.put('/:id', auth, async (req, res) => {
   try {
-    const { status, notes } = req.body;
+    const { status, notes, clover_net_sales } = req.body;
 
     const { data: budget } = await supabase
       .from('weekly_budgets').select('store_id, status').eq('id', req.params.id).single();
@@ -254,6 +254,14 @@ router.put('/:id', auth, async (req, res) => {
     const updates = { updated_at: new Date().toISOString() };
     if (status !== undefined) updates.status = status;
     if (notes !== undefined) updates.notes = notes;
+    if (clover_net_sales !== undefined) {
+      const cloverNet = clover_net_sales === null ? null : Math.max(0, Math.round((parseFloat(clover_net_sales) || 0) * 100) / 100);
+      updates.clover_net_sales = cloverNet;
+      if (cloverNet !== null && cloverNet > 0) {
+        updates.budget_30 = Math.round(cloverNet * 0.45 * 100) / 100;
+        updates.budget_45 = Math.round(cloverNet * 0.45 * 100) / 100;
+      }
+    }
 
     const { data, error } = await supabase
       .from('weekly_budgets').update(updates).eq('id', req.params.id).select().single();

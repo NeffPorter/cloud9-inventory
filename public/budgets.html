@@ -350,19 +350,25 @@ function renderPage(current, history, storeId) {
         </div>
 
         <div class="current-stats">
-          <div class="current-stat">
+          <div class="current-stat" style="flex:none">
             <div class="current-stat-label">Prev Week Sales</div>
-            <div class="current-stat-value">${formatMoney(current.prev_week_net_sales)}</div>
+            <div class="current-stat-value" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span>${formatMoney(current.prev_week_net_sales)}</span>
+              <span style="font-size:11px;opacity:0.6;font-weight:400">Clover override:</span>
+              <input type="number" step="0.01" min="0"
+                placeholder="Enter Clover $"
+                value="${current.clover_net_sales || ''}"
+                id="cloverInput_${current.id}"
+                onclick="event.stopPropagation()"
+                onchange="saveCloverSales('${current.id}', this.value)"
+                style="width:130px;padding:4px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.4);background:rgba(255,255,255,0.15);color:white;font-size:13px;font-weight:600">
+              ${current.clover_net_sales ? `<span style="font-size:11px;color:#86efac;font-weight:600">✓ using Clover</span>` : ''}
+            </div>
           </div>
           <div class="current-stat">
-            <div class="current-stat-label">Budget (30%)</div>
+            <div class="current-stat-label">Budget (45%)</div>
             <div class="current-stat-value">${formatMoney(current.budget_30)}</div>
           </div>
-          ${current.status === 'approved_extended' ? `
-          <div class="current-stat">
-            <div class="current-stat-label">Extended (45%)</div>
-            <div class="current-stat-value">${formatMoney(current.budget_45)}</div>
-          </div>` : ''}
           <div class="current-stat">
             <div class="current-stat-label">Spent So Far</div>
             <div class="current-stat-value">${formatMoney(spent)}</div>
@@ -379,8 +385,9 @@ function renderPage(current, history, storeId) {
           </div>
           <div class="budget-bar-label">${pct.toFixed(1)}% of budget used — click to view details</div>
         </div>
-        ${current.prev_week_net_sales > 0 ? (() => {
-          const sp = ((spent / current.prev_week_net_sales) * 100).toFixed(1);
+        ${(current.clover_net_sales || current.prev_week_net_sales) > 0 ? (() => {
+          const effNet = current.clover_net_sales || current.prev_week_net_sales;
+          const sp = ((spent / effNet) * 100).toFixed(1);
           const spColor = sp > 45 ? '#f97316' : sp > 30 ? '#fbbf24' : '#86efac';
           return `<div style="margin-top:10px;display:flex;align-items:center;gap:10px;font-size:13px;opacity:0.9">
             <span>Spent as % of prev week sales:</span>
@@ -494,6 +501,21 @@ function toggleSection(id) {
   const hidden = el.style.display === 'none';
   el.style.display = hidden ? '' : 'none';
   if (chev) chev.style.transform = hidden ? '' : 'rotate(-90deg)';
+}
+
+async function saveCloverSales(budgetId, value) {
+  const num = value === '' ? null : parseFloat(value);
+  try {
+    const res = await fetch(`/api/budgets/${budgetId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ clover_net_sales: num })
+    });
+    const data = await res.json();
+    if (res.ok && currentStoreId) {
+      loadBudgets(currentStoreId);
+    }
+  } catch (err) { console.error('Clover save error:', err); }
 }
 
 init();

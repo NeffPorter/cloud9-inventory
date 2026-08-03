@@ -354,41 +354,35 @@ function renderPage() {
     <div class="page-header">
       <div class="store-name">☁️ ${storeName}</div>
       <div class="week-label">Week of ${formatDate(budget.week_start)} – ${formatDate(budget.week_end)}</div>
-      <div class="prev-sales-line">Prior week net sales (${formatDate(budget.prev_week_start)} – ${formatDate(budget.prev_week_end)}): <strong>${formatMoney(budget.prev_week_net_sales)}</strong></div>
+      <div class="prev-sales-line">Prior week net sales (${formatDate(budget.prev_week_start)} – ${formatDate(budget.prev_week_end)}): <strong>${formatMoney(budget.clover_net_sales || budget.prev_week_net_sales)}</strong>${budget.clover_net_sales ? ` <span style="color:#2e7d32;font-size:12px;font-weight:600">(Clover override)</span>` : ''}</div>
     </div>`;
 
   // Status banners
   if (budget.status === 'pending_approval' && isAdmin) {
     html += `
       <div class="approval-banner">
-        <div class="msg">⚠️ Spending has exceeded 30% budget — approval required to continue up to 45%.</div>
+        <div class="msg">⚠️ Spending has exceeded the 45% budget — approval required to continue.</div>
         <button class="btn-approve" onclick="approveBudget()">Approve Extended Budget</button>
       </div>`;
   } else if (budget.status === 'pending_approval' && !isAdmin) {
-    html += `<div class="approval-banner"><div class="msg">⚠️ Budget limit reached. Waiting for admin approval to continue spending.</div></div>`;
+    html += `<div class="approval-banner"><div class="msg">⚠️ 45% budget limit reached. Waiting for admin approval to continue spending.</div></div>`;
   } else if (budget.status === 'approved_extended') {
-    html += `<div class="approved-banner">✅ Extended budget approved by ${budget.approved_by || 'admin'} — spending up to 45% is authorized.</div>`;
+    html += `<div class="approved-banner">✅ Budget extension approved by ${budget.approved_by || 'admin'} — continued spending is authorized.</div>`;
   } else if (isComplete) {
     html += `<div class="complete-banner">✔ This budget is marked complete.</div>`;
   }
 
   // Summary cards
+  const effectiveNet = budget.clover_net_sales || budget.prev_week_net_sales;
   html += `<div class="summary-row">
     <div class="summary-card">
-      <div class="summary-card-label">Prior Week Sales</div>
-      <div class="summary-card-value">${formatMoney(budget.prev_week_net_sales)}</div>
+      <div class="summary-card-label">Prior Week Sales${budget.clover_net_sales ? ' <span style="color:#2e7d32;font-size:10px">(Clover)</span>' : ''}</div>
+      <div class="summary-card-value">${formatMoney(effectiveNet)}</div>
     </div>
     <div class="summary-card">
-      <div class="summary-card-label">30% Budget</div>
+      <div class="summary-card-label">45% Budget</div>
       <div class="summary-card-value">${formatMoney(budget.budget_30)}</div>
     </div>`;
-
-  if (budget.status === 'approved_extended' || budget.status === 'pending_approval') {
-    html += `<div class="summary-card">
-      <div class="summary-card-label">45% (Extended)</div>
-      <div class="summary-card-value">${formatMoney(budget.budget_45)}</div>
-    </div>`;
-  }
 
   html += `
     <div class="summary-card highlight">
