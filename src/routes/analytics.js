@@ -83,18 +83,32 @@ router.get('/transactions', auth, requireAnalyticsAccess, async (req, res) => {
   }
 });
 
-// Resolve effective store_id — GM/store_user are always scoped to their own store
+// Resolve effective store IDs for the request
+function effectiveStoreIds(req) {
+  if (['gm', 'store_user'].includes(req.user.role)) {
+    // Scoped user — return their assigned stores
+    const ids = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+    // If they're filtering to a specific store they manage, honor it
+    if (req.query.store_id && ids.includes(req.query.store_id)) return [req.query.store_id];
+    return ids;
+  }
+  // All-access roles — respect query param filter or return null (all stores)
+  return req.query.store_id ? [req.query.store_id] : null;
+}
+
+// Kept for backward compat with transaction/expense routes that expect a single ID string
 function effectiveStoreId(req) {
   if (['gm', 'store_user'].includes(req.user.role)) return req.user.store_id || '';
   return req.query.store_id || '';
 }
 
 // Helper: load stores with ALL platform credentials from DB
-async function getPlatformStores(storeId) {
+async function getPlatformStores(storeIds) {
   let q = supabase.from('stores').select(
     'id, name, google_location_id, apple_location_id, facebook_page_id, facebook_page_token, ga4_property_id'
   );
-  if (storeId) q = q.eq('id', storeId);
+  if (storeIds && storeIds.length === 1) q = q.eq('id', storeIds[0]);
+  else if (storeIds && storeIds.length > 1) q = q.in('id', storeIds);
   const { data } = await q;
   return data || [];
 }
@@ -102,7 +116,7 @@ async function getPlatformStores(storeId) {
 // GET /api/analytics/google
 router.get('/google', auth, requireAnalyticsAccess, async (req, res) => {
   try {
-    const stores = await getPlatformStores(effectiveStoreId(req));
+    const stores = await getPlatformStores(effectiveStoreIds(req));
     res.json(await fetchGoogleInsights(req.query.start, req.query.end, stores));
   } catch (err) { res.status(500).json({ configured: true, error: err.message }); }
 });
@@ -110,7 +124,7 @@ router.get('/google', auth, requireAnalyticsAccess, async (req, res) => {
 // GET /api/analytics/apple
 router.get('/apple', auth, requireAnalyticsAccess, async (req, res) => {
   try {
-    const stores = await getPlatformStores(effectiveStoreId(req));
+    const stores = await getPlatformStores(effectiveStoreIds(req));
     res.json(await fetchAppleInsights(req.query.start, req.query.end, stores));
   } catch (err) { res.status(500).json({ configured: true, error: err.message }); }
 });
@@ -118,7 +132,7 @@ router.get('/apple', auth, requireAnalyticsAccess, async (req, res) => {
 // GET /api/analytics/facebook
 router.get('/facebook', auth, requireAnalyticsAccess, async (req, res) => {
   try {
-    const stores = await getPlatformStores(effectiveStoreId(req));
+    const stores = await getPlatformStores(effectiveStoreIds(req));
     res.json(await fetchFacebookInsights(req.query.start, req.query.end, stores));
   } catch (err) { res.status(500).json({ configured: true, error: err.message }); }
 });
@@ -155,7 +169,7 @@ router.get('/fb-debug', async (req, res) => {
 // GET /api/analytics/instagram
 router.get('/instagram', auth, requireAnalyticsAccess, async (req, res) => {
   try {
-    const stores = await getPlatformStores(effectiveStoreId(req));
+    const stores = await getPlatformStores(effectiveStoreIds(req));
     res.json(await fetchInstagramInsights(req.query.start, req.query.end, stores));
   } catch (err) { res.status(500).json({ configured: true, error: err.message }); }
 });
@@ -163,7 +177,7 @@ router.get('/instagram', auth, requireAnalyticsAccess, async (req, res) => {
 // GET /api/analytics/google-reviews
 router.get('/google-reviews', auth, requireAnalyticsAccess, async (req, res) => {
   try {
-    const stores = await getPlatformStores(effectiveStoreId(req));
+    const stores = await getPlatformStores(effectiveStoreIds(req));
     res.json(await fetchGoogleReviews(stores));
   } catch (err) { res.status(500).json({ configured: true, error: err.message }); }
 });
@@ -171,7 +185,7 @@ router.get('/google-reviews', auth, requireAnalyticsAccess, async (req, res) => 
 // GET /api/analytics/ga4
 router.get('/ga4', auth, requireAnalyticsAccess, async (req, res) => {
   try {
-    const stores = await getPlatformStores(effectiveStoreId(req));
+    const stores = await getPlatformStores(effectiveStoreIds(req));
     res.json(await fetchGA4Insights(req.query.start, req.query.end, stores));
   } catch (err) { res.status(500).json({ configured: true, error: err.message }); }
 });

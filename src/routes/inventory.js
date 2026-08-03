@@ -20,8 +20,10 @@ function cleanVariantName(groupName, fullName) {
 router.get('/stores', auth, async (req, res) => {
   try {
     let query = supabase.from('stores').select('*').order('name');
-    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id) {
-      query = query.eq('id', req.user.store_id);
+    if (['gm', 'store_user'].includes(req.user.role)) {
+      const ids = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (ids.length === 1) query = query.eq('id', ids[0]);
+      else if (ids.length > 1) query = query.in('id', ids);
     }
     const { data, error } = await query;
     if (error) throw error;

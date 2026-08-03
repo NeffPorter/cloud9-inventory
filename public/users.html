@@ -158,9 +158,14 @@
       border-radius: 12px;
       padding: 32px;
       width: 100%;
-      max-width: 480px;
+      max-width: 520px;
       margin: 20px;
+      max-height: 90vh;
+      overflow-y: auto;
     }
+    .store-checkboxes { display: flex; flex-direction: column; gap: 8px; max-height: 200px; overflow-y: auto; border: 2px solid #e0e0e0; border-radius: 8px; padding: 10px 14px; }
+    .store-checkbox-item { display: flex; align-items: center; gap: 8px; font-size: 14px; color: #333; cursor: pointer; }
+    .store-checkbox-item input[type=checkbox] { width: 16px; height: 16px; cursor: pointer; accent-color: #2f5597; }
     .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 24px; }
     .modal-actions {
       display: flex;
@@ -211,7 +216,7 @@
       </div>
       <div class="form-group">
         <label>Role</label>
-        <select id="newRole" onchange="toggleStoreSelect('newStore', this.value)">
+        <select id="newRole" onchange="toggleStoreSelect('new', this.value)">
           <option value="store_user">Inventory Manager (IM)</option>
           <option value="gm">General Manager (GM)</option>
           <option value="owner">Owner</option>
@@ -222,10 +227,8 @@
         </select>
       </div>
       <div class="form-group" id="newStoreGroup">
-        <label>Assigned Store</label>
-        <select id="newStore">
-          <option value="">— Select a store —</option>
-        </select>
+        <label>Assigned Stores <span style="color:#aaa;font-weight:400;">(select one or more)</span></label>
+        <div class="store-checkboxes" id="newStoreCheckboxes"></div>
       </div>
       <button class="submit-btn" onclick="createUser()" id="createBtn">Create User</button>
       <div class="error" id="createError"></div>
@@ -253,7 +256,7 @@
       </div>
       <div class="form-group">
         <label>Role</label>
-        <select id="editRole" onchange="toggleStoreSelect('editStore', this.value)">
+        <select id="editRole" onchange="toggleStoreSelect('edit', this.value)">
           <option value="store_user">Inventory Manager (IM)</option>
           <option value="gm">General Manager (GM)</option>
           <option value="owner">Owner</option>
@@ -264,10 +267,8 @@
         </select>
       </div>
       <div class="form-group" id="editStoreGroup">
-        <label>Assigned Store</label>
-        <select id="editStore">
-          <option value="">— Select a store —</option>
-        </select>
+        <label>Assigned Stores <span style="color:#aaa;font-weight:400;">(select one or more)</span></label>
+        <div class="store-checkboxes" id="editStoreCheckboxes"></div>
       </div>
       <div class="error" id="editError"></div>
       <div class="modal-actions">
@@ -285,28 +286,33 @@
 
     let stores = [];
     let users = [];
+    const ALL_ACCESS_ROLES = ['admin', 'him', 'regional_manager', 'owner', 'marketing'];
 
-    function toggleStoreSelect(selectId, role) {
-      const groupId = selectId === 'newStore' ? 'newStoreGroup' : 'editStoreGroup';
-      // Owner and admin don't need a store assigned
-      const noStore = ['admin', 'him', 'regional_manager', 'owner', 'marketing'].includes(role);
-      document.getElementById(groupId).style.display = noStore ? 'none' : 'block';
+    function toggleStoreSelect(prefix, role) {
+      const groupId = prefix + 'StoreGroup';
+      document.getElementById(groupId).style.display = ALL_ACCESS_ROLES.includes(role) ? 'none' : 'block';
+    }
+
+    function renderStoreCheckboxes(containerId, selectedIds = []) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = stores.map(s => `
+        <label class="store-checkbox-item">
+          <input type="checkbox" value="${s.id}" ${selectedIds.includes(s.id) ? 'checked' : ''}>
+          ${s.name}
+        </label>`).join('');
+    }
+
+    function getCheckedStores(containerId) {
+      return [...document.querySelectorAll(`#${containerId} input[type=checkbox]:checked`)].map(cb => cb.value);
     }
 
     async function loadStores() {
-      const res = await fetch('/api/inventory/stores', {
-        headers: { 'Authorization': 'Bearer ' + token }
-      });
+      // Admins need to see ALL stores for user assignment — use a direct call
+      const res = await fetch('/api/inventory/stores', { headers: { 'Authorization': 'Bearer ' + token } });
       const data = await res.json();
       stores = data.stores || [];
-
-      ['newStore', 'editStore'].forEach(id => {
-        const sel = document.getElementById(id);
-        sel.innerHTML = '<option value="">— Select a store —</option>';
-        stores.forEach(s => {
-          sel.innerHTML += `<option value="${s.id}">${s.name}</option>`;
-        });
-      });
+      renderStoreCheckboxes('newStoreCheckboxes', []);
+      renderStoreCheckboxes('editStoreCheckboxes', []);
     }
 
     function presenceStatus(lastSeen) {
@@ -370,7 +376,7 @@
                   <td><div style="display:flex;align-items:center">${dot}<strong>${u.name}</strong>${isMe ? ' <span style="color:#999;font-size:11px;margin-left:4px">(you)</span>' : ''}</div></td>
                   <td>${u.email}</td>
                   <td><span class="role-badge role-${u.role}">${{regional_manager:'Regional Manager',him:'HIM',admin:'Admin',owner:'Owner',gm:'GM',store_user:'IM',marketing:'Director of Marketing'}[u.role] || u.role}</span></td>
-                  <td>${store ? store.name : ['admin','him','regional_manager','owner','marketing'].includes(u.role) ? 'All Stores' : '—'}</td>
+                  <td>${ALL_ACCESS_ROLES.includes(u.role) ? 'All Stores' : (u.store_ids?.length ? u.store_ids.map(id => stores.find(s=>s.id===id)?.name || id).join(', ') : (stores.find(s=>s.id===u.store_id)?.name || '—'))}</td>
                   <td>
                     <div class="action-btns">
                       <button class="edit-btn" onclick="openEdit('${u.id}')">Edit</button>
@@ -389,7 +395,6 @@
       const email = document.getElementById('newEmail').value.trim();
       const password = document.getElementById('newPassword').value;
       const role = document.getElementById('newRole').value;
-      const store_id = document.getElementById('newStore').value;
       const btn = document.getElementById('createBtn');
       const errorEl = document.getElementById('createError');
       const successEl = document.getElementById('createSuccess');
@@ -403,8 +408,9 @@
         return;
       }
 
-      if (['gm', 'store_user'].includes(role) && !store_id) {
-        errorEl.textContent = 'Please assign a store to this user.';
+      const store_ids = getCheckedStores('newStoreCheckboxes');
+      if (['gm', 'store_user'].includes(role) && !store_ids.length) {
+        errorEl.textContent = 'Please assign at least one store to this user.';
         errorEl.style.display = 'block';
         return;
       }
@@ -419,7 +425,7 @@
             'Content-Type': 'application/json',
             'Authorization': 'Bearer ' + token
           },
-          body: JSON.stringify({ name, email, password, role, store_id, username: document.getElementById('newUsername').value.trim() || null })
+          body: JSON.stringify({ name, email, password, role, store_id: store_ids[0] || null, store_ids, username: document.getElementById('newUsername').value.trim() || null })
         });
 
         const data = await res.json();
@@ -452,9 +458,10 @@
       document.getElementById('editName').value = u.name;
       document.getElementById('editUsername').value = u.username || '';
       document.getElementById('editRole').value = u.role;
-      document.getElementById('editStore').value = u.store_id || '';
       document.getElementById('editError').style.display = 'none';
-      toggleStoreSelect('editStore', u.role);
+      const selectedIds = u.store_ids?.length ? u.store_ids : (u.store_id ? [u.store_id] : []);
+      renderStoreCheckboxes('editStoreCheckboxes', selectedIds);
+      toggleStoreSelect('edit', u.role);
       document.getElementById('editModal').classList.add('active');
     }
 
@@ -466,13 +473,13 @@
       const id = document.getElementById('editId').value;
       const name = document.getElementById('editName').value.trim();
       const role = document.getElementById('editRole').value;
-      const store_id = document.getElementById('editStore').value;
+      const store_ids = getCheckedStores('editStoreCheckboxes');
       const errorEl = document.getElementById('editError');
 
       errorEl.style.display = 'none';
 
-      if (['gm', 'store_user'].includes(role) && !store_id) {
-        errorEl.textContent = 'Please assign a store to this user.';
+      if (['gm', 'store_user'].includes(role) && !store_ids.length) {
+        errorEl.textContent = 'Please assign at least one store to this user.';
         errorEl.style.display = 'block';
         return;
       }
@@ -484,7 +491,7 @@
             'Content-Type': 'application/json',
             'Authorization': 'Bearer ' + token
           },
-          body: JSON.stringify({ name, role, store_id, username: document.getElementById('editUsername').value.trim() || null })
+          body: JSON.stringify({ name, role, store_id: store_ids[0] || null, store_ids, username: document.getElementById('editUsername').value.trim() || null })
         });
 
         if (res.ok) {

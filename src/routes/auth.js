@@ -34,12 +34,15 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
+    const storeIds = user.store_ids?.length ? user.store_ids : (user.store_id ? [user.store_id] : []);
+
     const token = jwt.sign(
       {
         id: user.id,
         email: user.email,
         role: user.role,
-        store_id: user.store_id
+        store_id: user.store_id,
+        store_ids: storeIds
       },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
@@ -52,7 +55,8 @@ router.post('/login', async (req, res) => {
         email: user.email,
         name: user.name,
         role: user.role,
-        store_id: user.store_id
+        store_id: user.store_id,
+        store_ids: storeIds
       }
     });
 
@@ -70,7 +74,7 @@ router.get('/users', auth, async (req, res) => {
 
     const { data, error } = await supabase
       .from('users')
-      .select('id, email, name, role, store_id, username, created_at')
+      .select('id, email, name, role, store_id, store_ids, username, created_at')
       .order('name');
 
     if (error) throw error;
@@ -88,17 +92,19 @@ router.post('/users', auth, async (req, res) => {
       return res.status(403).json({ error: 'Admin only' });
     }
 
-    const { email, password, name, role, store_id, username } = req.body;
+    const { email, password, name, role, store_id, store_ids, username } = req.body;
     if (!email || !password || !name || !role) {
       return res.status(400).json({ error: 'All fields are required' });
     }
 
     const password_hash = await bcrypt.hash(password, 10);
+    const effectiveStoreIds = store_ids?.length ? store_ids : (store_id ? [store_id] : []);
+    const primaryStoreId = store_id || store_ids?.[0] || null;
 
     const { data, error } = await supabase
       .from('users')
-      .insert([{ email, password_hash, name, role, store_id: store_id || null, username: username || null }])
-      .select('id, email, name, role, store_id, username')
+      .insert([{ email, password_hash, name, role, store_id: primaryStoreId, store_ids: effectiveStoreIds, username: username || null }])
+      .select('id, email, name, role, store_id, store_ids, username')
       .single();
 
     if (error) throw error;
@@ -116,13 +122,15 @@ router.put('/users/:id', auth, async (req, res) => {
       return res.status(403).json({ error: 'Admin only' });
     }
 
-    const { name, role, store_id, username } = req.body;
+    const { name, role, store_id, store_ids, username } = req.body;
+    const effectiveStoreIds = store_ids?.length ? store_ids : (store_id ? [store_id] : []);
+    const primaryStoreId = store_id || store_ids?.[0] || null;
 
     const { data, error } = await supabase
       .from('users')
-      .update({ name, role, store_id: store_id || null, username: username || null })
+      .update({ name, role, store_id: primaryStoreId, store_ids: effectiveStoreIds, username: username || null })
       .eq('id', req.params.id)
-      .select('id, email, name, role, store_id, username')
+      .select('id, email, name, role, store_id, store_ids, username')
       .single();
 
     if (error) throw error;
