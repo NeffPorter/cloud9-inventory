@@ -159,6 +159,24 @@
     .upload-later-label input { display: none; }
     .upload-later-label.uploading { opacity: 0.6; pointer-events: none; }
 
+    /* ── Attachments section ── */
+    .attachments-section {
+      background: white; border-radius: 14px; padding: 20px 24px;
+      margin-top: 24px; box-shadow: 0 1px 8px rgba(0,0,0,0.07);
+    }
+    .attachments-title { font-size: 15px; font-weight: 800; margin-bottom: 12px; }
+    .attachment-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 8px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px;
+    }
+    .attachment-row:last-child { border-bottom: none; }
+    .attachment-num { width: 22px; height: 22px; background: #eef2fb; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #2f5597; flex-shrink: 0; }
+    .attachment-dist { font-weight: 600; flex: 1; }
+    .attachment-amt { color: #555; width: 90px; text-align: right; }
+    .attachment-link { color: #2f5597; font-weight: 600; text-decoration: none; white-space: nowrap; }
+    .attachment-link:hover { text-decoration: underline; }
+    .attachment-nofile { color: #bbb; font-size: 12px; font-style: italic; }
+
     /* ── Print-only letterhead ── */
     .print-header { display: none; }
 
@@ -189,6 +207,9 @@
       .invoice-table input { border: none !important; background: transparent !important; padding: 0 !important; -webkit-appearance: none; }
 
       .progress-fill, .budget-bar-fill { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+      .attachments-section { box-shadow: none !important; border: 1px solid #ccc !important; break-inside: avoid; }
+      .attachment-link::after { content: " — " attr(href); font-size: 9px; color: #555; font-weight: 400; word-break: break-all; }
 
       .print-footer {
         display: block !important; margin-top: 24px; padding-top: 10px;
@@ -507,6 +528,26 @@ function renderPage() {
       </tr>`;
     });
     html += `</tbody></table></div>`;
+  }
+
+  // ── Invoice Attachments ───────────────────────────────────────────────────
+  if (invoices.length > 0) {
+    html += `<div class="attachments-section">
+      <div class="attachments-title">📎 Invoice Attachments</div>`;
+    let attachIdx = 0;
+    invoices.forEach(inv => {
+      attachIdx++;
+      const distName = inv.distributor_name || distributors.find(d => d.id === inv.distributor_id)?.name || '—';
+      html += `<div class="attachment-row">
+        <div class="attachment-num">${attachIdx}</div>
+        <div class="attachment-dist">${distName}</div>
+        <div class="attachment-amt">${formatMoney(inv.invoice_amount)}</div>
+        ${inv.invoice_pdf_url
+          ? `<a class="attachment-link" href="${inv.invoice_pdf_url}" target="_blank">📄 ${inv.invoice_pdf_name || 'View Invoice'}</a>`
+          : `<span class="attachment-nofile">No file uploaded</span>`}
+      </div>`;
+    });
+    html += `</div>`;
   }
 
   // Bottom actions
