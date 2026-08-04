@@ -349,7 +349,9 @@ async function loadGoogle() {
     return;
   }
   if (d.error) { $('gBody').innerHTML = `<div class="error-msg">${d.error}</div>`; return; }
-  const locs = (d.locations || []).filter(l => !l.error);
+  const allLocs = d.locations || [];
+  const locs = allLocs.filter(l => !l.error);
+  const errLocs = allLocs.filter(l => l.error);
   $('gSub').textContent = locs.length + ' location(s)';
   const avgRating = locs.length ? (locs.reduce((s,l) => s + (l.rating||0), 0) / locs.length) : 0;
   const totalReviews = locs.reduce((s,l) => s + (l.reviewCount||0), 0);
@@ -360,7 +362,8 @@ async function loadGoogle() {
       <div class="loc-row">
         <span class="loc-name">${l.name}</span>
         <span>${l.rating > 0 ? l.rating.toFixed(1) + ' ⭐' : '—'} &nbsp;·&nbsp; ${fmt(l.reviewCount)} reviews</span>
-      </div>`).join('')}</div>` : ''}`;
+      </div>`).join('')}</div>` : ''}
+    ${errLocs.length > 0 ? `<div class="error-msg" style="margin-top:8px;font-size:11px">${errLocs.map(l => l.storeName + ': ' + l.error).join('<br>')}</div>` : ''}`;
 }
 
 // ── Reputation ────────────────────────────────────────────────────────────────

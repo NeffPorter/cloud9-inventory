@@ -468,10 +468,11 @@ async function fetchGooglePlaces(stores = []) {
     for (const store of activeStores) {
       const placeIds = store.google_place_id.split(',').map(id => id.trim()).filter(Boolean);
       for (const placeId of placeIds) {
-        const path = `/v1/places/${placeId}?fields=displayName,rating,userRatingCount,businessStatus,formattedAddress`;
+        const path = `/v1/places/${placeId}`;
         const r = await httpsRequest('GET', 'places.googleapis.com', path, {
           'X-Goog-Api-Key': apiKey,
-          'X-Goog-FieldMask': 'displayName,rating,userRatingCount,businessStatus,formattedAddress'
+          'X-Goog-FieldMask': 'displayName,rating,userRatingCount,businessStatus,formattedAddress',
+          'Content-Type': 'application/json'
         });
         if (r.status !== 200) {
           console.error(`[Places] ${store.name} ${placeId} API ${r.status}:`, r.body);
