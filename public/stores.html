@@ -117,7 +117,13 @@
 <div class="modal-bg" id="editModal">
   <div class="modal">
     <div class="modal-title" id="editModalTitle">Edit Store</div>
-    <div class="modal-sub">Update platform analytics credentials for this store. These are stored securely in the database.</div>
+    <div class="modal-sub">Update store name and platform analytics credentials.</div>
+
+    <div class="section-divider">🏪 Store Info</div>
+    <div class="form-group">
+      <label>Store Name</label>
+      <input type="text" id="editStoreName" placeholder="e.g. Cloud 9 Vapor Littlefield">
+    </div>
 
     <div class="section-divider">🔍 Google Business Profile</div>
     <div class="form-group">
@@ -250,6 +256,7 @@ function openModal(storeId) {
   if (!store) return;
   editingStoreId = store.id;
   document.getElementById('editModalTitle').textContent = '✏️ ' + store.name;
+  document.getElementById('editStoreName').value         = store.name || '';
   document.getElementById('editGoogleLocationId').value = store.google_location_id || '';
   document.getElementById('editAppleLocationId').value  = store.apple_location_id  || '';
   document.getElementById('editFacebookPageId').value   = store.facebook_page_id   || '';
@@ -273,6 +280,7 @@ async function saveStore() {
   btn.disabled = true; btn.textContent = 'Saving...';
 
   const body = {
+    name:                document.getElementById('editStoreName').value.trim()        || undefined,
     google_location_id:  document.getElementById('editGoogleLocationId').value.trim() || null,
     apple_location_id:   document.getElementById('editAppleLocationId').value.trim()  || null,
     facebook_page_id:    document.getElementById('editFacebookPageId').value.trim()   || null,
