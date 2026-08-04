@@ -131,12 +131,6 @@
       <input type="text" id="editGoogleLocationId" placeholder="accounts/xxx/locations/yyy">
     </div>
 
-    <div class="section-divider">🍎 Apple Business Connect</div>
-    <div class="form-group">
-      <label>Location ID <span class="label-hint">— Apple Business Connect location identifier</span></label>
-      <input type="text" id="editAppleLocationId" placeholder="e.g. 1234567890">
-    </div>
-
     <div class="section-divider">📘 Facebook Page</div>
     <div class="form-group">
       <label>Page ID</label>
@@ -147,13 +141,6 @@
       <div id="tokenStatus" style="display:none;font-size:12px;font-weight:600;color:#065f46;background:#d1fae5;padding:6px 10px;border-radius:6px;margin-bottom:6px;">✓ Token saved</div>
       <input type="password" id="editFacebookToken" placeholder="Paste new token to update">
       <div style="font-size:11px;color:#888;margin-top:4px;">Leave blank to keep the existing token.</div>
-    </div>
-
-    <div class="section-divider">📈 Google Analytics (GA4)</div>
-    <div class="form-group">
-      <label>Property ID <span class="label-hint">— e.g. 123456789 or properties/123456789</span></label>
-      <input type="text" id="editGA4PropertyId" placeholder="e.g. 123456789">
-      <div style="font-size:11px;color:#888;margin-top:4px;">The service account must be added as Viewer in GA4 admin.</div>
     </div>
 
     <div class="modal-actions">
@@ -236,9 +223,7 @@ async function loadStores() {
           <p>MID: ${s.merchant_id}</p>
           <div class="platform-dots">
             <span class="platform-dot ${s.google_location_id ? 'dot-on' : 'dot-off'}">🔍 Google ${s.google_location_id ? '✓' : '—'}</span>
-            <span class="platform-dot ${s.apple_location_id  ? 'dot-on' : 'dot-off'}">🍎 Apple ${s.apple_location_id  ? '✓' : '—'}</span>
             <span class="platform-dot ${s.facebook_page_id && s.facebook_page_token ? 'dot-on' : 'dot-off'}">📘 Facebook ${s.facebook_page_id && s.facebook_page_token ? '✓' : '—'}</span>
-            <span class="platform-dot ${s.ga4_property_id ? 'dot-on' : 'dot-off'}">📈 GA4 ${s.ga4_property_id ? '✓' : '—'}</span>
           </div>
         </div>
         <div class="store-actions">
@@ -282,9 +267,7 @@ async function saveStore() {
   const body = {
     name:                document.getElementById('editStoreName').value.trim()        || undefined,
     google_location_id:  document.getElementById('editGoogleLocationId').value.trim() || null,
-    apple_location_id:   document.getElementById('editAppleLocationId').value.trim()  || null,
     facebook_page_id:    document.getElementById('editFacebookPageId').value.trim()   || null,
-    ga4_property_id:     document.getElementById('editGA4PropertyId').value.trim()    || null,
   };
   const fbToken = document.getElementById('editFacebookToken').value.trim();
   if (fbToken) body.facebook_page_token = fbToken;

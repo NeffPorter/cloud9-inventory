@@ -454,7 +454,50 @@ async function fetchGA4Insights(start, end, stores = []) {
   } catch (err) { console.error('[GA4]', err.message); return { configured: true, error: err.message }; }
 }
 
+// ── Google Places API ─────────────────────────────────────────────────────────
+// Uses GOOGLE_PLACES_API_KEY (regular API key, no OAuth/approval needed)
+// Per-store DB: google_place_id (comma-separated for multiple locations per store)
+
+async function fetchGooglePlaces(stores = []) {
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  const activeStores = stores.filter(s => s.google_place_id);
+  if (!apiKey || !activeStores.length) return { configured: false };
+
+  try {
+    const locations = [];
+    for (const store of activeStores) {
+      const placeIds = store.google_place_id.split(',').map(id => id.trim()).filter(Boolean);
+      for (const placeId of placeIds) {
+        const path = `/v1/places/${placeId}?fields=displayName,rating,userRatingCount,businessStatus,formattedAddress`;
+        const r = await httpsRequest('GET', 'places.googleapis.com', path, {
+          'X-Goog-Api-Key': apiKey,
+          'X-Goog-FieldMask': 'displayName,rating,userRatingCount,businessStatus,formattedAddress'
+        });
+        if (r.status !== 200) {
+          console.error(`[Places] ${store.name} ${placeId} API ${r.status}:`, r.body);
+          locations.push({ storeName: store.name, placeId, error: `API ${r.status}` });
+          continue;
+        }
+        const data = JSON.parse(r.body);
+        locations.push({
+          storeName: store.name,
+          placeId,
+          name: data.displayName?.text || store.name,
+          rating: data.rating || 0,
+          reviewCount: data.userRatingCount || 0,
+          businessStatus: data.businessStatus || 'OPERATIONAL',
+          address: data.formattedAddress || ''
+        });
+      }
+    }
+    return { configured: true, locations };
+  } catch (err) {
+    console.error('[Places]', err.message);
+    return { configured: true, error: err.message };
+  }
+}
+
 module.exports = {
   fetchGoogleInsights, fetchAppleInsights, fetchFacebookInsights,
-  fetchInstagramInsights, fetchGoogleReviews, fetchGA4Insights
+  fetchInstagramInsights, fetchGoogleReviews, fetchGA4Insights, fetchGooglePlaces
 };

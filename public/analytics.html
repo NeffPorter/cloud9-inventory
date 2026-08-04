@@ -144,12 +144,8 @@
   <div class="section-title">🔍 Search & Maps</div>
   <div class="platform-grid">
     <div class="platform-card" id="gCard">
-      <div class="card-header"><span class="card-icon">🔍</span><div><div class="card-title-text">Google Business Profile</div><div class="card-subtitle" id="gSub">Loading…</div></div></div>
+      <div class="card-header"><span class="card-icon">🔍</span><div><div class="card-title-text">Google Ratings</div><div class="card-subtitle" id="gSub">Loading…</div></div></div>
       <div id="gBody"><div class="loading">Loading…</div></div>
-    </div>
-    <div class="platform-card" id="appleCard">
-      <div class="card-header"><span class="card-icon">🍎</span><div><div class="card-title-text">Apple Business Connect</div><div class="card-subtitle" id="appleSub">Loading…</div></div></div>
-      <div id="appleBody"><div class="loading">Loading…</div></div>
     </div>
   </div>
 
@@ -158,10 +154,6 @@
   <div class="rep-card">
     <div id="repBody"><div class="loading">Loading reputation data…</div></div>
   </div>
-
-  <!-- ── Website Traffic (GA4) ── -->
-  <div class="section-title">📈 Website Traffic (GA4)</div>
-  <div id="ga4Body"><div class="loading" style="background:white;border-radius:12px;padding:24px;box-shadow:0 1px 6px rgba(0,0,0,.06);">Loading GA4 data…</div></div>
 
   <!-- ── Store Comparison ── -->
   <div class="section-title">🏪 Store Comparison</div>
@@ -347,42 +339,28 @@ async function loadInstagram() {
     ${(d.accounts||[]).length > 1 ? `<div class="per-location">${(d.accounts||[]).map(a=>`<div class="loc-row"><span class="loc-name">${a.name}${a.username?' (@'+a.username+')':''}</span><span>${fmt(a.followers)} followers${a.mediaCount ? ' · ' + fmt(a.mediaCount) + ' posts' : ''}</span></div>`).join('')}</div>` : ''}`;
 }
 
-// ── Google Business ───────────────────────────────────────────────────────────
+// ── Google Ratings (Places API) ───────────────────────────────────────────────
 async function loadGoogle() {
   $('gBody').innerHTML = '<div class="loading">Loading…</div>';
-  const d = await api('/google' + qs());
+  const d = await api('/google-places');
   if (!d.configured) {
     $('gSub').textContent = 'Not configured';
-    $('gBody').innerHTML = '<div class="not-configured">No Google Location IDs configured.<br>Add them in <a href="/stores">Stores</a>.</div>';
+    $('gBody').innerHTML = '<div class="not-configured">No Google Place IDs configured.</div>';
     return;
   }
   if (d.error) { $('gBody').innerHTML = `<div class="error-msg">${d.error}</div>`; return; }
-  $('gSub').textContent = (d.locations||[]).length + ' location(s)';
+  const locs = (d.locations || []).filter(l => !l.error);
+  $('gSub').textContent = locs.length + ' location(s)';
+  const avgRating = locs.length ? (locs.reduce((s,l) => s + (l.rating||0), 0) / locs.length) : 0;
+  const totalReviews = locs.reduce((s,l) => s + (l.reviewCount||0), 0);
   $('gBody').innerHTML = `
-    <div class="metric-row"><span class="metric-label">Impressions</span><span class="metric-value">${fmt(d.totals.impressions)}</span></div>
-    <div class="metric-row"><span class="metric-label">Calls</span><span class="metric-value">${fmt(d.totals.calls)}</span></div>
-    <div class="metric-row"><span class="metric-label">Directions</span><span class="metric-value">${fmt(d.totals.directions)}</span></div>
-    <div class="metric-row"><span class="metric-label">Website Clicks</span><span class="metric-value">${fmt(d.totals.websiteClicks)}</span></div>
-    ${(d.locations||[]).length > 1 ? `<div class="per-location">${(d.locations||[]).map(l=>`<div class="loc-row"><span class="loc-name">${l.name}</span><span>${fmt(l.impressions)} imp</span></div>`).join('')}</div>` : ''}`;
-}
-
-// ── Apple ─────────────────────────────────────────────────────────────────────
-async function loadApple() {
-  $('appleBody').innerHTML = '<div class="loading">Loading…</div>';
-  const d = await api('/apple' + qs());
-  if (!d.configured) {
-    $('appleSub').textContent = 'Not configured';
-    $('appleBody').innerHTML = '<div class="not-configured">No Apple Location IDs configured.<br>Add them in <a href="/stores">Stores</a>.</div>';
-    return;
-  }
-  if (d.error) { $('appleBody').innerHTML = `<div class="error-msg">${d.error}</div>`; return; }
-  $('appleSub').textContent = (d.locations||[]).length + ' location(s)';
-  $('appleBody').innerHTML = `
-    <div class="metric-row"><span class="metric-label">Impressions</span><span class="metric-value">${fmt(d.totals.impressions)}</span></div>
-    <div class="metric-row"><span class="metric-label">Taps</span><span class="metric-value">${fmt(d.totals.taps)}</span></div>
-    <div class="metric-row"><span class="metric-label">Calls</span><span class="metric-value">${fmt(d.totals.calls)}</span></div>
-    <div class="metric-row"><span class="metric-label">Directions</span><span class="metric-value">${fmt(d.totals.directions)}</span></div>
-    ${(d.locations||[]).length > 1 ? `<div class="per-location">${(d.locations||[]).map(l=>`<div class="loc-row"><span class="loc-name">${l.name}</span><span>${fmt(l.impressions)} imp</span></div>`).join('')}</div>` : ''}`;
+    <div class="metric-row"><span class="metric-label">Avg Google Rating</span><span class="metric-value">${avgRating > 0 ? avgRating.toFixed(1) + ' ⭐' : '—'}</span></div>
+    <div class="metric-row"><span class="metric-label">Total Reviews</span><span class="metric-value">${fmt(totalReviews)}</span></div>
+    ${locs.length > 0 ? `<div class="per-location" style="margin-top:10px">${locs.map(l => `
+      <div class="loc-row">
+        <span class="loc-name">${l.name}</span>
+        <span>${l.rating > 0 ? l.rating.toFixed(1) + ' ⭐' : '—'} &nbsp;·&nbsp; ${fmt(l.reviewCount)} reviews</span>
+      </div>`).join('')}</div>` : ''}`;
 }
 
 // ── Reputation ────────────────────────────────────────────────────────────────
@@ -428,31 +406,6 @@ async function loadReputation() {
   }).join('');
 
   $('repBody').innerHTML = `<div class="rep-grid">${cards}</div>`;
-}
-
-// ── GA4 ───────────────────────────────────────────────────────────────────────
-async function loadGA4() {
-  $('ga4Body').innerHTML = '<div class="loading" style="background:white;border-radius:12px;padding:24px;box-shadow:0 1px 6px rgba(0,0,0,.06);">Loading GA4…</div>';
-  const d = await api('/ga4' + qs());
-  if (!d.configured) {
-    $('ga4Body').innerHTML = '<div style="background:white;border-radius:12px;padding:24px;box-shadow:0 1px 6px rgba(0,0,0,.06);"><div class="not-configured">No GA4 Property IDs configured.<br>Add them in <a href="/stores">Stores → Credentials</a> and ensure the service account has Viewer access in GA4.</div></div>';
-    return;
-  }
-  if (d.error) {
-    $('ga4Body').innerHTML = `<div style="background:white;border-radius:12px;padding:24px;box-shadow:0 1px 6px rgba(0,0,0,.06);"><div class="error-msg">${d.error}</div></div>`;
-    return;
-  }
-  const t = d.totals || {};
-  const perProp = (d.properties||[]).length > 1
-    ? `<div class="per-location" style="margin-top:16px;">${(d.properties||[]).map(p=>`<div class="loc-row"><span class="loc-name">${p.name}</span><span>${fmt(p.sessions)} sessions / ${fmt(p.users)} users</span></div>`).join('')}</div>` : '';
-  $('ga4Body').innerHTML = `
-    <div class="ga4-grid">
-      <div class="ga4-card"><div class="ga4-num">${fmt(t.sessions)}</div><div class="ga4-lbl">Sessions</div></div>
-      <div class="ga4-card"><div class="ga4-num">${fmt(t.users)}</div><div class="ga4-lbl">Active Users</div></div>
-      <div class="ga4-card"><div class="ga4-num">${fmt(t.pageViews)}</div><div class="ga4-lbl">Page Views</div></div>
-      <div class="ga4-card"><div class="ga4-num">${((t.bounceRate||0)*100).toFixed(1)}%</div><div class="ga4-lbl">Bounce Rate</div></div>
-    </div>
-    ${perProp}`;
 }
 
 // ── Store Comparison ──────────────────────────────────────────────────────────
@@ -549,9 +502,7 @@ function loadAll() {
   loadFacebook();
   loadInstagram();
   loadGoogle();
-  loadApple();
   loadReputation();
-  loadGA4();
   loadComparison();
   loadExpenseRevenue();
 }

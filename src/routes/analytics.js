@@ -7,7 +7,7 @@ const supabase = require('../lib/supabase');
 const { isHim } = require('../lib/roles');
 const {
   fetchGoogleInsights, fetchAppleInsights, fetchFacebookInsights,
-  fetchInstagramInsights, fetchGoogleReviews, fetchGA4Insights
+  fetchInstagramInsights, fetchGoogleReviews, fetchGA4Insights, fetchGooglePlaces
 } = require('../services/platforms');
 
 // In-memory state store for OAuth (expires after 10 min)
@@ -171,6 +171,14 @@ router.get('/instagram', auth, requireAnalyticsAccess, async (req, res) => {
   try {
     const stores = await getPlatformStores(effectiveStoreIds(req));
     res.json(await fetchInstagramInsights(req.query.start, req.query.end, stores));
+  } catch (err) { res.status(500).json({ configured: true, error: err.message }); }
+});
+
+// GET /api/analytics/google-places
+router.get('/google-places', auth, requireAnalyticsAccess, async (req, res) => {
+  try {
+    const stores = await getPlatformStores(effectiveStoreIds(req));
+    res.json(await fetchGooglePlaces(stores));
   } catch (err) { res.status(500).json({ configured: true, error: err.message }); }
 });
 
