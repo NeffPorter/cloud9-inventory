@@ -105,7 +105,7 @@ function effectiveStoreId(req) {
 // Helper: load stores with ALL platform credentials from DB
 async function getPlatformStores(storeIds) {
   let q = supabase.from('stores').select(
-    'id, name, google_location_id, apple_location_id, facebook_page_id, facebook_page_token, ga4_property_id'
+    'id, name, google_location_id, google_place_id, apple_location_id, facebook_page_id, facebook_page_token, ga4_property_id'
   );
   if (storeIds && storeIds.length === 1) q = q.eq('id', storeIds[0]);
   else if (storeIds && storeIds.length > 1) q = q.in('id', storeIds);
