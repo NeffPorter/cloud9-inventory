@@ -507,24 +507,32 @@ async function syncGooglePlaces(stores = []) {
     const locationDisplayNames = [];
 
     for (const placeId of placeIds) {
-      const r = await httpsRequest('GET', 'places.googleapis.com', `/v1/places/${placeId}`, {
-        'X-Goog-Api-Key': apiKey,
-        'X-Goog-FieldMask': 'displayName,rating,userRatingCount,businessStatus,formattedAddress',
-        'Content-Type': 'application/json'
-      });
+      const fields = 'name,rating,user_ratings_total,formatted_address';
+      const r = await httpsRequest('GET', 'maps.googleapis.com',
+        `/maps/api/place/details/json?place_id=${encodeURIComponent(placeId)}&fields=${fields}&key=${apiKey}`,
+        { 'Content-Type': 'application/json' }
+      );
       if (r.status !== 200) {
         let msg = `API ${r.status}`;
-        try { msg = JSON.parse(r.body)?.error?.message || msg; } catch (_) {}
+        try { msg = JSON.parse(r.body)?.error_message || msg; } catch (_) {}
         console.error(`[Places sync] ${store.name} placeId=${placeId}: ${msg}`);
         locErrors.push(msg);
         locationDisplayNames.push(store.name);
         continue;
       }
       const d = JSON.parse(r.body);
-      if (d.rating) { totalRating += d.rating; ratedCount++; }
-      totalReviews += d.userRatingCount || 0;
+      if (d.status !== 'OK') {
+        const msg = d.error_message || d.status;
+        console.error(`[Places sync] ${store.name} placeId=${placeId}: ${msg}`);
+        locErrors.push(msg);
+        locationDisplayNames.push(store.name);
+        continue;
+      }
+      const result = d.result || {};
+      if (result.rating) { totalRating += result.rating; ratedCount++; }
+      totalReviews += result.user_ratings_total || 0;
       // For multi-location stores, append street address to distinguish them
-      const street = (d.formattedAddress || '').split(',')[0].trim();
+      const street = (result.formatted_address || '').split(',')[0].trim();
       locationDisplayNames.push(placeIds.length > 1 && street ? `${store.name} (${street})` : store.name);
     }
 
