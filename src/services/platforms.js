@@ -484,8 +484,13 @@ async function fetchGooglePlaces(stores = []) {
           'Content-Type': 'application/json'
         });
         if (r.status !== 200) {
-          console.error(`[Places] ${store.name} ${placeId} API ${r.status}:`, r.body);
-          locations.push({ storeName: store.name, placeId, error: `API ${r.status}` });
+          let googleMsg = `API ${r.status}`;
+          try {
+            const errJson = JSON.parse(r.body);
+            googleMsg = errJson?.error?.message || errJson?.error?.status || googleMsg;
+          } catch (_) {}
+          console.error(`[Places] ${store.name} placeId=${placeId} status=${r.status} msg="${googleMsg}"`);
+          locations.push({ storeName: store.name, placeId, error: googleMsg });
           continue;
         }
         const data = JSON.parse(r.body);
