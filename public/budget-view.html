@@ -475,12 +475,10 @@ function renderPage() {
         <td>
           ${inv.invoice_pdf_url
             ? `<a class="pdf-link" href="${inv.invoice_pdf_url}" target="_blank" title="${inv.invoice_pdf_name || 'Invoice'}">📎 ${inv.invoice_pdf_name || 'View PDF'}</a>`
-            : (!isComplete
-                ? `<label class="upload-later-label" id="upload-label-${inv.id}">
-                     📎 Add file
-                     <input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="uploadInvoicePdf('${inv.id}', this)">
-                   </label>`
-                : `<span style="color:#bbb;font-size:12px">No file</span>`)}
+            : `<label class="upload-later-label" id="upload-label-${inv.id}">
+                 📎 Add file
+                 <input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="uploadInvoicePdf('${inv.id}', this)">
+               </label>`)}
         </td>
         <td>
           ${!isComplete
