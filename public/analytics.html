@@ -140,7 +140,13 @@
   </div>
 
   <!-- ── Ratings & Reviews ── -->
-  <div class="section-title">⭐ Ratings & Reviews</div>
+  <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <span>⭐ Ratings & Reviews</span>
+    <span id="syncWrap" style="display:none">
+      <span id="syncStatus" style="font-size:12px;color:#888;margin-right:8px"></span>
+      <button id="syncBtn" onclick="syncPlaces()" style="padding:5px 14px;background:#2563eb;color:white;border:none;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer">Sync Now</button>
+    </span>
+  </div>
   <div class="platform-grid">
     <div class="platform-card" id="gCard">
       <div class="card-header"><span class="card-icon">🔍</span><div><div class="card-title-text">Google Ratings</div><div class="card-subtitle" id="gSub">Loading…</div></div></div>
@@ -368,6 +374,18 @@ async function loadGoogle() {
     return;
   }
   if (d.error) { $('gBody').innerHTML = `<div class="error-msg">${d.error}</div>`; return; }
+
+  // Show sync button (him/admin only) and last-synced time
+  if (['him', 'regional_manager', 'admin', 'owner'].includes(user.role)) {
+    $('syncWrap').style.display = '';
+    if (d.lastSynced) {
+      const ago = Math.round((Date.now() - new Date(d.lastSynced)) / 60000);
+      $('syncStatus').textContent = ago < 60 ? `Synced ${ago}m ago` : `Synced ${Math.round(ago/60)}h ago`;
+    } else {
+      $('syncStatus').textContent = 'Never synced';
+    }
+  }
+
   const allLocs = d.locations || [];
   const locs = allLocs.filter(l => !l.error);
   const errLocs = allLocs.filter(l => l.error);
@@ -383,6 +401,29 @@ async function loadGoogle() {
         <span>${l.rating > 0 ? l.rating.toFixed(1) + ' ⭐' : '—'} &nbsp;·&nbsp; ${fmt(l.reviewCount)} reviews</span>
       </div>`).join('')}</div>` : ''}
     ${errLocs.length > 0 ? `<div class="error-msg" style="margin-top:8px;font-size:11px">${errLocs.map(l => l.storeName + ': ' + l.error).join('<br>')}</div>` : ''}`;
+}
+
+async function syncPlaces() {
+  const btn = $('syncBtn');
+  btn.disabled = true; btn.textContent = 'Syncing…';
+  $('syncStatus').textContent = 'Calling Google API…';
+  try {
+    const res = await fetch('/api/analytics/sync-google-places', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    const d = await res.json();
+    if (d.error) { $('syncStatus').textContent = 'Error: ' + d.error; }
+    else {
+      $('syncStatus').textContent = `Synced ${(d.results||[]).length} location(s)`;
+      // Reload the ratings display
+      _sharedPlacesPromise = null;
+      _placesLoaded = false;
+      loadGoogle();
+      loadReputation();
+    }
+  } catch (e) { $('syncStatus').textContent = 'Sync failed'; }
+  btn.disabled = false; btn.textContent = 'Sync Now';
 }
 
 // ── Reputation ────────────────────────────────────────────────────────────────

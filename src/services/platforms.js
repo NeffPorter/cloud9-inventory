@@ -455,72 +455,95 @@ async function fetchGA4Insights(start, end, stores = []) {
 }
 
 // ── Google Places API ─────────────────────────────────────────────────────────
-// Uses GOOGLE_PLACES_API_KEY (regular API key, no OAuth/approval needed)
-// Per-store DB: google_place_id (comma-separated for multiple locations per store)
-
-// In-memory cache — 5 minute TTL to avoid hitting Places API rate limits
-let _placesCache = null;
-let _placesCacheExpiry = 0;
+// fetchGooglePlaces: reads cached ratings from DB (no API call, zero quota usage)
+// syncGooglePlaces:  calls the live API and saves results to DB (run once/day max)
 
 async function fetchGooglePlaces(stores = []) {
-  // Return cached result if still fresh
-  if (_placesCache && Date.now() < _placesCacheExpiry) {
-    return _placesCache;
+  const activeStores = stores.filter(s => s.google_place_id);
+  if (!activeStores.length) return { configured: false };
+
+  // Build location list from DB-cached values — no API call
+  const locations = [];
+  for (const store of activeStores) {
+    const placeIds = store.google_place_id.split(',').map(id => id.trim()).filter(Boolean);
+    // For multi-location stores we store one rating/count at the store level (averaged)
+    // Show one entry per store (or two for Mesquite with address suffix)
+    if (placeIds.length === 1) {
+      locations.push({
+        storeName: store.name,
+        placeId: placeIds[0],
+        name: store.name,
+        rating: store.google_rating || 0,
+        reviewCount: store.google_last_review_count || 0,
+      });
+    } else {
+      // Multi-location: show one row per place ID using the store's cached aggregate
+      placeIds.forEach((pid, i) => {
+        locations.push({
+          storeName: store.name,
+          placeId: pid,
+          name: `${store.name} (location ${i + 1})`,
+          rating: store.google_rating || 0,
+          reviewCount: store.google_last_review_count || 0,
+        });
+      });
+    }
   }
 
+  return { configured: true, locations, lastSynced: activeStores[0]?.google_places_synced_at || null };
+}
+
+// Calls the live Places API and saves results to DB. Designed to run once per day.
+async function syncGooglePlaces(stores = []) {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
   const activeStores = stores.filter(s => s.google_place_id);
   if (!apiKey || !activeStores.length) return { configured: false };
 
-  try {
-    const locations = [];
-    for (const store of activeStores) {
-      const placeIds = store.google_place_id.split(',').map(id => id.trim()).filter(Boolean);
-      for (const placeId of placeIds) {
-        const path = `/v1/places/${placeId}`;
-        const r = await httpsRequest('GET', 'places.googleapis.com', path, {
-          'X-Goog-Api-Key': apiKey,
-          'X-Goog-FieldMask': 'displayName,rating,userRatingCount,businessStatus,formattedAddress',
-          'Content-Type': 'application/json'
-        });
-        if (r.status !== 200) {
-          let googleMsg = `API ${r.status}`;
-          try {
-            const errJson = JSON.parse(r.body);
-            googleMsg = errJson?.error?.message || errJson?.error?.status || googleMsg;
-          } catch (_) {}
-          console.error(`[Places] ${store.name} placeId=${placeId} status=${r.status} msg="${googleMsg}"`);
-          locations.push({ storeName: store.name, placeId, error: googleMsg });
-          continue;
-        }
-        const data = JSON.parse(r.body);
-        // Use our store name as primary; for multi-location stores append street to distinguish
-        const street = (data.formattedAddress || '').split(',')[0].trim();
-        const locationName = placeIds.length > 1
-          ? `${store.name} (${street})`
-          : store.name;
-        locations.push({
-          storeName: store.name,
-          placeId,
-          name: locationName,
-          rating: data.rating || 0,
-          reviewCount: data.userRatingCount || 0,
-          businessStatus: data.businessStatus || 'OPERATIONAL',
-          address: data.formattedAddress || ''
-        });
+  const results = [];
+  for (const store of activeStores) {
+    const placeIds = store.google_place_id.split(',').map(id => id.trim()).filter(Boolean);
+    let totalRating = 0, totalReviews = 0, ratedCount = 0;
+    const locErrors = [];
+
+    for (const placeId of placeIds) {
+      const r = await httpsRequest('GET', 'places.googleapis.com', `/v1/places/${placeId}`, {
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': 'displayName,rating,userRatingCount,businessStatus,formattedAddress',
+        'Content-Type': 'application/json'
+      });
+      if (r.status !== 200) {
+        let msg = `API ${r.status}`;
+        try { msg = JSON.parse(r.body)?.error?.message || msg; } catch (_) {}
+        console.error(`[Places sync] ${store.name} placeId=${placeId}: ${msg}`);
+        locErrors.push(msg);
+        continue;
       }
+      const d = JSON.parse(r.body);
+      if (d.rating) { totalRating += d.rating; ratedCount++; }
+      totalReviews += d.userRatingCount || 0;
     }
-    const result = { configured: true, locations };
-    _placesCache = result;
-    _placesCacheExpiry = Date.now() + 5 * 60 * 1000; // 5 minutes
-    return result;
-  } catch (err) {
-    console.error('[Places]', err.message);
-    return { configured: true, error: err.message };
+
+    if (locErrors.length === placeIds.length) {
+      results.push({ storeName: store.name, error: locErrors[0] });
+      continue;
+    }
+
+    const avgRating = ratedCount ? Math.round((totalRating / ratedCount) * 10) / 10 : 0;
+    await supabase.from('stores').update({
+      google_rating: avgRating,
+      google_last_review_count: totalReviews,
+      google_places_synced_at: new Date().toISOString()
+    }).eq('id', store.id);
+
+    console.log(`[Places sync] ${store.name}: ${avgRating}★, ${totalReviews} reviews`);
+    results.push({ storeName: store.name, rating: avgRating, reviewCount: totalReviews });
   }
+
+  return { configured: true, results };
 }
 
 module.exports = {
   fetchGoogleInsights, fetchAppleInsights, fetchFacebookInsights,
-  fetchInstagramInsights, fetchGoogleReviews, fetchGA4Insights, fetchGooglePlaces
+  fetchInstagramInsights, fetchGoogleReviews, fetchGA4Insights,
+  fetchGooglePlaces, syncGooglePlaces
 };

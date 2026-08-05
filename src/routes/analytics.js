@@ -7,7 +7,8 @@ const supabase = require('../lib/supabase');
 const { isHim } = require('../lib/roles');
 const {
   fetchGoogleInsights, fetchAppleInsights, fetchFacebookInsights,
-  fetchInstagramInsights, fetchGoogleReviews, fetchGA4Insights, fetchGooglePlaces
+  fetchInstagramInsights, fetchGoogleReviews, fetchGA4Insights,
+  fetchGooglePlaces, syncGooglePlaces
 } = require('../services/platforms');
 
 // In-memory state store for OAuth (expires after 10 min)
@@ -174,12 +175,21 @@ router.get('/instagram', auth, requireAnalyticsAccess, async (req, res) => {
   } catch (err) { res.status(500).json({ configured: true, error: err.message }); }
 });
 
-// GET /api/analytics/google-places
+// GET /api/analytics/google-places — reads from DB cache (no API calls)
 router.get('/google-places', auth, requireAnalyticsAccess, async (req, res) => {
   try {
     const stores = await getPlatformStores(effectiveStoreIds(req));
     res.json(await fetchGooglePlaces(stores));
   } catch (err) { res.status(500).json({ configured: true, error: err.message }); }
+});
+
+// POST /api/analytics/sync-google-places — calls live API and saves to DB (him/admin only)
+router.post('/sync-google-places', auth, async (req, res) => {
+  try {
+    if (!isHim(req.user.role)) return res.status(403).json({ error: 'Admin only' });
+    const stores = await getPlatformStores([]);
+    res.json(await syncGooglePlaces(stores));
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // GET /api/analytics/google-reviews
