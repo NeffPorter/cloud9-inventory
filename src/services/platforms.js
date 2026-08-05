@@ -462,35 +462,35 @@ async function fetchGooglePlaces(stores = []) {
   const activeStores = stores.filter(s => s.google_place_id);
   if (!activeStores.length) return { configured: false };
 
-  // Build location list from DB-cached values — no API call
+  const neverSynced = activeStores.every(s => !s.google_places_synced_at);
+
+  // Build location list from DB-cached values — no API call on page load
   const locations = [];
   for (const store of activeStores) {
     const placeIds = store.google_place_id.split(',').map(id => id.trim()).filter(Boolean);
-    // For multi-location stores we store one rating/count at the store level (averaged)
-    // Show one entry per store (or two for Mesquite with address suffix)
-    if (placeIds.length === 1) {
+    const locationNames = store.google_location_names
+      ? store.google_location_names.split('|')
+      : placeIds.map((_, i) => placeIds.length > 1 ? `${store.name} (location ${i + 1})` : store.name);
+
+    placeIds.forEach((pid, i) => {
       locations.push({
         storeName: store.name,
-        placeId: placeIds[0],
-        name: store.name,
+        placeId: pid,
+        name: locationNames[i] || store.name,
         rating: store.google_rating || 0,
-        reviewCount: store.google_last_review_count || 0,
+        reviewCount: placeIds.length > 1
+          ? Math.round((store.google_last_review_count || 0) / placeIds.length)
+          : (store.google_last_review_count || 0),
       });
-    } else {
-      // Multi-location: show one row per place ID using the store's cached aggregate
-      placeIds.forEach((pid, i) => {
-        locations.push({
-          storeName: store.name,
-          placeId: pid,
-          name: `${store.name} (location ${i + 1})`,
-          rating: store.google_rating || 0,
-          reviewCount: store.google_last_review_count || 0,
-        });
-      });
-    }
+    });
   }
 
-  return { configured: true, locations, lastSynced: activeStores[0]?.google_places_synced_at || null };
+  return {
+    configured: true,
+    locations,
+    lastSynced: activeStores[0]?.google_places_synced_at || null,
+    needsSync: neverSynced,
+  };
 }
 
 // Calls the live Places API and saves results to DB. Designed to run once per day.
@@ -504,6 +504,7 @@ async function syncGooglePlaces(stores = []) {
     const placeIds = store.google_place_id.split(',').map(id => id.trim()).filter(Boolean);
     let totalRating = 0, totalReviews = 0, ratedCount = 0;
     const locErrors = [];
+    const locationDisplayNames = [];
 
     for (const placeId of placeIds) {
       const r = await httpsRequest('GET', 'places.googleapis.com', `/v1/places/${placeId}`, {
@@ -516,11 +517,15 @@ async function syncGooglePlaces(stores = []) {
         try { msg = JSON.parse(r.body)?.error?.message || msg; } catch (_) {}
         console.error(`[Places sync] ${store.name} placeId=${placeId}: ${msg}`);
         locErrors.push(msg);
+        locationDisplayNames.push(store.name);
         continue;
       }
       const d = JSON.parse(r.body);
       if (d.rating) { totalRating += d.rating; ratedCount++; }
       totalReviews += d.userRatingCount || 0;
+      // For multi-location stores, append street address to distinguish them
+      const street = (d.formattedAddress || '').split(',')[0].trim();
+      locationDisplayNames.push(placeIds.length > 1 && street ? `${store.name} (${street})` : store.name);
     }
 
     if (locErrors.length === placeIds.length) {
@@ -532,7 +537,8 @@ async function syncGooglePlaces(stores = []) {
     await supabase.from('stores').update({
       google_rating: avgRating,
       google_last_review_count: totalReviews,
-      google_places_synced_at: new Date().toISOString()
+      google_places_synced_at: new Date().toISOString(),
+      google_location_names: locationDisplayNames.join('|')
     }).eq('id', store.id);
 
     console.log(`[Places sync] ${store.name}: ${avgRating}★, ${totalReviews} reviews`);

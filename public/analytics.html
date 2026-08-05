@@ -375,15 +375,21 @@ async function loadGoogle() {
   }
   if (d.error) { $('gBody').innerHTML = `<div class="error-msg">${d.error}</div>`; return; }
 
-  // Show sync button (him/admin only) and last-synced time
+  // Show sync button + last-synced time (him/admin only)
   if (['him', 'regional_manager', 'admin', 'owner'].includes(user.role)) {
     $('syncWrap').style.display = '';
     if (d.lastSynced) {
       const ago = Math.round((Date.now() - new Date(d.lastSynced)) / 60000);
       $('syncStatus').textContent = ago < 60 ? `Synced ${ago}m ago` : `Synced ${Math.round(ago/60)}h ago`;
     } else {
-      $('syncStatus').textContent = 'Never synced';
+      $('syncStatus').textContent = 'Never synced — click Sync Now';
     }
+  }
+
+  if (d.needsSync) {
+    $('gBody').innerHTML = '<div class="not-configured">Ratings not yet loaded. Click <strong>Sync Now</strong> to fetch from Google.</div>';
+    $('gSub').textContent = 'Needs sync';
+    return;
   }
 
   const allLocs = d.locations || [];
