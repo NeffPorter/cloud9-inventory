@@ -458,7 +458,16 @@ async function fetchGA4Insights(start, end, stores = []) {
 // Uses GOOGLE_PLACES_API_KEY (regular API key, no OAuth/approval needed)
 // Per-store DB: google_place_id (comma-separated for multiple locations per store)
 
+// In-memory cache — 5 minute TTL to avoid hitting Places API rate limits
+let _placesCache = null;
+let _placesCacheExpiry = 0;
+
 async function fetchGooglePlaces(stores = []) {
+  // Return cached result if still fresh
+  if (_placesCache && Date.now() < _placesCacheExpiry) {
+    return _placesCache;
+  }
+
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
   const activeStores = stores.filter(s => s.google_place_id);
   if (!apiKey || !activeStores.length) return { configured: false };
@@ -496,7 +505,10 @@ async function fetchGooglePlaces(stores = []) {
         });
       }
     }
-    return { configured: true, locations };
+    const result = { configured: true, locations };
+    _placesCache = result;
+    _placesCacheExpiry = Date.now() + 5 * 60 * 1000; // 5 minutes
+    return result;
   } catch (err) {
     console.error('[Places]', err.message);
     return { configured: true, error: err.message };
