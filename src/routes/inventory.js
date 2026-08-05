@@ -4,6 +4,7 @@ const auth = require('../middleware/auth');
 const { cloverFetch, updateItemPriceAndCost, setStockInClover, deleteItemFromClover, getValidApiToken } = require('../services/clover');
 const { isHim } = require('../lib/roles');
 const supabase = require('../lib/supabase');
+const { notifyMarketing } = require('../services/notify');
 
 function cleanVariantName(groupName, fullName) {
   if (!groupName) return (fullName || '').toString().trim();
@@ -245,6 +246,14 @@ router.put('/items/:id', auth, async (req, res) => {
   try {
     const { status, on_hand_qty, suggested_order, price, cost, clover_qty } = req.body;
 
+    // Fetch old qty before update (needed for low-stock crossing check)
+    let oldCloverQty = null;
+    if (clover_qty !== undefined) {
+      const { data: oldItem } = await supabase
+        .from('inventory_items').select('clover_qty').eq('id', req.params.id).single();
+      oldCloverQty = oldItem?.clover_qty ?? null;
+    }
+
     const updateData = {};
     if (status !== undefined) updateData.status = status;
     if (on_hand_qty !== undefined) updateData.on_hand_qty = on_hand_qty;
@@ -304,6 +313,24 @@ router.put('/items/:id', auth, async (req, res) => {
     }
 
     res.json({ item: data });
+
+    // Low-stock notification: only fire when crossing INTO ≤3 (not already there)
+    if (
+      data &&
+      clover_qty !== undefined &&
+      clover_qty > 0 &&
+      clover_qty <= 3 &&
+      (oldCloverQty === null || oldCloverQty > 3)
+    ) {
+      const { data: store } = await supabase.from('stores').select('name').eq('id', data.store_id).single();
+      const itemName = [data.group_name, data.variant_name].filter(Boolean).join(' – ') || 'Unknown item';
+      notifyMarketing({
+        type: 'low_stock_marketing',
+        title: '📉 Product Running Low',
+        message: `"${itemName}" at ${store?.name || 'a store'} is down to ${clover_qty} unit(s) remaining.`,
+        link: '/inventory'
+      }).catch(() => {});
+    }
   } catch (err) {
     console.error('Update item error:', err);
     res.status(500).json({ error: 'Failed to update item' });
@@ -356,6 +383,7 @@ router.post('/sync/:store_id', auth, async (req, res) => {
       if (g.id && g.name) groupMap[g.id] = g.name.trim();
     });
 
+    const syncStart = new Date().toISOString();
     let synced = 0;
     for (const item of allItems) {
       if (item.deleted || !item.name) continue;
@@ -376,12 +404,38 @@ router.post('/sync/:store_id', auth, async (req, res) => {
         price,
         clover_qty: cloverQty,
         last_synced: new Date().toISOString()
+        // created_at NOT included — gets default only on INSERT, stays unchanged on UPDATE
       }], { onConflict: 'id' });
 
       synced++;
     }
 
     res.json({ success: true, synced });
+
+    // Notify marketing of any truly new products (created_at during this sync)
+    try {
+      const { data: newItems } = await supabase
+        .from('inventory_items')
+        .select('group_name, variant_name, clover_qty')
+        .eq('store_id', store.id)
+        .gte('created_at', syncStart)
+        .not('group_name', 'is', null);
+
+      if (newItems?.length) {
+        const names = newItems.slice(0, 5).map(i =>
+          [i.group_name, i.variant_name].filter(Boolean).join(' – ')
+        );
+        const extra = newItems.length > 5 ? ` (+${newItems.length - 5} more)` : '';
+        notifyMarketing({
+          type: 'new_product',
+          title: `🆕 New Product${newItems.length > 1 ? 's' : ''} Added — ${store.name}`,
+          message: `${newItems.length} new item(s) added:\n${names.join(', ')}${extra}`,
+          link: '/inventory'
+        });
+      }
+    } catch (e) {
+      console.error('[NewProduct notify] error:', e.message);
+    }
   } catch (err) {
     console.error('Sync error:', err);
     res.status(500).json({ error: 'Sync failed: ' + err.message });

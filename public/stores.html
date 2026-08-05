@@ -243,10 +243,8 @@ function openModal(storeId) {
   document.getElementById('editModalTitle').textContent = '✏️ ' + store.name;
   document.getElementById('editStoreName').value         = store.name || '';
   document.getElementById('editGoogleLocationId').value = store.google_location_id || '';
-  document.getElementById('editAppleLocationId').value  = store.apple_location_id  || '';
   document.getElementById('editFacebookPageId').value   = store.facebook_page_id   || '';
   document.getElementById('editFacebookToken').value    = '';
-  document.getElementById('editGA4PropertyId').value    = store.ga4_property_id    || '';
   document.getElementById('editError').style.display = 'none';
   document.getElementById('tokenStatus').style.display = store.facebook_page_token ? 'block' : 'none';
   document.getElementById('editModal').classList.add('open');

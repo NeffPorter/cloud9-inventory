@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cloud 9 - Analytics</title>
   <script src="/navbar.js?v=6"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; min-height: 100vh; }
@@ -152,16 +151,23 @@
     <div id="repBody"><div class="loading">Loading per-store reputation…</div></div>
   </div>
 
-  <!-- ── Store Comparison ── -->
-  <div class="section-title">🏪 Store Comparison</div>
+  <!-- ── Customers Helped ── -->
+  <div class="section-title">👥 Customers Helped</div>
   <div class="comp-card">
-    <div id="compBody"><div class="loading">Loading…</div></div>
+    <div id="custBody"><div class="loading">Loading…</div></div>
   </div>
 
-  <!-- ── Expense vs Revenue ── -->
-  <div class="section-title">💰 Revenue vs Expenses</div>
-  <div class="er-card">
-    <div id="erBody"><div class="loading">Loading…</div></div>
+  <!-- ── New & Dropping Products ── -->
+  <div class="section-title">📦 Products</div>
+  <div class="platform-grid">
+    <div class="platform-card">
+      <div class="card-header"><span class="card-icon">🆕</span><div><div class="card-title-text">New Products</div><div class="card-subtitle" id="newProdSub">This period</div></div></div>
+      <div id="newProdBody"><div class="loading">Loading…</div></div>
+    </div>
+    <div class="platform-card">
+      <div class="card-header"><span class="card-icon">📉</span><div><div class="card-title-text">Dropping Products</div><div class="card-subtitle">Low stock (≤3 remaining)</div></div></div>
+      <div id="dropProdBody"><div class="loading">Loading…</div></div>
+    </div>
   </div>
 </div>
 
@@ -172,8 +178,6 @@ const ALLOWED = ['regional_manager','him','admin','owner','marketing'];
 if (!token || !ALLOWED.includes(user.role)) window.location.href = '/';
 
 const $ = id => document.getElementById(id);
-let storeCompChart = null;
-let erChart = null;
 
 // ── Period controls ───────────────────────────────────────────────────────────
 let currentPeriod = 'monthly', currentStart, currentEnd;
@@ -414,93 +418,54 @@ async function loadReputation() {
   $('repBody').innerHTML = `<div class="rep-grid">${cards}</div>`;
 }
 
-// ── Store Comparison ──────────────────────────────────────────────────────────
-async function loadComparison() {
-  $('compBody').innerHTML = '<div class="loading">Loading…</div>';
-  const d = await api('/transactions' + qs());
+// ── Customers Helped ──────────────────────────────────────────────────────────
+async function loadCustomers() {
+  $('custBody').innerHTML = '<div class="loading">Loading…</div>';
+  const d = await api('/customers' + qs());
   const stores = d.stores || [];
-  if (!stores.length) { $('compBody').innerHTML = '<div class="not-configured">No sales data found.</div>'; return; }
-
-  const tableRows = stores.map(s => {
-    const refundRate = s.sales > 0 ? (s.refunds / (s.sales + s.refunds) * 100).toFixed(1) : '0.0';
-    return `<tr>
-      <td>${s.name}</td>
-      <td>${fmt(s.sales)}</td>
-      <td>${fmt(s.refunds)}</td>
-      <td class="${parseFloat(refundRate) > 5 ? 'negative' : 'positive'}">${refundRate}%</td>
-      <td>${money(s.net)}</td>
-    </tr>`;
-  }).join('');
-
-  $('compBody').innerHTML = `
+  if (!stores.length) { $('custBody').innerHTML = '<div class="not-configured">No customer data found for this period.</div>'; return; }
+  const total = d.total || 0;
+  $('custBody').innerHTML = `
+    <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:16px">
+      <div style="font-size:42px;font-weight:800;color:#2563eb">${fmt(total)}</div>
+      <div style="font-size:15px;color:#666">customers helped across all stores</div>
+    </div>
     <table class="comp-table">
-      <thead><tr><th>Store</th><th>Sales</th><th>Refunds</th><th>Refund %</th><th>Net Revenue</th></tr></thead>
-      <tbody>${tableRows}</tbody>
-    </table>
-    <div class="chart-wrap"><canvas id="compChart"></canvas></div>`;
-
-  if (storeCompChart) storeCompChart.destroy();
-  const ctx = document.getElementById('compChart').getContext('2d');
-  storeCompChart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: stores.map(s => s.name),
-      datasets: [
-        { label: 'Net Revenue ($)', data: stores.map(s => +(s.net||0).toFixed(2)), backgroundColor: 'rgba(37,99,235,0.7)', yAxisID: 'y' },
-        { label: 'Sales Count', data: stores.map(s => s.sales), backgroundColor: 'rgba(16,185,129,0.7)', yAxisID: 'y1' }
-      ]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'top' } },
-      scales: {
-        y:  { type: 'linear', position: 'left',  title: { display: true, text: 'Revenue ($)' } },
-        y1: { type: 'linear', position: 'right', title: { display: true, text: 'Sales Count' }, grid: { drawOnChartArea: false } }
-      }
-    }
-  });
+      <thead><tr><th>Store</th><th>Customers Helped</th></tr></thead>
+      <tbody>${stores.filter(s => !s.name.includes('Test')).map(s => `<tr>
+        <td>${s.name}</td>
+        <td style="font-weight:700">${fmt(s.customers)}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
 }
 
-// ── Expense vs Revenue ────────────────────────────────────────────────────────
-async function loadExpenseRevenue() {
-  $('erBody').innerHTML = '<div class="loading">Loading…</div>';
-  const d = await api('/expense-revenue' + qs());
-  const stores = d.stores || [];
-  if (!stores.length) { $('erBody').innerHTML = '<div class="not-configured">No data found.</div>'; return; }
+// ── New Products ──────────────────────────────────────────────────────────────
+async function loadNewProducts() {
+  $('newProdBody').innerHTML = '<div class="loading">Loading…</div>';
+  const d = await api('/new-products' + qs());
+  if (d.error) { $('newProdBody').innerHTML = `<div class="error-msg">${d.error}</div>`; return; }
+  const items = (d.items || []).filter(i => i.store && !i.store.includes('Test'));
+  $('newProdSub').textContent = items.length + ' item(s) added';
+  if (!items.length) { $('newProdBody').innerHTML = '<div class="not-configured">No new products this period.</div>'; return; }
+  $('newProdBody').innerHTML = `<div style="max-height:280px;overflow-y:auto">${items.map(i => `
+    <div class="metric-row">
+      <span class="metric-label" style="font-weight:600">${i.name}</span>
+      <span style="font-size:12px;color:#888;text-align:right">${i.store.replace('Cloud 9 Vapor ','')}<br><span style="color:#059669;font-weight:600">Qty: ${i.qty}</span></span>
+    </div>`).join('')}</div>`;
+}
 
-  const tableRows = stores.map(s => `<tr>
-    <td>${s.name}</td>
-    <td class="positive">${money(s.revenue)}</td>
-    <td class="negative">${money(s.expenses)}</td>
-    <td class="${s.margin >= 0 ? 'positive' : 'negative'}">${money(s.margin)}</td>
-    <td class="${parseFloat(s.marginPct) >= 0 ? 'positive' : 'negative'}">${s.marginPct}%</td>
-  </tr>`).join('');
-
-  $('erBody').innerHTML = `
-    <table class="comp-table">
-      <thead><tr><th>Store</th><th>Revenue</th><th>Expenses</th><th>Margin $</th><th>Margin %</th></tr></thead>
-      <tbody>${tableRows}</tbody>
-    </table>
-    <div class="er-chart-wrap"><canvas id="erChart"></canvas></div>`;
-
-  if (erChart) erChart.destroy();
-  const ctx = document.getElementById('erChart').getContext('2d');
-  erChart = new Chart(ctx, {
-    type: 'bar',
-    data: {
-      labels: stores.map(s => s.name),
-      datasets: [
-        { label: 'Revenue', data: stores.map(s => +(s.revenue||0).toFixed(2)), backgroundColor: 'rgba(16,185,129,0.7)' },
-        { label: 'Expenses', data: stores.map(s => +(s.expenses||0).toFixed(2)), backgroundColor: 'rgba(239,68,68,0.7)' },
-        { label: 'Margin', data: stores.map(s => +(s.margin||0).toFixed(2)), backgroundColor: 'rgba(37,99,235,0.7)' }
-      ]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'top' } },
-      scales: { y: { title: { display: true, text: 'Amount ($)' } } }
-    }
-  });
+// ── Dropping Products ─────────────────────────────────────────────────────────
+async function loadDroppingProducts() {
+  $('dropProdBody').innerHTML = '<div class="loading">Loading…</div>';
+  const d = await api('/dropping-products' + qs());
+  if (d.error) { $('dropProdBody').innerHTML = `<div class="error-msg">${d.error}</div>`; return; }
+  const items = (d.items || []).filter(i => i.store && !i.store.includes('Test'));
+  if (!items.length) { $('dropProdBody').innerHTML = '<div class="not-configured">No dropping products right now.</div>'; return; }
+  $('dropProdBody').innerHTML = `<div style="max-height:280px;overflow-y:auto">${items.map(i => `
+    <div class="metric-row">
+      <span class="metric-label" style="font-weight:600">${i.name}</span>
+      <span style="font-size:12px;text-align:right">${i.store.replace('Cloud 9 Vapor ','')}<br><span style="color:#dc2626;font-weight:700">${i.qty} left</span></span>
+    </div>`).join('')}</div>`;
 }
 
 // ── Main load ─────────────────────────────────────────────────────────────────
@@ -509,8 +474,9 @@ function loadAll() {
   loadInstagram();
   loadGoogle();
   loadReputation();
-  loadComparison();
-  loadExpenseRevenue();
+  loadCustomers();
+  loadNewProducts();
+  loadDroppingProducts();
 }
 
 // Init

@@ -105,7 +105,7 @@ function effectiveStoreId(req) {
 // Helper: load stores with ALL platform credentials from DB
 async function getPlatformStores(storeIds) {
   let q = supabase.from('stores').select(
-    'id, name, google_location_id, google_place_id, apple_location_id, facebook_page_id, facebook_page_token, ga4_property_id'
+    'id, name, google_location_id, google_place_id, apple_location_id, facebook_page_id, facebook_page_token, ga4_property_id, google_last_review_count'
   );
   if (storeIds && storeIds.length === 1) q = q.eq('id', storeIds[0]);
   else if (storeIds && storeIds.length > 1) q = q.in('id', storeIds);
@@ -178,7 +178,38 @@ router.get('/instagram', auth, requireAnalyticsAccess, async (req, res) => {
 router.get('/google-places', auth, requireAnalyticsAccess, async (req, res) => {
   try {
     const stores = await getPlatformStores(effectiveStoreIds(req));
-    res.json(await fetchGooglePlaces(stores));
+    const result = await fetchGooglePlaces(stores);
+    res.json(result);
+
+    // Background: check for new reviews and notify marketing users
+    if (result.configured && result.locations?.length) {
+      try {
+        const { notifyMarketing } = require('../services/notify');
+        for (const loc of result.locations) {
+          if (!loc.storeName || loc.error) continue;
+          // Find matching store record
+          const store = stores.find(s => s.name === loc.storeName);
+          if (!store) continue;
+          const lastCount = store.google_last_review_count || 0;
+          const newCount  = loc.reviewCount || 0;
+          if (newCount > lastCount) {
+            const gained = newCount - lastCount;
+            notifyMarketing({
+              type: 'new_google_review',
+              title: `⭐ New Google Review${gained > 1 ? 's' : ''} — ${loc.name}`,
+              message: `${loc.name} received ${gained} new review${gained > 1 ? 's' : ''}. Current rating: ${loc.rating} ★ (${newCount.toLocaleString()} total reviews).`,
+              link: '/analytics'
+            });
+            // Update stored count
+            await supabase.from('stores')
+              .update({ google_last_review_count: newCount })
+              .eq('id', store.id);
+          }
+        }
+      } catch (e) {
+        console.error('[Review notify] error:', e.message);
+      }
+    }
   } catch (err) { res.status(500).json({ configured: true, error: err.message }); }
 });
 
@@ -259,6 +290,88 @@ router.get('/expense-revenue', auth, requireAnalyticsAccess, async (req, res) =>
     console.error('Expense-revenue error:', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// GET /api/analytics/customers?store_id=&start=&end=
+// Returns transaction count per store (no revenue — for marketing view)
+router.get('/customers', auth, requireAnalyticsAccess, async (req, res) => {
+  try {
+    const store_id = effectiveStoreId(req);
+    const { start, end } = req.query;
+    const now = new Date();
+    const startDate = start ? new Date(start) : new Date(now.getFullYear(), now.getMonth(), 1);
+    const endDate   = end   ? new Date(end)   : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+    let storeQuery = supabase.from('stores').select('id, name').not('name', 'like', 'Test%');
+    if (!isHim(req.user.role) && req.user.role !== 'marketing') {
+      storeQuery = storeQuery.eq('id', req.user.store_id);
+    } else if (store_id) {
+      storeQuery = storeQuery.eq('id', store_id);
+    }
+    const { data: stores } = await storeQuery;
+    if (!stores?.length) return res.json({ stores: [], total: 0 });
+
+    const storeIds = stores.map(s => s.id);
+    const { data: sales } = await supabase
+      .from('sales_log')
+      .select('store_id, type')
+      .in('store_id', storeIds)
+      .eq('type', 'Sale')
+      .gte('created_at', startDate.toISOString())
+      .lte('created_at', endDate.toISOString());
+
+    const storeMap = {};
+    stores.forEach(s => { storeMap[s.id] = { id: s.id, name: s.name, customers: 0 }; });
+    (sales || []).forEach(row => { if (storeMap[row.store_id]) storeMap[row.store_id].customers++; });
+
+    const result = Object.values(storeMap).sort((a,b) => b.customers - a.customers);
+    const total = result.reduce((s,r) => s + r.customers, 0);
+    res.json({ stores: result, total });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/analytics/new-products?store_id=&start=&end=
+router.get('/new-products', auth, requireAnalyticsAccess, async (req, res) => {
+  try {
+    const store_id = effectiveStoreId(req);
+    const { start, end } = req.query;
+    const now = new Date();
+    const startDate = start ? new Date(start) : new Date(now.getFullYear(), now.getMonth(), 1);
+    const endDate   = end   ? new Date(end)   : new Date();
+
+    let q = supabase.from('inventory_items')
+      .select('id, name, price, clover_qty, store_id, stores(name)')
+      .gte('created_at', startDate.toISOString())
+      .lte('created_at', endDate.toISOString())
+      .not('stores.name', 'like', 'Test%')
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (store_id) q = q.eq('store_id', store_id);
+
+    const { data, error } = await q;
+    if (error) throw error;
+    res.json({ items: (data || []).map(i => ({ id: i.id, name: i.name, price: i.price, qty: i.clover_qty, store: i.stores?.name || '' })) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/analytics/dropping-products?store_id=
+router.get('/dropping-products', auth, requireAnalyticsAccess, async (req, res) => {
+  try {
+    const store_id = effectiveStoreId(req);
+
+    let q = supabase.from('inventory_items')
+      .select('id, name, price, clover_qty, store_id, stores(name)')
+      .lte('clover_qty', 3)
+      .gt('clover_qty', 0)
+      .not('stores.name', 'like', 'Test%')
+      .order('clover_qty', { ascending: true })
+      .limit(50);
+    if (store_id) q = q.eq('store_id', store_id);
+
+    const { data, error } = await q;
+    if (error) throw error;
+    res.json({ items: (data || []).map(i => ({ id: i.id, name: i.name, price: i.price, qty: i.clover_qty, store: i.stores?.name || '' })) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // ── Google OAuth ──────────────────────────────────────────────────────────────

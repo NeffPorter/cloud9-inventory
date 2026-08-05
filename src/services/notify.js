@@ -97,4 +97,26 @@ async function logActivity({ actor, action, description, store_id = null, metada
   }
 }
 
-module.exports = { notify, logActivity };
+// Send an in-app notification + email to all marketing-role users.
+async function notifyMarketing({ type, title, message, link = null }) {
+  try {
+    await supabase.from('notifications').insert([{
+      type, title, message, link, store_id: null,
+      target_role: 'marketing', target_store_id: null, read: false
+    }]);
+
+    const { data: users } = await supabase
+      .from('users')
+      .select('email')
+      .eq('role', 'marketing');
+
+    const emails = (users || []).map(u => u.email).filter(Boolean);
+    if (emails.length) {
+      await sendNotificationEmail({ recipients: emails, title, message, link });
+    }
+  } catch (err) {
+    console.error('notifyMarketing() error:', err.message);
+  }
+}
+
+module.exports = { notify, logActivity, notifyMarketing };
