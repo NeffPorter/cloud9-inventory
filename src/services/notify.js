@@ -22,6 +22,10 @@ const TYPE_TO_PREF = {
   'pl_monthly':          'pl_monthly',
   'pl_quarterly':        'pl_quarterly',
   'weekly_digest':       'weekly_digest',
+  // Marketing-role notifications
+  'new_google_review':   'new_google_review',
+  'new_product':         'new_product',
+  'dropping_product':    'dropping_product',
 };
 
 // Create a notification and optionally email the relevant users.
@@ -97,7 +101,7 @@ async function logActivity({ actor, action, description, store_id = null, metada
   }
 }
 
-// Send an in-app notification + email to all marketing-role users.
+// Send an in-app notification + email to all marketing-role users (respects their prefs).
 async function notifyMarketing({ type, title, message, link = null }) {
   try {
     await supabase.from('notifications').insert([{
@@ -107,10 +111,19 @@ async function notifyMarketing({ type, title, message, link = null }) {
 
     const { data: users } = await supabase
       .from('users')
-      .select('email')
+      .select('email, notification_prefs')
       .eq('role', 'marketing');
 
-    const emails = (users || []).map(u => u.email).filter(Boolean);
+    const prefKey = TYPE_TO_PREF[type];
+    const emails = (users || [])
+      .filter(u => {
+        if (!prefKey) return true;
+        const prefs = u.notification_prefs || {};
+        return prefs[prefKey] !== false; // default on if key missing
+      })
+      .map(u => u.email)
+      .filter(Boolean);
+
     if (emails.length) {
       await sendNotificationEmail({ recipients: emails, title, message, link });
     }

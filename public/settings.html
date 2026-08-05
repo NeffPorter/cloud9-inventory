@@ -115,6 +115,10 @@ const OPTIONAL = {
   pl_monthly:          { label: 'Monthly P&L Ready',        desc: 'When the monthly P&L snapshot is generated' },
   pl_quarterly:        { label: 'Quarterly P&L Ready',      desc: 'When the quarterly P&L snapshot is generated' },
   weekly_digest:       { label: 'Weekly Digest',            desc: 'A Monday morning summary of sales, inventory, and open tasks' },
+  // Marketing-specific
+  new_google_review:   { label: 'New Google Review',        desc: 'When a new Google review is posted for any location',              roles: ['marketing'] },
+  new_product:         { label: 'New Product Added',        desc: 'When a new product is synced into inventory for the first time',   roles: ['marketing'] },
+  dropping_product:    { label: 'Dropping Product Alert',   desc: 'When store staff mark a product as Dropping — remove from socials', roles: ['marketing'] },
 };
 
 async function loadProfile() {
@@ -126,7 +130,11 @@ async function loadProfile() {
   renderToggles(user.role);
 }
 
+let currentRole = '';
+
 function renderToggles(role) {
+  currentRole = role;
+
   // Mandatory — only show ones relevant to this role
   const mandatoryDiv = document.getElementById('mandatoryToggles');
   const relevantMandatory = Object.entries(MANDATORY).filter(([, cfg]) => !cfg.roles || cfg.roles.includes(role));
@@ -147,22 +155,28 @@ function renderToggles(role) {
       </div>`).join('');
   }
 
-  // Optional — show all
+  // Optional — filter by role where cfg.roles is specified
+  const relevantOptional = Object.entries(OPTIONAL).filter(([, cfg]) => !cfg.roles || cfg.roles.includes(role));
   const optionalDiv = document.getElementById('optionalToggles');
-  optionalDiv.innerHTML = Object.entries(OPTIONAL).map(([key, cfg]) => {
-    const checked = currentPrefs[key] !== false;
-    return `
-      <div class="toggle-row">
-        <div>
-          <div class="toggle-label">${cfg.label}</div>
-          <div class="toggle-desc">${cfg.desc}</div>
-        </div>
-        <label class="switch">
-          <input type="checkbox" id="pref_${key}" ${checked ? 'checked' : ''} onchange="markDirty()">
-          <span class="slider"></span>
-        </label>
-      </div>`;
-  }).join('');
+
+  if (relevantOptional.length === 0) {
+    document.getElementById('optionalSection').style.display = 'none';
+  } else {
+    optionalDiv.innerHTML = relevantOptional.map(([key, cfg]) => {
+      const checked = currentPrefs[key] !== false;
+      return `
+        <div class="toggle-row">
+          <div>
+            <div class="toggle-label">${cfg.label}</div>
+            <div class="toggle-desc">${cfg.desc}</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="pref_${key}" ${checked ? 'checked' : ''} onchange="markDirty()">
+            <span class="slider"></span>
+          </label>
+        </div>`;
+    }).join('');
+  }
 }
 
 function markDirty() {
@@ -205,10 +219,13 @@ async function changePassword() {
 }
 
 async function savePrefs() {
-  const prefs = {};
-  Object.keys(OPTIONAL).forEach(key => {
-    prefs[key] = document.getElementById('pref_' + key)?.checked ?? true;
-  });
+  const prefs = { ...currentPrefs }; // preserve prefs for other roles
+  // Only update keys visible to this role
+  Object.entries(OPTIONAL)
+    .filter(([, cfg]) => !cfg.roles || cfg.roles.includes(currentRole))
+    .forEach(([key]) => {
+      prefs[key] = document.getElementById('pref_' + key)?.checked ?? true;
+    });
 
   const btn = document.getElementById('prefsBtn');
   const errEl = document.getElementById('prefsError');

@@ -340,7 +340,7 @@ router.get('/new-products', auth, requireAnalyticsAccess, async (req, res) => {
     const endDate   = end   ? new Date(end)   : new Date();
 
     let q = supabase.from('inventory_items')
-      .select('id, name, price, clover_qty, store_id, stores(name)')
+      .select('id, group_name, variant_name, price, clover_qty, store_id, stores(name)')
       .gte('created_at', startDate.toISOString())
       .lte('created_at', endDate.toISOString())
       .not('stores.name', 'like', 'Test%')
@@ -350,7 +350,13 @@ router.get('/new-products', auth, requireAnalyticsAccess, async (req, res) => {
 
     const { data, error } = await q;
     if (error) throw error;
-    res.json({ items: (data || []).map(i => ({ id: i.id, name: i.name, price: i.price, qty: i.clover_qty, store: i.stores?.name || '' })) });
+    res.json({ items: (data || []).map(i => ({
+      id: i.id,
+      name: [i.group_name, i.variant_name].filter(Boolean).join(' – '),
+      price: i.price,
+      qty: i.clover_qty,
+      store: i.stores?.name || ''
+    })) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -360,9 +366,8 @@ router.get('/dropping-products', auth, requireAnalyticsAccess, async (req, res) 
     const store_id = effectiveStoreId(req);
 
     let q = supabase.from('inventory_items')
-      .select('id, name, price, clover_qty, store_id, stores(name)')
-      .lte('clover_qty', 3)
-      .gt('clover_qty', 0)
+      .select('id, group_name, variant_name, price, clover_qty, status, store_id, stores(name)')
+      .eq('status', 'Dropping')
       .not('stores.name', 'like', 'Test%')
       .order('clover_qty', { ascending: true })
       .limit(50);
@@ -370,7 +375,13 @@ router.get('/dropping-products', auth, requireAnalyticsAccess, async (req, res) 
 
     const { data, error } = await q;
     if (error) throw error;
-    res.json({ items: (data || []).map(i => ({ id: i.id, name: i.name, price: i.price, qty: i.clover_qty, store: i.stores?.name || '' })) });
+    res.json({ items: (data || []).map(i => ({
+      id: i.id,
+      name: [i.group_name, i.variant_name].filter(Boolean).join(' – '),
+      price: i.price,
+      qty: i.clover_qty,
+      store: i.stores?.name || ''
+    })) });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

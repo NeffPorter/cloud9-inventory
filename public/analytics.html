@@ -154,6 +154,17 @@
   <!-- ── Customers Helped ── -->
   <div class="section-title">👥 Customers Helped</div>
   <div class="comp-card">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:6px">
+        <label style="font-size:12px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.04em">From</label>
+        <input type="date" id="custStart" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;outline:none">
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <label style="font-size:12px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.04em">To</label>
+        <input type="date" id="custEnd" style="padding:6px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px;outline:none">
+      </div>
+      <button onclick="loadCustomers()" style="padding:6px 16px;background:#2563eb;color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">Go</button>
+    </div>
     <div id="custBody"><div class="loading">Loading…</div></div>
   </div>
 
@@ -165,7 +176,7 @@
       <div id="newProdBody"><div class="loading">Loading…</div></div>
     </div>
     <div class="platform-card">
-      <div class="card-header"><span class="card-icon">📉</span><div><div class="card-title-text">Dropping Products</div><div class="card-subtitle">Low stock (≤3 remaining)</div></div></div>
+      <div class="card-header"><span class="card-icon">📉</span><div><div class="card-title-text">Dropping Products</div><div class="card-subtitle">Marked as Dropping by store staff</div></div></div>
       <div id="dropProdBody"><div class="loading">Loading…</div></div>
     </div>
   </div>
@@ -419,9 +430,19 @@ async function loadReputation() {
 }
 
 // ── Customers Helped ──────────────────────────────────────────────────────────
+function custQs() {
+  const s = $('custStart')?.value;
+  const e = $('custEnd')?.value;
+  const store = selectedStore;
+  const parts = [];
+  if (store) parts.push(`store_id=${store}`);
+  if (s) parts.push(`start=${s}`);
+  if (e) parts.push(`end=${e}`);
+  return parts.length ? '?' + parts.join('&') : '';
+}
 async function loadCustomers() {
   $('custBody').innerHTML = '<div class="loading">Loading…</div>';
-  const d = await api('/customers' + qs());
+  const d = await api('/customers' + custQs());
   const stores = d.stores || [];
   if (!stores.length) { $('custBody').innerHTML = '<div class="not-configured">No customer data found for this period.</div>'; return; }
   const total = d.total || 0;
@@ -494,6 +515,13 @@ loadStores().then(() => {
       btn.style.cursor = 'default';
     });
   }
+  // Default Customers Helped date range to current month
+  const now = new Date();
+  const y = now.getFullYear(), m = String(now.getMonth()+1).padStart(2,'0');
+  const lastDay = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+  if ($('custStart')) $('custStart').value = `${y}-${m}-01`;
+  if ($('custEnd'))   $('custEnd').value   = `${y}-${m}-${String(lastDay).padStart(2,'0')}`;
+
   setPeriod('monthly', document.querySelector('.period-tab.active'));
 });
 </script>

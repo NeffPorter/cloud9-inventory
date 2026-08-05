@@ -246,14 +246,6 @@ router.put('/items/:id', auth, async (req, res) => {
   try {
     const { status, on_hand_qty, suggested_order, price, cost, clover_qty } = req.body;
 
-    // Fetch old qty before update (needed for low-stock crossing check)
-    let oldCloverQty = null;
-    if (clover_qty !== undefined) {
-      const { data: oldItem } = await supabase
-        .from('inventory_items').select('clover_qty').eq('id', req.params.id).single();
-      oldCloverQty = oldItem?.clover_qty ?? null;
-    }
-
     const updateData = {};
     if (status !== undefined) updateData.status = status;
     if (on_hand_qty !== undefined) updateData.on_hand_qty = on_hand_qty;
@@ -314,20 +306,14 @@ router.put('/items/:id', auth, async (req, res) => {
 
     res.json({ item: data });
 
-    // Low-stock notification: only fire when crossing INTO ≤3 (not already there)
-    if (
-      data &&
-      clover_qty !== undefined &&
-      clover_qty > 0 &&
-      clover_qty <= 3 &&
-      (oldCloverQty === null || oldCloverQty > 3)
-    ) {
+    // Notify marketing when a product is marked as Dropping
+    if (data && status === 'Dropping') {
       const { data: store } = await supabase.from('stores').select('name').eq('id', data.store_id).single();
       const itemName = [data.group_name, data.variant_name].filter(Boolean).join(' – ') || 'Unknown item';
       notifyMarketing({
-        type: 'low_stock_marketing',
-        title: '📉 Product Running Low',
-        message: `"${itemName}" at ${store?.name || 'a store'} is down to ${clover_qty} unit(s) remaining.`,
+        type: 'dropping_product',
+        title: '📉 Product Marked as Dropping',
+        message: `"${itemName}" at ${store?.name || 'a store'} has been marked as Dropping. Remove it from socials if it's currently featured.`,
         link: '/inventory'
       }).catch(() => {});
     }
