@@ -140,19 +140,16 @@
     </div>
   </div>
 
-  <!-- ── Search & Maps ── -->
-  <div class="section-title">🔍 Search & Maps</div>
+  <!-- ── Ratings & Reviews ── -->
+  <div class="section-title">⭐ Ratings & Reviews</div>
   <div class="platform-grid">
     <div class="platform-card" id="gCard">
       <div class="card-header"><span class="card-icon">🔍</span><div><div class="card-title-text">Google Ratings</div><div class="card-subtitle" id="gSub">Loading…</div></div></div>
       <div id="gBody"><div class="loading">Loading…</div></div>
     </div>
   </div>
-
-  <!-- ── Reviews & Reputation ── -->
-  <div class="section-title">⭐ Reviews & Reputation</div>
-  <div class="rep-card">
-    <div id="repBody"><div class="loading">Loading reputation data…</div></div>
+  <div class="rep-card" style="margin-top:16px">
+    <div id="repBody"><div class="loading">Loading per-store reputation…</div></div>
   </div>
 
   <!-- ── Store Comparison ── -->
@@ -368,43 +365,49 @@ async function loadGoogle() {
 
 // ── Reputation ────────────────────────────────────────────────────────────────
 async function loadReputation() {
-  $('repBody').innerHTML = '<div class="loading">Loading reputation data…</div>';
-  const [grev, fb] = await Promise.all([
-    api('/google-reviews' + qs()),
+  $('repBody').innerHTML = '<div class="loading">Loading per-store reputation…</div>';
+  const [gPlaces, fb] = await Promise.all([
+    api('/google-places'),
     api('/facebook' + qs())
   ]);
 
+  // Build lookup by store name
   const googleByName = {};
-  if (grev.configured && !grev.error) {
-    (grev.locations||[]).forEach(l => { googleByName[l.name] = l; });
+  if (gPlaces.configured && !gPlaces.error) {
+    (gPlaces.locations||[]).filter(l => !l.error).forEach(l => {
+      // Key by storeName (the DB store name) so multi-location stores merge under one key
+      if (!googleByName[l.storeName]) googleByName[l.storeName] = [];
+      googleByName[l.storeName].push(l);
+    });
   }
   const fbByName = {};
   if (fb.configured && !fb.error) {
     (fb.pages||[]).forEach(p => { fbByName[p.name] = p; });
   }
 
-  const allNames = [...new Set([...Object.keys(googleByName), ...Object.keys(fbByName)])];
+  const allNames = [...new Set([...Object.keys(googleByName), ...Object.keys(fbByName)])].sort();
 
   if (!allNames.length) {
-    $('repBody').innerHTML = '<div class="not-configured">Configure Google or Facebook credentials to see reputation data.</div>';
+    $('repBody').innerHTML = '<div class="not-configured" style="padding:20px">No reputation data available.</div>';
     return;
   }
 
   const cards = allNames.map(name => {
-    const g = googleByName[name];
+    const glocs = googleByName[name] || [];
     const f = fbByName[name];
-    const gRating  = g ? (g.averageRating || 0) : null;
-    const fRating  = f ? null : null; // FB overall_star_rating not always available
-    const hasG = gRating !== null && gRating > 0;
-    const score = hasG ? gRating.toFixed(1) : '—';
-    const starsHtml = hasG ? `<div class="rep-stars">${stars(gRating)}</div>` : '';
+    // Average rating across locations for this store
+    const rated = glocs.filter(l => l.rating > 0);
+    const avgRating = rated.length ? rated.reduce((s,l) => s + l.rating, 0) / rated.length : 0;
+    const totalReviews = glocs.reduce((s,l) => s + (l.reviewCount||0), 0);
+    const hasG = avgRating > 0;
+
     return `<div class="rep-store">
       <div class="rep-store-name">${name}</div>
-      <div class="rep-score">${score}</div>
-      ${starsHtml}
+      <div class="rep-score">${hasG ? avgRating.toFixed(1) : '—'}</div>
+      ${hasG ? `<div class="rep-stars">${stars(avgRating)}</div>` : ''}
       <div class="rep-score-label">Google Rating</div>
-      ${g ? `<div class="stars-item" style="margin-top:6px;font-size:11px;color:#6b7280;">${fmt(g.totalReviewCount)} reviews</div>` : ''}
-      ${f ? `<div class="stars-item" style="margin-top:6px;font-size:11px;color:#2563eb;">FB: ${fmt(f.fans)} fans</div>` : ''}
+      ${totalReviews > 0 ? `<div style="font-size:11px;color:#6b7280;margin-top:4px">${fmt(totalReviews)} reviews</div>` : ''}
+      ${f ? `<div style="font-size:11px;color:#1877f2;margin-top:6px;font-weight:600">📘 ${fmt(f.fans)} fans</div>` : ''}
     </div>`;
   }).join('');
 

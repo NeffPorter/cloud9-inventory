@@ -480,10 +480,15 @@ async function fetchGooglePlaces(stores = []) {
           continue;
         }
         const data = JSON.parse(r.body);
+        // Use our store name as primary; for multi-location stores append street to distinguish
+        const street = (data.formattedAddress || '').split(',')[0].trim();
+        const locationName = placeIds.length > 1
+          ? `${store.name} (${street})`
+          : store.name;
         locations.push({
           storeName: store.name,
           placeId,
-          name: data.displayName?.text || store.name,
+          name: locationName,
           rating: data.rating || 0,
           reviewCount: data.userRatingCount || 0,
           businessStatus: data.businessStatus || 'OPERATIONAL',
