@@ -14,7 +14,7 @@ console.log('[Startup] GMAIL_PASS:', process.env.GMAIL_PASS ? '***set***' : 'MIS
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '15mb' }));
 
 // API Routes FIRST
 app.use('/api/auth', require('./routes/auth'));
