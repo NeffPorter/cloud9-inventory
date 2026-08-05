@@ -166,16 +166,19 @@
     }
     .attachments-title { font-size: 15px; font-weight: 800; margin-bottom: 12px; }
     .attachment-row {
-      display: flex; align-items: center; gap: 12px;
-      padding: 8px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px;
+      display: block;
+      padding: 10px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px;
     }
     .attachment-row:last-child { border-bottom: none; }
+    .attachment-header { display: flex; align-items: center; gap: 12px; }
     .attachment-num { width: 22px; height: 22px; background: #eef2fb; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #2f5597; flex-shrink: 0; }
     .attachment-dist { font-weight: 600; flex: 1; }
     .attachment-amt { color: #555; width: 90px; text-align: right; }
     .attachment-link { color: #2f5597; font-weight: 600; text-decoration: none; white-space: nowrap; }
     .attachment-link:hover { text-decoration: underline; }
     .attachment-nofile { color: #bbb; font-size: 12px; font-style: italic; }
+    .attachment-preview-img { max-width: 100%; height: auto; margin-top: 10px; border: 1px solid #e0e0e0; border-radius: 6px; display: block; }
+    .attachment-preview-pdf { width: 100%; height: 900px; margin-top: 10px; border: 1px solid #e0e0e0; border-radius: 6px; display: block; }
 
     /* ── Print-only letterhead ── */
     .print-header { display: none; }
@@ -208,8 +211,11 @@
 
       .progress-fill, .budget-bar-fill { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
-      .attachments-section { box-shadow: none !important; border: 1px solid #ccc !important; break-inside: avoid; }
-      .attachment-link::after { content: " — " attr(href); font-size: 9px; color: #555; font-weight: 400; word-break: break-all; }
+      .attachments-section { box-shadow: none !important; border: 1px solid #ccc !important; }
+      .attachment-link::after { content: none; }
+      .attachment-row { break-before: page; }
+      .attachment-preview-img { max-width: 100%; height: auto; border: none; }
+      .attachment-preview-pdf { width: 100%; height: 1050px; border: none; }
 
       .print-footer {
         display: block !important; margin-top: 24px; padding-top: 10px;
@@ -536,13 +542,20 @@ function renderPage() {
     invoices.forEach(inv => {
       attachIdx++;
       const distName = inv.distributor_name || distributors.find(d => d.id === inv.distributor_id)?.name || '—';
+      const fileUrl = inv.invoice_pdf_url || '';
+      const isImage = /\.(jpg|jpeg|png)(\?|$)/i.test(fileUrl);
+      const isPdf   = /\.pdf(\?|$)/i.test(fileUrl);
       html += `<div class="attachment-row">
-        <div class="attachment-num">${attachIdx}</div>
-        <div class="attachment-dist">${distName}</div>
-        <div class="attachment-amt">${formatMoney(inv.invoice_amount)}</div>
-        ${inv.invoice_pdf_url
-          ? `<a class="attachment-link" href="${inv.invoice_pdf_url}" target="_blank">📄 ${inv.invoice_pdf_name || 'View Invoice'}</a>`
-          : `<span class="attachment-nofile">No file uploaded</span>`}
+        <div class="attachment-header">
+          <div class="attachment-num">${attachIdx}</div>
+          <div class="attachment-dist">${distName}</div>
+          <div class="attachment-amt">${formatMoney(inv.invoice_amount)}</div>
+          ${fileUrl
+            ? `<a class="attachment-link" href="${fileUrl}" target="_blank">📄 ${inv.invoice_pdf_name || 'View Invoice'}</a>`
+            : `<span class="attachment-nofile">No file uploaded</span>`}
+        </div>
+        ${isImage ? `<img class="attachment-preview-img" src="${fileUrl}" alt="${inv.invoice_pdf_name || 'Invoice'}">` : ''}
+        ${isPdf   ? `<embed class="attachment-preview-pdf" src="${fileUrl}" type="application/pdf">` : ''}
       </div>`;
     });
     html += `</div>`;
