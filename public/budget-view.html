@@ -220,7 +220,7 @@
       .attachment-link::after { content: none; }
       .attachment-toggle { display: none !important; }
       .attachment-preview-pdf { display: none !important; }
-      .attachment-preview-img { display: block; max-width: 100%; height: auto; break-before: page; }
+      .attachment-preview-img { display: block !important; max-width: 100%; height: auto; margin-top: 16px; break-before: page; }
 
       .print-footer {
         display: block !important; margin-top: 24px; padding-top: 10px;
@@ -715,22 +715,55 @@ function togglePreview(rowId, btn) {
 }
 
 function doPrint() {
-  // Temporarily inject images for print (no embeds — they block the print dialog)
-  const tempImgs = [];
+  const hiddenEmbeds = [];
+  const injected = [];
+  const loadPromises = [];
+
   document.querySelectorAll('.attachment-row').forEach(row => {
     const container = row.querySelector('.attachment-preview-container');
-    if (row.dataset.isImage === 'true' && row.dataset.fileUrl && container.dataset.open !== '1') {
-      const img = document.createElement('img');
-      img.src = row.dataset.fileUrl;
+    if (!container) return;
+
+    // Hide any open PDF embeds — they block the print dialog
+    container.querySelectorAll('embed').forEach(e => {
+      e.style.display = 'none';
+      hiddenEmbeds.push(e);
+    });
+
+    const fileUrl  = row.dataset.fileUrl;
+    const isImage  = row.dataset.isImage === 'true';
+
+    if (!fileUrl || !isImage) return;
+
+    // Use existing img if already open, otherwise inject a temporary one
+    let img = container.querySelector('img');
+    if (!img) {
+      img = document.createElement('img');
+      img.src = fileUrl;
       img.className = 'attachment-preview-img';
-      img.dataset.temp = '1';
+      img.setAttribute('data-print-temp', '1');
       container.appendChild(img);
-      tempImgs.push(img);
+      injected.push(img);
     }
+    img.style.display = 'block';
+
+    // Wait for the image to fully load before printing
+    loadPromises.push(new Promise(resolve => {
+      if (img.complete && img.naturalWidth > 0) { resolve(); return; }
+      img.onload  = resolve;
+      img.onerror = resolve;
+      setTimeout(resolve, 8000);
+    }));
   });
-  window.print();
-  // Clean up temp images after print dialog closes
-  tempImgs.forEach(img => img.remove());
+
+  Promise.all(loadPromises).then(() => {
+    window.print();
+    // Restore state after print dialog closes
+    hiddenEmbeds.forEach(e => e.style.removeProperty('display'));
+    injected.forEach(img => img.remove());
+    document.querySelectorAll('.attachment-preview-img').forEach(img => {
+      img.style.removeProperty('display');
+    });
+  });
 }
 
 async function uploadInvoicePdf(invoiceId, input) {
