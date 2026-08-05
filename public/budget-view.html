@@ -183,6 +183,7 @@
     .attachment-preview-pdf.expanded { display: block; }
     .attachment-toggle { font-size: 11px; color: #2f5597; cursor: pointer; background: none; border: 1px solid #c5d3ef; border-radius: 5px; padding: 2px 8px; white-space: nowrap; }
     .attachment-toggle:hover { background: #eef2fb; }
+    .attachment-pdf-print-url { display: none; }
 
     /* ── Print-only letterhead ── */
     .print-header { display: none; }
@@ -218,7 +219,6 @@
       .attachments-section { box-shadow: none !important; border: 1px solid #ccc !important; }
       .attachment-link::after { content: none; }
       .attachment-toggle { display: none !important; }
-      .attachment-preview-img { display: block !important; max-width: 100%; height: auto; border: none; break-before: page; }
       .attachment-preview-pdf { display: none !important; }
       .attachment-pdf-print-url { display: block !important; font-size: 10px; color: #555; margin-top: 6px; word-break: break-all; }
 
@@ -563,7 +563,7 @@ function renderPage() {
         </div>
         ${isImage ? `<img class="attachment-preview-img" id="${previewId}" src="${fileUrl}" alt="${inv.invoice_pdf_name || 'Invoice'}">` : ''}
         ${isPdf   ? `<embed class="attachment-preview-pdf" id="${previewId}" src="${fileUrl}" type="application/pdf">
-                     <span class="attachment-pdf-print-url" style="display:none">📄 ${inv.invoice_pdf_name || 'Invoice'}: ${fileUrl}</span>` : ''}
+                     <span class="attachment-pdf-print-url">📄 ${inv.invoice_pdf_name || 'Invoice'}: ${fileUrl}</span>` : ''}
       </div>`;
     });
     html += `</div>`;
@@ -574,10 +574,10 @@ function renderPage() {
     html += `
       <div class="bottom-actions">
         <button class="btn-complete" onclick="markComplete()" id="btnComplete">✔ Mark Budget Complete</button>
-        <button class="btn-print" onclick="window.print()">🖨️ Print / Download as PDF</button>
+        <button class="btn-print" onclick="doPrint()">🖨️ Print / Download as PDF</button>
       </div>`;
   } else {
-    html += `<div class="bottom-actions"><button class="btn-print" onclick="window.print()">🖨️ Print / Download as PDF</button></div>`;
+    html += `<div class="bottom-actions"><button class="btn-print" onclick="doPrint()">🖨️ Print / Download as PDF</button></div>`;
   }
 
   html += `<div class="print-footer">Cloud 9 — Weekly Budget Report — ${storeName} — Week of ${formatDate(budget.week_start)} – ${formatDate(budget.week_end)}</div>`;
@@ -694,6 +694,21 @@ function togglePreview(id, btn) {
   const expanded = el.classList.toggle('expanded');
   btn.textContent = expanded ? '▼ Hide' : '▶ Show';
 }
+
+function doPrint() {
+  // Expand all image previews before printing
+  document.querySelectorAll('.attachment-preview-img').forEach(el => {
+    el.dataset.wasExpanded = el.classList.contains('expanded') ? '1' : '0';
+    el.style.display = 'block';
+  });
+  window.print();
+}
+
+window.addEventListener('afterprint', () => {
+  document.querySelectorAll('.attachment-preview-img').forEach(el => {
+    if (el.dataset.wasExpanded !== '1') el.style.removeProperty('display');
+  });
+});
 
 async function uploadInvoicePdf(invoiceId, input) {
   const file = input.files[0];
