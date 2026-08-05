@@ -178,38 +178,7 @@ router.get('/instagram', auth, requireAnalyticsAccess, async (req, res) => {
 router.get('/google-places', auth, requireAnalyticsAccess, async (req, res) => {
   try {
     const stores = await getPlatformStores(effectiveStoreIds(req));
-    const result = await fetchGooglePlaces(stores);
-    res.json(result);
-
-    // Background: check for new reviews and notify marketing users
-    if (result.configured && result.locations?.length) {
-      try {
-        const { notifyMarketing } = require('../services/notify');
-        for (const loc of result.locations) {
-          if (!loc.storeName || loc.error) continue;
-          // Find matching store record
-          const store = stores.find(s => s.name === loc.storeName);
-          if (!store) continue;
-          const lastCount = store.google_last_review_count || 0;
-          const newCount  = loc.reviewCount || 0;
-          if (newCount > lastCount) {
-            const gained = newCount - lastCount;
-            notifyMarketing({
-              type: 'new_google_review',
-              title: `⭐ New Google Review${gained > 1 ? 's' : ''} — ${loc.name}`,
-              message: `${loc.name} received ${gained} new review${gained > 1 ? 's' : ''}. Current rating: ${loc.rating} ★ (${newCount.toLocaleString()} total reviews).`,
-              link: '/analytics'
-            });
-            // Update stored count
-            await supabase.from('stores')
-              .update({ google_last_review_count: newCount })
-              .eq('id', store.id);
-          }
-        }
-      } catch (e) {
-        console.error('[Review notify] error:', e.message);
-      }
-    }
+    res.json(await fetchGooglePlaces(stores));
   } catch (err) { res.status(500).json({ configured: true, error: err.message }); }
 });
 

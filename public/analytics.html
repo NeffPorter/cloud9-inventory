@@ -351,10 +351,17 @@ async function loadInstagram() {
     ${(d.accounts||[]).length > 1 ? `<div class="per-location">${(d.accounts||[]).map(a=>`<div class="loc-row"><span class="loc-name">${a.name}${a.username?' (@'+a.username+')':''}</span><span>${fmt(a.followers)} followers${a.mediaCount ? ' · ' + fmt(a.mediaCount) + ' posts' : ''}</span></div>`).join('')}</div>` : ''}`;
 }
 
+// Shared Places fetch — one HTTP call per loadAll() cycle, reused by both sections
+let _sharedPlacesPromise = null;
+function getPlacesData() {
+  if (!_sharedPlacesPromise) _sharedPlacesPromise = api('/google-places');
+  return _sharedPlacesPromise;
+}
+
 // ── Google Ratings (Places API) ───────────────────────────────────────────────
 async function loadGoogle() {
   $('gBody').innerHTML = '<div class="loading">Loading…</div>';
-  const d = await api('/google-places');
+  const d = await getPlacesData();
   if (!d.configured) {
     $('gSub').textContent = 'Not configured';
     $('gBody').innerHTML = '<div class="not-configured">No Google Place IDs configured.</div>';
@@ -382,7 +389,7 @@ async function loadGoogle() {
 async function loadReputation() {
   $('repBody').innerHTML = '<div class="loading">Loading per-store reputation…</div>';
   const [gPlaces, fb] = await Promise.all([
-    api('/google-places'),
+    getPlacesData(),           // reuses the same fetch as loadGoogle()
     api('/facebook' + qs())
   ]);
 
@@ -490,11 +497,17 @@ async function loadDroppingProducts() {
 }
 
 // ── Main load ─────────────────────────────────────────────────────────────────
+let _placesLoaded = false;
 function loadAll() {
   loadFacebook();
   loadInstagram();
-  loadGoogle();
-  loadReputation();
+  // Only hit Places API on first load — ratings don't change with date/store filter
+  if (!_placesLoaded) {
+    _sharedPlacesPromise = null; // reset so a fresh fetch fires
+    _placesLoaded = true;
+    loadGoogle();
+    loadReputation();
+  }
   loadCustomers();
   loadNewProducts();
   loadDroppingProducts();
