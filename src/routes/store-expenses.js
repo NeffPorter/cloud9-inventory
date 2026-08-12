@@ -6,7 +6,7 @@ const multer = require('multer');
 const { isHim } = require('../lib/roles');
 
 // Multer 2.x: store in memory so we can pipe to Supabase Storage
-const upload = multer({ storage: multer.memoryStorage, limits: { fileSize: 10 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 const STORE_ROLES = ['regional_manager', 'him', 'admin', 'owner', 'gm', 'store_user', 'marketing'];
 
