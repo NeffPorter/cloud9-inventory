@@ -93,7 +93,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 <div class="page">
   <div class="page-header">
     <h1 class="page-title">🎯 Sale Schedule</h1>
-    <button class="btn btn-primary" onclick="openCreateModal()">+ New Sale Event</button>
+    <button class="btn btn-primary" id="newEventBtn" onclick="openCreateModal()" style="display:none">+ New Sale Event</button>
   </div>
   <div id="eventList"><div class="empty"><div class="empty-icon">🎯</div><div>Loading...</div></div></div>
 </div>
@@ -175,6 +175,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 
 <script>
 const token = localStorage.getItem('token');
+const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+const isAdminOrHim = ['him', 'admin', 'regional_manager', 'owner'].includes(currentUser.role);
+const currentUserStoreIds = currentUser.store_ids?.length ? currentUser.store_ids : (currentUser.store_id ? [currentUser.store_id] : []);
 let allStores = [], events = [], reviewingProposalId = null, editingEventId = null;
 
 async function api(path, opts = {}) {
@@ -186,6 +189,8 @@ async function init() {
   if (!token) { window.location.href = '/'; return; }
   const storeData = await api('/api/inventory/stores');
   allStores = storeData.stores || [];
+  // Show "New Sale Event" button only for admin/HIM roles
+  if (isAdminOrHim) document.getElementById('newEventBtn').style.display = '';
   await loadEvents();
 }
 
@@ -214,9 +219,9 @@ async function loadEvents() {
           </div>
         </div>
         <div class="event-actions" onclick="event.stopPropagation()">
-          <button class="btn btn-ghost btn-sm" onclick="openEditModal('${ev.id}')">Edit</button>
-          <button class="btn btn-ghost btn-sm" onclick="openEventReport('${ev.id}')">&#128202; Report</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteEvent('${ev.id}','${ev.name.replace(/'/g,"\\'")}')">Delete</button>
+          ${isAdminOrHim ? `<button class="btn btn-ghost btn-sm" onclick="openEditModal('${ev.id}')">Edit</button>` : ''}
+          ${isAdminOrHim ? `<button class="btn btn-ghost btn-sm" onclick="openEventReport('${ev.id}')">&#128202; Report</button>` : ''}
+          ${isAdminOrHim ? `<button class="btn btn-danger btn-sm" onclick="deleteEvent('${ev.id}','${ev.name.replace(/'/g,"\\'")}')">Delete</button>` : ''}
         </div>
       </div>
       <div class="event-body" id="body-${ev.id}">
@@ -229,10 +234,14 @@ async function loadEvents() {
               <div class="proposal-store">${store.name}</div>
               <span class="badge badge-${p.status}">${p.status}</span>
               <div class="proposal-actions">
-                ${(p.status === 'submitted' || p.status === 'under_review') ? `<button class="btn btn-primary btn-sm" onclick="openReview('${p.id}')">Review</button>` : ''}
-                ${p.status === 'approved' ? `<button class="btn btn-ghost btn-sm" onclick="openReview('${p.id}')">View</button>` : ''}
-                ${p.status === 'pending' ? `<span style="font-size:12px;color:#888">Awaiting submission</span>` : ''}
-                ${p.status === 'rejected' ? `<span style="font-size:12px;color:#d97706;font-weight:600">⚠️ Sent back for revision</span>` : ''}
+                ${isAdminOrHim && (p.status === 'submitted' || p.status === 'under_review') ? `<button class="btn btn-primary btn-sm" onclick="openReview('${p.id}')">Review</button>` : ''}
+                ${isAdminOrHim && p.status === 'approved' ? `<button class="btn btn-ghost btn-sm" onclick="openReview('${p.id}')">View</button>` : ''}
+                ${isAdminOrHim && p.status === 'pending' ? `<span style="font-size:12px;color:#888">Awaiting submission</span>` : ''}
+                ${isAdminOrHim && p.status === 'rejected' ? `<span style="font-size:12px;color:#d97706;font-weight:600">⚠️ Sent back for revision</span>` : ''}
+                ${!isAdminOrHim && currentUserStoreIds.includes(p.store_id) && p.status === 'pending' ? `<button class="btn btn-primary btn-sm" onclick="window.location.href='/sale-proposal?id=${p.id}'">Submit Discounts</button>` : ''}
+                ${!isAdminOrHim && currentUserStoreIds.includes(p.store_id) && p.status === 'rejected' ? `<button class="btn btn-warning btn-sm" onclick="window.location.href='/sale-proposal?id=${p.id}'">⚠️ Revise & Resubmit</button>` : ''}
+                ${!isAdminOrHim && currentUserStoreIds.includes(p.store_id) && (p.status === 'submitted' || p.status === 'under_review') ? `<span style="font-size:12px;color:#1d4ed8">⏳ Under review</span>` : ''}
+                ${!isAdminOrHim && currentUserStoreIds.includes(p.store_id) && p.status === 'approved' ? `<span style="font-size:12px;color:#16a34a;font-weight:600">✅ Approved</span>` : ''}
               </div>
             </div>`;
           }).join('') || '<div style="color:#999;font-size:13px;padding:8px 0">No stores assigned yet</div>'}

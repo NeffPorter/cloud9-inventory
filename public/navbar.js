@@ -4,7 +4,10 @@ function buildNavItems(user) {
 
   const isHimRole = ['him', 'admin', 'regional_manager'].includes(role);
   const isMedia   = role === 'marketing';
-  const isSingle  = role === 'gm' || role === 'store_user';
+  const userStoreIds = user.store_ids?.length ? user.store_ids : (user.store_id ? [user.store_id] : []);
+  const hasMultipleStores = userStoreIds.length > 1;
+  // Single-store mode: gm/store_user with exactly one store — append ?store= to nav links
+  const isSingle  = (role === 'gm' || role === 'store_user') && !hasMultipleStores;
 
   // Paths that carry a ?store= param for single-store users
   const STORE_PATHS = new Set([
@@ -294,10 +297,11 @@ function loadNavbar() {
     loadNotifications();
     if (window.__notifPollInterval) clearInterval(window.__notifPollInterval);
     window.__notifPollInterval = setInterval(loadNotifications, 30000);
-  } else if (user.store_id) {
-    loadStoreTasks(user.store_id);
+  } else if (user.store_id || user.store_ids?.length) {
+    const allStoreIds = user.store_ids?.length ? user.store_ids : (user.store_id ? [user.store_id] : []);
+    loadStoreTasks(allStoreIds[0], allStoreIds);
     if (window.__tasksPollInterval) clearInterval(window.__tasksPollInterval);
-    window.__tasksPollInterval = setInterval(() => loadStoreTasks(user.store_id), 60000);
+    window.__tasksPollInterval = setInterval(() => loadStoreTasks(allStoreIds[0], allStoreIds), 60000);
   }
 
   document.addEventListener('click', (e) => {
@@ -378,19 +382,24 @@ async function loadNotifications() {
   }
 }
 
-async function loadStoreTasks(storeId) {
+async function loadStoreTasks(storeId, allStoreIds) {
   const token = localStorage.getItem('token');
   const badge = document.getElementById('notifBadge');
   const list = document.getElementById('notifList');
   if (!list) return;
   try {
+    // For multi-store users, fetch tasks from all assigned stores in parallel
+    const storeIdsToFetch = allStoreIds?.length > 1 ? allStoreIds : [storeId];
     // Fetch store tasks + assigned tasks in parallel
-    const [storeRes, assignedRes] = await Promise.all([
-      fetch(`/api/store-tasks?store_id=${storeId}`, { headers: { 'Authorization': 'Bearer ' + token } }),
+    const [storeResults, assignedRes] = await Promise.all([
+      Promise.all(storeIdsToFetch.map(sid =>
+        fetch(`/api/store-tasks?store_id=${sid}`, { headers: { 'Authorization': 'Bearer ' + token } })
+          .then(r => r.ok ? r.json() : [])
+      )),
       fetch('/api/assigned-tasks/mine', { headers: { 'Authorization': 'Bearer ' + token } })
     ]);
 
-    const storeTasks = storeRes.ok ? await storeRes.json() : [];
+    const storeTasks = storeResults.flat();
     const assignedData = assignedRes.ok ? await assignedRes.json() : { tasks: [] };
     const assignedTasks = assignedData.tasks || [];
 

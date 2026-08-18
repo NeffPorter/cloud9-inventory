@@ -158,11 +158,13 @@
     if (!allStores.length) return;
 
     const urlStore = new URLSearchParams(window.location.search).get('store');
-    const isStoreUser = ['gm', 'store_user'].includes(user.role);
-    let defaultStore = urlStore || (isStoreUser ? user.store_id : allStores[0]?.id);
+    const userStoreIds = user.store_ids?.length ? user.store_ids : (user.store_id ? [user.store_id] : []);
+    const isMultiStoreIM = ['gm', 'store_user'].includes(user.role) && userStoreIds.length > 1;
+    const isSingleStoreUser = ['gm', 'store_user'].includes(user.role) && !isMultiStoreIM;
+    let defaultStore = urlStore || (isSingleStoreUser ? userStoreIds[0] : allStores[0]?.id);
 
     const pills = document.getElementById('storePills');
-    if (allStores.length <= 1 || isStoreUser) {
+    if (allStores.length <= 1 || isSingleStoreUser) {
       pills.style.display = 'none';
     } else {
       pills.innerHTML = allStores.map(s =>

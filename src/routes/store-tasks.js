@@ -37,7 +37,8 @@ router.put('/:id', auth, async (req, res) => {
     if (!isHim(req.user.role)) {
       const { data: task } = await supabase
         .from('store_tasks').select('store_id').eq('id', req.params.id).single();
-      if (!task || task.store_id !== req.user.store_id) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!task || !allowed.includes(task.store_id)) {
         return res.status(403).json({ error: 'Access denied' });
       }
     }
