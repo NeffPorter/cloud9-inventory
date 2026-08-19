@@ -388,7 +388,10 @@ router.get('/overview', auth, async (req, res) => {
 
     if (['gm', 'store_user'].includes(req.user.role)) {
       const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
-      if (allowed.length === 1) {
+      if (store_id && allowed.includes(store_id)) {
+        query = query.eq('store_id', store_id);
+        prevQuery = prevQuery.eq('store_id', store_id);
+      } else if (allowed.length === 1) {
         query = query.eq('store_id', allowed[0]);
         prevQuery = prevQuery.eq('store_id', allowed[0]);
       } else if (allowed.length > 1) {

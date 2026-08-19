@@ -84,8 +84,14 @@ router.get('/', auth, async (req, res) => {
 
     if (['gm', 'store_user'].includes(req.user.role)) {
       const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
-      if (allowed.length === 1) query = query.eq('store_id', allowed[0]);
-      else if (allowed.length > 1) query = query.in('store_id', allowed);
+      if (store_id && allowed.includes(store_id)) {
+        // Specific store requested and it's in their allowed list — filter to just that store
+        query = query.eq('store_id', store_id);
+      } else if (allowed.length === 1) {
+        query = query.eq('store_id', allowed[0]);
+      } else if (allowed.length > 1) {
+        query = query.in('store_id', allowed);
+      }
     } else if (store_id) {
       query = query.eq('store_id', store_id);
     }
