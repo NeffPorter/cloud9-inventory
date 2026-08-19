@@ -522,8 +522,8 @@ async function saveExpense() {
     formData.append('category', category);
     if (description) formData.append('description', description);
     if (receiptFile) formData.append('receipt', receiptFile);
-    // Elevated users (owner, HIM, etc.) must pass the selected store_id
-    if (isElevated && currentStoreId) formData.append('store_id', currentStoreId);
+    // Always pass the selected store_id so multi-store IMs save to the correct store
+    if (currentStoreId) formData.append('store_id', currentStoreId);
 
     const isRecurring = document.getElementById('fRecurring').checked;
     if (isRecurring) {
