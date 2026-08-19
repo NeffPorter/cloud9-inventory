@@ -485,7 +485,11 @@ router.put('/stocktake/reports/:id', auth, async (req, res) => {
         .eq('id', req.params.id)
         .single();
 
-      if (!report || report.store_id !== req.user.store_id) {
+      if (!report) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+      const _allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!_allowed.includes(report.store_id)) {
         return res.status(403).json({ error: 'Access denied' });
       }
       if (status && status !== 'resolved') {
@@ -524,8 +528,10 @@ router.get('/stocktake/reports', auth, async (req, res) => {
       .order('created_at', { ascending: false });
 
     if (store_id) query = query.eq('store_id', store_id);
-    else if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id) {
-      query = query.eq('store_id', req.user.store_id);
+    else if (['gm', 'store_user'].includes(req.user.role)) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (allowed.length === 1) query = query.eq('store_id', allowed[0]);
+      else if (allowed.length > 1) query = query.in('store_id', allowed);
     }
 
     const { data, error } = await query;
@@ -608,8 +614,10 @@ router.get('/stocktake/drafts', auth, async (req, res) => {
       .order('updated_at', { ascending: false });
 
     if (store_id) query = query.eq('store_id', store_id);
-    else if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id) {
-      query = query.eq('store_id', req.user.store_id);
+    else if (['gm', 'store_user'].includes(req.user.role)) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (allowed.length === 1) query = query.eq('store_id', allowed[0]);
+      else if (allowed.length > 1) query = query.in('store_id', allowed);
     }
 
     const { data, error } = await query;

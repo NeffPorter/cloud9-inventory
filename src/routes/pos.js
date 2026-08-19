@@ -69,12 +69,15 @@ router.get('/', auth, async (req, res) => {
       .order('created_at', { ascending: false });
 
     if (store_id) {
-      if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== store_id) {
-        return res.status(403).json({ error: 'Access denied' });
+      if (['gm', 'store_user'].includes(req.user.role)) {
+        const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+        if (!allowed.includes(store_id)) return res.status(403).json({ error: 'Access denied' });
       }
       query = query.eq('store_id', store_id);
     } else if (['gm', 'store_user'].includes(req.user.role)) {
-      query = query.eq('store_id', req.user.store_id);
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (allowed.length === 1) query = query.eq('store_id', allowed[0]);
+      else if (allowed.length > 1) query = query.in('store_id', allowed);
     }
 
     const { data, error } = await query;
@@ -97,8 +100,9 @@ router.get('/:id', auth, async (req, res) => {
 
     if (poError || !po) return res.status(404).json({ error: 'PO not found' });
 
-    if (['gm', 'store_user'].includes(req.user.role) && po.store_id !== req.user.store_id) {
-      return res.status(403).json({ error: 'Access denied' });
+    if (['gm', 'store_user'].includes(req.user.role)) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!allowed.includes(po.store_id)) return res.status(403).json({ error: 'Access denied' });
     }
 
     const { data: items, error: itemsError } = await supabase
@@ -126,8 +130,9 @@ router.post('/', auth, async (req, res) => {
       return res.status(400).json({ error: 'store_id, distributor, and items are required' });
     }
 
-    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== store_id) {
-      return res.status(403).json({ error: 'Access denied' });
+    if (['gm', 'store_user'].includes(req.user.role)) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!allowed.includes(store_id)) return res.status(403).json({ error: 'Access denied' });
     }
 
     const poNumber = await getNextPONumber(store_id, distributor);
@@ -225,8 +230,9 @@ router.put('/:id', auth, async (req, res) => {
       .single();
 
     if (!existing) return res.status(404).json({ error: 'PO not found' });
-    if (['gm', 'store_user'].includes(req.user.role) && existing.store_id !== req.user.store_id) {
-      return res.status(403).json({ error: 'Access denied' });
+    if (['gm', 'store_user'].includes(req.user.role)) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!allowed.includes(existing.store_id)) return res.status(403).json({ error: 'Access denied' });
     }
     if (existing.status === 'pending_approval' && status !== undefined && !isHim(req.user.role)) {
       return res.status(403).json({ error: 'This PO needs admin approval before it can be updated' });
@@ -307,8 +313,9 @@ router.post('/:id/receive', auth, async (req, res) => {
       .single();
 
     if (!po) return res.status(404).json({ error: 'PO not found' });
-    if (['gm', 'store_user'].includes(req.user.role) && po.store_id !== req.user.store_id) {
-      return res.status(403).json({ error: 'Access denied' });
+    if (['gm', 'store_user'].includes(req.user.role)) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!allowed.includes(po.store_id)) return res.status(403).json({ error: 'Access denied' });
     }
 
     const { data: store } = await supabase
@@ -399,7 +406,10 @@ router.put('/:id/items/:itemId', auth, async (req, res) => {
 
     const { data: po } = await supabase.from('purchase_orders').select('*').eq('id', req.params.id).single();
     if (!po) return res.status(404).json({ error: 'PO not found' });
-    if (['gm', 'store_user'].includes(req.user.role) && po.store_id !== req.user.store_id) return res.status(403).json({ error: 'Access denied' });
+    if (['gm', 'store_user'].includes(req.user.role)) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!allowed.includes(po.store_id)) return res.status(403).json({ error: 'Access denied' });
+    }
 
     const { data: poItem } = await supabase
       .from('purchase_order_items').select('*')
@@ -463,7 +473,10 @@ router.delete('/:id/items/:itemId', auth, async (req, res) => {
   try {
     const { data: po } = await supabase.from('purchase_orders').select('*').eq('id', req.params.id).single();
     if (!po) return res.status(404).json({ error: 'PO not found' });
-    if (['gm', 'store_user'].includes(req.user.role) && po.store_id !== req.user.store_id) return res.status(403).json({ error: 'Access denied' });
+    if (['gm', 'store_user'].includes(req.user.role)) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!allowed.includes(po.store_id)) return res.status(403).json({ error: 'Access denied' });
+    }
 
     const { data: poItem } = await supabase
       .from('purchase_order_items').select('*')
@@ -514,8 +527,9 @@ router.post('/:id/items', auth, async (req, res) => {
       .single();
 
     if (!po) return res.status(404).json({ error: 'PO not found' });
-    if (['gm', 'store_user'].includes(req.user.role) && po.store_id !== req.user.store_id) {
-      return res.status(403).json({ error: 'Access denied' });
+    if (['gm', 'store_user'].includes(req.user.role)) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!allowed.includes(po.store_id)) return res.status(403).json({ error: 'Access denied' });
     }
     if (po.status === 'received') {
       return res.status(400).json({ error: 'Cannot add items to a fully received PO' });
@@ -597,8 +611,9 @@ router.delete('/:id', auth, async (req, res) => {
       .single();
 
     if (!po) return res.status(404).json({ error: 'PO not found' });
-    if (['gm', 'store_user'].includes(req.user.role) && po.store_id !== req.user.store_id) {
-      return res.status(403).json({ error: 'Access denied' });
+    if (['gm', 'store_user'].includes(req.user.role)) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!allowed.includes(po.store_id)) return res.status(403).json({ error: 'Access denied' });
     }
 
     // Optionally push remaining quantities back to suggested orders

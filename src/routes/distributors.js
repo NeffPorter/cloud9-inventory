@@ -17,8 +17,9 @@ router.get('/best-prices', auth, async (req, res) => {
     const { store_id } = req.query;
     if (!store_id) return res.status(400).json({ error: 'store_id required' });
 
-    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== store_id) {
-      return res.status(403).json({ error: 'Access denied' });
+    if (['gm', 'store_user'].includes(req.user.role)) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!allowed.includes(store_id)) return res.status(403).json({ error: 'Access denied' });
     }
 
     const { data: prices, error } = await supabase
@@ -54,8 +55,9 @@ router.get('/lead-times', auth, async (req, res) => {
   try {
     const { store_id } = req.query;
     if (!store_id) return res.status(400).json({ error: 'store_id required' });
-    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== store_id) {
-      return res.status(403).json({ error: 'Access denied' });
+    if (['gm', 'store_user'].includes(req.user.role)) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!allowed.includes(store_id)) return res.status(403).json({ error: 'Access denied' });
     }
     const { data, error } = await supabase
       .from('distributor_lead_times')
@@ -95,8 +97,9 @@ router.get('/:id/prices', auth, async (req, res) => {
       .single();
 
     if (distError || !dist) return res.status(404).json({ error: 'Distributor not found' });
-    if (['gm', 'store_user'].includes(req.user.role) && store_id && req.user.store_id !== store_id) {
-      return res.status(403).json({ error: 'Access denied' });
+    if (['gm', 'store_user'].includes(req.user.role) && store_id) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!allowed.includes(store_id)) return res.status(403).json({ error: 'Access denied' });
     }
 
     let query = supabase

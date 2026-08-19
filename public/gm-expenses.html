@@ -227,8 +227,10 @@ input:checked + .sw-slider:before { transform: translateX(18px); }
 const token = localStorage.getItem('token');
 const user = JSON.parse(localStorage.getItem('user') || '{}');
 const isElevated = ['him', 'regional_manager', 'admin', 'owner', 'marketing'].includes(user.role);
+const userStoreIds = user.store_ids?.length ? user.store_ids : (user.store_id ? [user.store_id] : []);
+const isMultiStoreIM = !isElevated && userStoreIds.length > 1;
 let expenses = [];
-let currentStoreId = '';  // '' = all stores
+let currentStoreId = '';  // '' = all stores (elevated) or first store (IM)
 let currentPeriod = 'weekly';
 let filterStart = '', filterEnd = '';
 
@@ -246,16 +248,29 @@ function buildHead() {
 }
 
 async function initStoreButtons() {
-  if (!isElevated) return;
-  const res = await fetch('/api/owner/stores', { headers: { Authorization: 'Bearer ' + token } });
+  if (!isElevated && !isMultiStoreIM) {
+    // Single-store IM/GM: auto-set their store
+    if (userStoreIds.length === 1) currentStoreId = userStoreIds[0];
+    return;
+  }
+  const res = await fetch('/api/inventory/stores', { headers: { Authorization: 'Bearer ' + token } });
   if (!res.ok) return;
-  const stores = await res.json();
+  const data = await res.json();
+  const stores = data.stores || [];
   const wrap = document.getElementById('storeButtonsWrap');
   wrap.style.display = 'flex';
-  wrap.innerHTML = `
-    <button class="store-pill active" onclick="setStore('', this)">All Stores</button>
-    ${stores.map(s => `<button class="store-pill" onclick="setStore('${s.id}', this)">${s.name}</button>`).join('')}
-  `;
+  if (isElevated) {
+    wrap.innerHTML = `
+      <button class="store-pill active" onclick="setStore('', this)">All Stores</button>
+      ${stores.map(s => `<button class="store-pill" onclick="setStore('${s.id}', this)">${s.name}</button>`).join('')}
+    `;
+  } else {
+    // Multi-store IM: no "All Stores", auto-select first store
+    if (stores.length > 0) currentStoreId = stores[0].id;
+    wrap.innerHTML = stores.map((s, i) =>
+      `<button class="store-pill${i === 0 ? ' active' : ''}" onclick="setStore('${s.id}', this)">${s.name}</button>`
+    ).join('');
+  }
 }
 
 function setStore(storeId, btn) {

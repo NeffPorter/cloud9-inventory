@@ -28,15 +28,21 @@ router.get('/', auth, requireStoreAccess, async (req, res) => {
 
     // Non-admins can only see their own store; HIM/RM/admin/owner can see all or filter by store_id
     const elevated = isHim(req.user.role) || req.user.role === 'owner';
-    const effectiveStoreId = elevated ? (store_id || null) : req.user.store_id;
-    if (!effectiveStoreId && !elevated) return res.status(400).json({ error: 'store_id required' });
 
     let query = supabase
       .from('store_expenses')
       .select('*, users(name)')
       .order('expense_date', { ascending: false });
 
-    if (effectiveStoreId) query = query.eq('store_id', effectiveStoreId);
+    if (elevated) {
+      if (store_id) query = query.eq('store_id', store_id);
+    } else {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (allowed.length === 0) return res.status(400).json({ error: 'store_id required' });
+      if (store_id && allowed.includes(store_id)) query = query.eq('store_id', store_id);
+      else if (allowed.length === 1) query = query.eq('store_id', allowed[0]);
+      else query = query.in('store_id', allowed);
+    }
 
     // Fetch store names separately to avoid FK join issues
     const { data: storeList } = await supabase.from('stores').select('id, name');
@@ -83,7 +89,14 @@ router.post('/', auth, requireGmOrAdmin, upload.single('receipt'), async (req, r
     const { store_id, category, description, amount, expense_date,
             is_recurring, recur_frequency, recur_day } = req.body;
 
-    const effectiveStoreId = (isHim(req.user.role) || req.user.role === 'owner') ? store_id : req.user.store_id;
+    const isElevatedRole = isHim(req.user.role) || req.user.role === 'owner';
+    let effectiveStoreId;
+    if (isElevatedRole) {
+      effectiveStoreId = store_id;
+    } else {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      effectiveStoreId = (store_id && allowed.includes(store_id)) ? store_id : (allowed[0] || req.user.store_id);
+    }
     if (!effectiveStoreId) return res.status(400).json({ error: 'store_id required' });
     if (!category || !amount || !expense_date) return res.status(400).json({ error: 'category, amount, and expense_date are required' });
 
@@ -182,11 +195,17 @@ router.get('/summary', auth, requireStoreAccess, async (req, res) => {
   try {
     const { store_id, start, end } = req.query;
     const elevated = isHim(req.user.role) || req.user.role === 'owner';
-    const effectiveStoreId = elevated ? (store_id || null) : req.user.store_id;
-    if (!effectiveStoreId && !elevated) return res.status(400).json({ error: 'store_id required' });
 
     let query = supabase.from('store_expenses').select('category, amount, store_id');
-    if (effectiveStoreId) query = query.eq('store_id', effectiveStoreId);
+    if (elevated) {
+      if (store_id) query = query.eq('store_id', store_id);
+    } else {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (allowed.length === 0) return res.status(400).json({ error: 'store_id required' });
+      if (store_id && allowed.includes(store_id)) query = query.eq('store_id', store_id);
+      else if (allowed.length === 1) query = query.eq('store_id', allowed[0]);
+      else query = query.in('store_id', allowed);
+    }
     if (start) query = query.gte('expense_date', start);
     if (end) query = query.lte('expense_date', end);
 

@@ -45,11 +45,9 @@ router.get('/transactions', auth, requireAnalyticsAccess, async (req, res) => {
     const endDate   = end   ? new Date(end)   : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
     let storeQuery = supabase.from('stores').select('id, name');
-    if (!isHim(req.user.role) && req.user.role !== 'marketing') {
-      storeQuery = storeQuery.eq('id', req.user.store_id);
-    } else if (store_id) {
-      storeQuery = storeQuery.eq('id', store_id);
-    }
+    const scopedIds = effectiveStoreIds(req);
+    if (scopedIds && scopedIds.length === 1) storeQuery = storeQuery.eq('id', scopedIds[0]);
+    else if (scopedIds && scopedIds.length > 1) storeQuery = storeQuery.in('id', scopedIds);
     const { data: stores } = await storeQuery;
     if (!stores || stores.length === 0) return res.json({ stores: [] });
 
@@ -97,9 +95,14 @@ function effectiveStoreIds(req) {
   return req.query.store_id ? [req.query.store_id] : null;
 }
 
-// Kept for backward compat with transaction/expense routes that expect a single ID string
+// Returns a single store_id for routes that expect one.
+// For multi-store IMs, honors query param if valid; else falls back to first allowed store.
 function effectiveStoreId(req) {
-  if (['gm', 'store_user'].includes(req.user.role)) return req.user.store_id || '';
+  if (['gm', 'store_user'].includes(req.user.role)) {
+    const ids = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+    const qId = req.query.store_id;
+    return (qId && ids.includes(qId)) ? qId : (ids[0] || '');
+  }
   return req.query.store_id || '';
 }
 
@@ -220,11 +223,9 @@ router.get('/expense-revenue', auth, requireAnalyticsAccess, async (req, res) =>
     const endStr    = endDate.toISOString().slice(0, 10);
 
     let storeQuery = supabase.from('stores').select('id, name');
-    if (!isHim(req.user.role) && req.user.role !== 'marketing') {
-      storeQuery = storeQuery.eq('id', req.user.store_id);
-    } else if (store_id) {
-      storeQuery = storeQuery.eq('id', store_id);
-    }
+    const scopedIds2 = effectiveStoreIds(req);
+    if (scopedIds2 && scopedIds2.length === 1) storeQuery = storeQuery.eq('id', scopedIds2[0]);
+    else if (scopedIds2 && scopedIds2.length > 1) storeQuery = storeQuery.in('id', scopedIds2);
     const { data: stores } = await storeQuery;
     if (!stores || stores.length === 0) return res.json({ stores: [] });
 
@@ -282,11 +283,9 @@ router.get('/customers', auth, requireAnalyticsAccess, async (req, res) => {
     const endDate   = end   ? new Date(end)   : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
     let storeQuery = supabase.from('stores').select('id, name').not('name', 'like', 'Test%');
-    if (!isHim(req.user.role) && req.user.role !== 'marketing') {
-      storeQuery = storeQuery.eq('id', req.user.store_id);
-    } else if (store_id) {
-      storeQuery = storeQuery.eq('id', store_id);
-    }
+    const scopedIds3 = effectiveStoreIds(req);
+    if (scopedIds3 && scopedIds3.length === 1) storeQuery = storeQuery.eq('id', scopedIds3[0]);
+    else if (scopedIds3 && scopedIds3.length > 1) storeQuery = storeQuery.in('id', scopedIds3);
     const { data: stores } = await storeQuery;
     if (!stores?.length) return res.json({ stores: [], total: 0 });
 

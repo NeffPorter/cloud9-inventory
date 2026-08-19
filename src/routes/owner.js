@@ -19,8 +19,23 @@ function requireOwnerOrStore(req, res, next) {
 // Owner-level roles use the query param (or null = all stores).
 function effectiveStore(req, queryStoreId) {
   const role = req.user.role;
-  if (role === 'gm' || role === 'store_user') return req.user.store_id || null;
+  if (role === 'gm' || role === 'store_user') {
+    const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+    // Honor store_id query param if it's in their allowed list
+    if (queryStoreId && allowed.includes(queryStoreId)) return queryStoreId;
+    // Single store: return it; multiple stores: return null (caller handles array filtering)
+    return allowed.length === 1 ? allowed[0] : null;
+  }
   return queryStoreId || null;
+}
+
+// For multi-store IMs: returns their allowed store_ids array, or null for elevated roles (all stores)
+function allowedStoreIds(req) {
+  const role = req.user.role;
+  if (role === 'gm' || role === 'store_user') {
+    return req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+  }
+  return null; // elevated: no restriction
 }
 
 // ── GET /api/owner/inventory-search?q=&store_id= ─────────────────────────────
@@ -405,8 +420,10 @@ router.get('/stores', auth, requireOwnerOrStore, async (req, res) => {
   try {
     const role = req.user.role;
     let query = supabase.from('stores').select('id, name').order('name');
-    if ((role === 'gm' || role === 'store_user') && req.user.store_id) {
-      query = query.eq('id', req.user.store_id);
+    if (role === 'gm' || role === 'store_user') {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (allowed.length === 1) query = query.eq('id', allowed[0]);
+      else if (allowed.length > 1) query = query.in('id', allowed);
     }
     const { data, error } = await query;
     if (error) throw error;
@@ -425,8 +442,11 @@ router.post('/pl-snapshots', auth, requireOwnerOrStore, async (req, res) => {
     }
     // gm/store_user can only save snapshots for their own store
     const role = req.user.role;
-    const effectiveStoreId = (role === 'gm' || role === 'store_user')
-      ? (req.user.store_id || null)
+    const allowed_snap = (role === 'gm' || role === 'store_user')
+      ? (req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []))
+      : null;
+    const effectiveStoreId = allowed_snap
+      ? ((store_id && allowed_snap.includes(store_id)) ? store_id : (allowed_snap[0] || null))
       : (store_id || null);
 
     const { data: snap, error } = await supabase
@@ -450,8 +470,12 @@ router.get('/pl-snapshots', auth, requireOwnerOrStore, async (req, res) => {
       .select('id, period_type, period_label, start_date, end_date, store_id, created_at')
       .order('start_date', { ascending: false });
     // gm/store_user only see snapshots for their store (or global snapshots with null store_id)
-    if ((role === 'gm' || role === 'store_user') && req.user.store_id) {
-      query = query.or(`store_id.eq.${req.user.store_id},store_id.is.null`);
+    if (role === 'gm' || role === 'store_user') {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (allowed.length > 0) {
+        const orParts = allowed.map(id => `store_id.eq.${id}`).concat(['store_id.is.null']).join(',');
+        query = query.or(orParts);
+      }
     }
     const { data, error } = await query;
     if (error) throw error;
@@ -469,8 +493,9 @@ router.get('/pl-snapshots/:id', auth, requireOwnerOrStore, async (req, res) => {
     if (error) throw error;
     // gm/store_user: only allow if snapshot is theirs or global
     const role = req.user.role;
-    if ((role === 'gm' || role === 'store_user') && data.store_id && data.store_id !== req.user.store_id) {
-      return res.status(403).json({ error: 'Access denied' });
+    if ((role === 'gm' || role === 'store_user') && data.store_id) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!allowed.includes(data.store_id)) return res.status(403).json({ error: 'Access denied' });
     }
     res.json(data);
   } catch (err) {

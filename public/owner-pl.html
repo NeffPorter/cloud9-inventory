@@ -173,6 +173,10 @@ tr:last-child td { border-bottom: none; }
 
 <script>
 const token = localStorage.getItem('token');
+const user = JSON.parse(localStorage.getItem('user') || '{}');
+const isElevated = ['him', 'admin', 'regional_manager', 'owner'].includes(user.role);
+const userStoreIds = user.store_ids?.length ? user.store_ids : (user.store_id ? [user.store_id] : []);
+const isMultiStoreIM = !isElevated && userStoreIds.length > 1;
 let currentPeriod = 'weekly';
 let currentView = 'pl';
 let stores = [];
@@ -204,14 +208,27 @@ function buildWeekOptions(sel) {
 
 async function init() {
   if (!token) { window.location.href = '/'; return; }
-  stores = await api('/api/owner/stores');
+  const storesData = await api('/api/inventory/stores');
+  stores = storesData.stores || [];
 
   // Build store toggle buttons
   const wrap = document.getElementById('storeButtonsWrap');
-  wrap.innerHTML = `
-    <button class="store-btn active" onclick="setStore('', this)">All Stores</button>
-    ${stores.map(s => `<button class="store-btn" onclick="setStore('${s.id}', this)">${s.name}</button>`).join('')}
-  `;
+  if (isElevated) {
+    wrap.innerHTML = `
+      <button class="store-btn active" onclick="setStore('', this)">All Stores</button>
+      ${stores.map(s => `<button class="store-btn" onclick="setStore('${s.id}', this)">${s.name}</button>`).join('')}
+    `;
+  } else if (isMultiStoreIM) {
+    // Multi-store IM: show their stores without "All Stores", auto-select first
+    if (stores.length > 0) currentStoreId = stores[0].id;
+    wrap.innerHTML = stores.map((s, i) =>
+      `<button class="store-btn${i === 0 ? ' active' : ''}" onclick="setStore('${s.id}', this)">${s.name}</button>`
+    ).join('');
+  } else {
+    // Single-store IM/GM: auto-set store, hide picker
+    if (stores.length > 0) currentStoreId = stores[0].id;
+    wrap.style.display = 'none';
+  }
 
   // Default to current week using date picker
   const now = new Date();

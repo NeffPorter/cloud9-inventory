@@ -275,7 +275,11 @@
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     if (!token) window.location.href = '/';
 
-    const isMultiStoreUser = ['admin', 'him', 'regional_manager', 'owner'].includes(user.role);
+    const userStoreIds = user.store_ids?.length ? user.store_ids : (user.store_id ? [user.store_id] : []);
+    const isElevated = ['him', 'admin', 'regional_manager', 'owner'].includes(user.role);
+    const isMultiStoreIM = !isElevated && userStoreIds.length > 1;
+    // "Multi-store user" means elevated OR a multi-store IM/GM
+    const isMultiStoreUser = isElevated || isMultiStoreIM;
     if (!isMultiStoreUser) {
       document.getElementById('storeBreakdownCard').style.display = 'none';
     }
@@ -372,15 +376,29 @@
     function setCustom() { loadFromPicker(); }
 
     async function loadStoreFilter() {
-      if (!['admin', 'him', 'regional_manager', 'owner'].includes(user.role)) return;
       const res = await fetch('/api/inventory/stores', {
         headers: { 'Authorization': 'Bearer ' + token }
       });
       const data = await res.json();
       const stores = data.stores || [];
       const filter = document.getElementById('storeFilter');
-      filter.innerHTML = `<button class="store-filter-btn active" onclick="filterStore('', this)">All Stores</button>` +
-        stores.map(s => `<button class="store-filter-btn" onclick="filterStore('${s.id}', this)">${s.name}</button>`).join('');
+
+      if (isElevated) {
+        // Elevated roles get "All Stores" + each store
+        filter.innerHTML = `<button class="store-filter-btn active" onclick="filterStore('', this)">All Stores</button>` +
+          stores.map(s => `<button class="store-filter-btn" onclick="filterStore('${s.id}', this)">${s.name}</button>`).join('');
+      } else if (isMultiStoreIM) {
+        // Multi-store IMs see their stores but no "All Stores" — auto-select first
+        filter.innerHTML = stores.map((s, i) =>
+          `<button class="store-filter-btn${i === 0 ? ' active' : ''}" onclick="filterStore('${s.id}', this)">${s.name}</button>`
+        ).join('');
+        if (stores.length > 0) {
+          selectedStore = stores[0].id;
+        }
+      } else if (userStoreIds.length === 1) {
+        // Single-store IM/GM: auto-select, hide filter
+        selectedStore = userStoreIds[0];
+      }
     }
 
     function filterStore(storeId, btn) {

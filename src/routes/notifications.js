@@ -26,14 +26,15 @@ router.get('/', auth, async (req, res) => {
         .order('created_at', { ascending: false })
         .limit(50);
       results = results.concat(data || []);
-    } else if (req.user.store_id) {
-      const { data } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('target_store_id', req.user.store_id)
-        .order('created_at', { ascending: false })
-        .limit(50);
-      results = results.concat(data || []);
+    } else {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (allowed.length > 0) {
+        let nQuery = supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(50);
+        if (allowed.length === 1) nQuery = nQuery.eq('target_store_id', allowed[0]);
+        else nQuery = nQuery.in('target_store_id', allowed);
+        const { data } = await nQuery;
+        results = results.concat(data || []);
+      }
     }
 
     // Fetch direct user notifications (assigned tasks, completions)
@@ -88,9 +89,14 @@ router.put('/read-all', auth, async (req, res) => {
       await supabase.from('notifications').update({ read: true })
         .eq('target_role', 'admin').eq('read', false);
 
-    } else if (req.user.store_id) {
-      await supabase.from('notifications').update({ read: true })
-        .eq('target_store_id', req.user.store_id).eq('read', false);
+    } else {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (allowed.length > 0) {
+        let upQuery = supabase.from('notifications').update({ read: true }).eq('read', false);
+        if (allowed.length === 1) upQuery = upQuery.eq('target_store_id', allowed[0]);
+        else upQuery = upQuery.in('target_store_id', allowed);
+        await upQuery;
+      }
     }
 
     res.json({ success: true });

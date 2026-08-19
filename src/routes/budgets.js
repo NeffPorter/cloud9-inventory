@@ -83,7 +83,9 @@ router.get('/', auth, async (req, res) => {
       .order('week_start', { ascending: false });
 
     if (['gm', 'store_user'].includes(req.user.role)) {
-      query = query.eq('store_id', req.user.store_id);
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (allowed.length === 1) query = query.eq('store_id', allowed[0]);
+      else if (allowed.length > 1) query = query.in('store_id', allowed);
     } else if (store_id) {
       query = query.eq('store_id', store_id);
     }
@@ -167,8 +169,9 @@ async function getOrCreateCurrentBudget(store_id) {
 router.get('/current/:store_id', auth, async (req, res) => {
   try {
     const { store_id } = req.params;
-    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== store_id) {
-      return res.status(403).json({ error: 'Access denied' });
+    if (['gm', 'store_user'].includes(req.user.role)) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!allowed.includes(store_id)) return res.status(403).json({ error: 'Access denied' });
     }
 
     const weekStartStr = toDateStr(getMondayOf(new Date()));
@@ -197,8 +200,9 @@ router.get('/:id', auth, async (req, res) => {
       .single();
 
     if (error || !budget) return res.status(404).json({ error: 'Budget not found' });
-    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== budget.store_id) {
-      return res.status(403).json({ error: 'Access denied' });
+    if (['gm', 'store_user'].includes(req.user.role)) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!allowed.includes(budget.store_id)) return res.status(403).json({ error: 'Access denied' });
     }
 
     const { data: invoices } = await supabase
@@ -243,8 +247,9 @@ router.put('/:id', auth, async (req, res) => {
       .from('weekly_budgets').select('store_id, status').eq('id', req.params.id).single();
 
     if (!budget) return res.status(404).json({ error: 'Budget not found' });
-    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== budget.store_id) {
-      return res.status(403).json({ error: 'Access denied' });
+    if (['gm', 'store_user'].includes(req.user.role)) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!allowed.includes(budget.store_id)) return res.status(403).json({ error: 'Access denied' });
     }
     // Managers can only mark complete; admins can set any status
     if (['gm', 'store_user'].includes(req.user.role) && status && status !== 'complete') {
@@ -334,8 +339,9 @@ router.post('/:id/invoices', auth, async (req, res) => {
       .from('weekly_budgets').select('store_id, status, budget_30, budget_45').eq('id', req.params.id).single();
 
     if (!budget) return res.status(404).json({ error: 'Budget not found' });
-    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== budget.store_id) {
-      return res.status(403).json({ error: 'Access denied' });
+    if (['gm', 'store_user'].includes(req.user.role)) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!allowed.includes(budget.store_id)) return res.status(403).json({ error: 'Access denied' });
     }
     if (budget.status === 'complete') {
       return res.status(400).json({ error: 'Cannot add invoices to a completed budget' });
@@ -379,8 +385,9 @@ router.put('/:id/invoices/:invoiceId', auth, async (req, res) => {
       .from('weekly_budgets').select('store_id').eq('id', req.params.id).single();
 
     if (!budget) return res.status(404).json({ error: 'Budget not found' });
-    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== budget.store_id) {
-      return res.status(403).json({ error: 'Access denied' });
+    if (['gm', 'store_user'].includes(req.user.role)) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!allowed.includes(budget.store_id)) return res.status(403).json({ error: 'Access denied' });
     }
 
     const updates = { updated_at: new Date().toISOString() };
@@ -414,8 +421,9 @@ router.delete('/:id/invoices/:invoiceId', auth, async (req, res) => {
       .from('weekly_budgets').select('store_id').eq('id', req.params.id).single();
 
     if (!budget) return res.status(404).json({ error: 'Budget not found' });
-    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== budget.store_id) {
-      return res.status(403).json({ error: 'Access denied' });
+    if (['gm', 'store_user'].includes(req.user.role)) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!allowed.includes(budget.store_id)) return res.status(403).json({ error: 'Access denied' });
     }
 
     await supabase.from('budget_invoices').delete().eq('id', req.params.invoiceId);
@@ -438,8 +446,9 @@ router.post('/:id/upload-pdf', auth, async (req, res) => {
       .from('weekly_budgets').select('store_id').eq('id', req.params.id).single();
 
     if (!budget) return res.status(404).json({ error: 'Budget not found' });
-    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== budget.store_id) {
-      return res.status(403).json({ error: 'Access denied' });
+    if (['gm', 'store_user'].includes(req.user.role)) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!allowed.includes(budget.store_id)) return res.status(403).json({ error: 'Access denied' });
     }
 
     const buffer = Buffer.from(file_base64, 'base64');

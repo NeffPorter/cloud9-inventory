@@ -107,11 +107,17 @@ router.get('/events', auth, async (req, res) => {
         .select('id, name, start_date, end_date, proposal_due_date, status')
         .lte('start_date', end);
 
-      if (!elevated && storeId) {
-        const { data: ses } = await supabase.from('sale_event_stores').select('sale_event_id').eq('store_id', storeId);
-        const ids = (ses || []).map(s => s.sale_event_id);
-        if (ids.length) seQuery = seQuery.in('id', ids);
-        else seQuery = seQuery.eq('id', 'none'); // no results
+      if (!elevated) {
+        const allowedStores = req.user.store_ids?.length ? req.user.store_ids : (storeId ? [storeId] : []);
+        if (allowedStores.length > 0) {
+          let sesQuery = supabase.from('sale_event_stores').select('sale_event_id');
+          if (allowedStores.length === 1) sesQuery = sesQuery.eq('store_id', allowedStores[0]);
+          else sesQuery = sesQuery.in('store_id', allowedStores);
+          const { data: ses } = await sesQuery;
+          const ids = (ses || []).map(s => s.sale_event_id);
+          if (ids.length) seQuery = seQuery.in('id', ids);
+          else seQuery = seQuery.eq('id', 'none'); // no results
+        }
       }
 
       const { data: saleEvents } = await seQuery;
@@ -128,7 +134,11 @@ router.get('/events', auth, async (req, res) => {
       let stQuery = supabase.from('store_tasks')
         .select('id, title, due_date, store_id')
         .gte('due_date', start).lte('due_date', end).not('due_date', 'is', null);
-      if (!elevated && storeId) stQuery = stQuery.eq('store_id', storeId);
+      if (!elevated) {
+        const allowedStores = req.user.store_ids?.length ? req.user.store_ids : (storeId ? [storeId] : []);
+        if (allowedStores.length === 1) stQuery = stQuery.eq('store_id', allowedStores[0]);
+        else if (allowedStores.length > 1) stQuery = stQuery.in('store_id', allowedStores);
+      }
 
       const { data: storeTasks } = await stQuery;
       (storeTasks || []).forEach(t => {

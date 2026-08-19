@@ -285,8 +285,23 @@ async function loadStores() {
   const d = await r.json();
   const stores = d.stores || [];
   const el = $('storeFilter');
-  el.innerHTML = `<button class="store-filter-btn active" onclick="filterStore('', this)">All Stores</button>` +
-    stores.map(s => `<button class="store-filter-btn" onclick="filterStore('${s.id}', this)">${s.name}</button>`).join('');
+  const _isElevated = ['him', 'admin', 'regional_manager', 'owner'].includes(user.role);
+  const _userStoreIds = user.store_ids?.length ? user.store_ids : (user.store_id ? [user.store_id] : []);
+  const _isMultiStoreIM = !_isElevated && _userStoreIds.length > 1;
+
+  if (_isElevated) {
+    el.innerHTML = `<button class="store-filter-btn active" onclick="filterStore('', this)">All Stores</button>` +
+      stores.map(s => `<button class="store-filter-btn" onclick="filterStore('${s.id}', this)">${s.name}</button>`).join('');
+  } else if (_isMultiStoreIM) {
+    // Multi-store IM: show their stores without "All Stores"
+    el.innerHTML = stores.map((s, i) =>
+      `<button class="store-filter-btn${i === 0 ? ' active' : ''}" onclick="filterStore('${s.id}', this)">${s.name}</button>`
+    ).join('');
+    if (stores.length > 0) selectedStore = stores[0].id;
+  } else {
+    // Single-store IM/GM: no picker needed, will be set in init
+    el.innerHTML = '';
+  }
 }
 
 function filterStore(storeId, btn) {
@@ -561,20 +576,15 @@ function loadAll() {
 }
 
 // Init
-const isSingleStore = ['gm', 'store_user'].includes(user.role);
+const _initElevated = ['him', 'admin', 'regional_manager', 'owner'].includes(user.role);
+const _initUserStoreIds = user.store_ids?.length ? user.store_ids : (user.store_id ? [user.store_id] : []);
+const isSingleStore = !_initElevated && _initUserStoreIds.length <= 1;
 
 loadStores().then(() => {
-  if (isSingleStore && user.store_id) {
-    selectedStore = user.store_id;
-    // Activate the matching store button and disable all others
-    document.querySelectorAll('.store-filter-btn').forEach(btn => {
-      const isMatch = btn.textContent !== 'All Stores' &&
-        btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(user.store_id);
-      btn.classList.toggle('active', isMatch);
-      btn.disabled = true;
-      btn.style.cursor = 'default';
-    });
+  if (isSingleStore && _initUserStoreIds.length === 1) {
+    selectedStore = _initUserStoreIds[0];
   }
+  // Multi-store IM: selectedStore already set in loadStores()
   // Default Customers Helped date range to current month
   const now = new Date();
   const y = now.getFullYear(), m = String(now.getMonth()+1).padStart(2,'0');

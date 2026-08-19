@@ -107,11 +107,15 @@
     const data = await res.json();
     allStores = data.stores || [];
 
+    const isElevated = ['him', 'admin', 'regional_manager', 'owner'].includes(user.role);
+    const userStoreIds = user.store_ids?.length ? user.store_ids : (user.store_id ? [user.store_id] : []);
+    const isMultiStoreIM = !isElevated && userStoreIds.length > 1;
+
     const btnArea = document.getElementById('newPOBtn');
     if (allStores.length === 1) {
       btnArea.innerHTML = `<button class="btn btn-blue" onclick="window.location.href='/pos/new?store=${allStores[0].id}'">➕ New PO</button>`;
       if (!selectedStore) selectedStore = allStores[0].id;
-    } else if (['admin', 'him', 'regional_manager'].includes(user.role)) {
+    } else if (isElevated || isMultiStoreIM) {
       btnArea.innerHTML = `
         <select id="newStoreSelect" style="padding:10px;border:2px solid #e0e0e0;border-radius:8px;font-size:14px;outline:none">
           <option value="">Select store...</option>
@@ -120,14 +124,23 @@
         <button class="btn btn-blue" onclick="goNewPO()">➕ New PO</button>`;
     }
 
-    if (['admin', 'him', 'regional_manager'].includes(user.role) && allStores.length > 1) {
+    if (allStores.length > 1) {
       const filter = document.getElementById('storeFilter');
-      const activeAll = !selectedStore ? 'active' : '';
-      filter.innerHTML = `<button class="filter-btn ${activeAll}" onclick="filterStore('', this)">All Stores</button>` +
-        allStores.map(s => {
+      if (isElevated) {
+        const activeAll = !selectedStore ? 'active' : '';
+        filter.innerHTML = `<button class="filter-btn ${activeAll}" onclick="filterStore('', this)">All Stores</button>` +
+          allStores.map(s => {
+            const active = selectedStore === s.id ? 'active' : '';
+            return `<button class="filter-btn ${active}" onclick="filterStore('${s.id}', this)">${s.name}</button>`;
+          }).join('');
+      } else if (isMultiStoreIM) {
+        // Multi-store IM: show their stores without "All Stores", auto-select first
+        if (!selectedStore && allStores.length > 0) selectedStore = allStores[0].id;
+        filter.innerHTML = allStores.map(s => {
           const active = selectedStore === s.id ? 'active' : '';
           return `<button class="filter-btn ${active}" onclick="filterStore('${s.id}', this)">${s.name}</button>`;
         }).join('');
+      }
     }
   }
 
