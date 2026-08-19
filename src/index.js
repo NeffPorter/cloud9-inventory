@@ -223,4 +223,7 @@ app.get('/promotions', (req, res) => {
 app.get('/calendar', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/calendar.html'));
 });
+app.get('/tax-rules', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/tax-rules.html'));
+});
 module.exports = app;
