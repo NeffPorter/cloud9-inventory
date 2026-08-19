@@ -244,9 +244,8 @@
 
     <div class="form-row">
       <label class="form-label">Distributor</label>
-      <select class="form-select" id="modalDist">
-        <option value="">— Select distributor —</option>
-      </select>
+      <input class="form-input" type="text" id="modalDist" list="distDatalist" placeholder="Select or type a distributor name…" autocomplete="off">
+      <datalist id="distDatalist"></datalist>
     </div>
 
     <div class="form-row">
@@ -341,11 +340,12 @@ async function init() {
 }
 
 function populateDistSelect() {
-  const sel = document.getElementById('modalDist');
+  const dl = document.getElementById('distDatalist');
   distributors.forEach(d => {
     const opt = document.createElement('option');
-    opt.value = d.id; opt.textContent = d.name;
-    sel.appendChild(opt);
+    opt.value = d.name;
+    opt.dataset.id = d.id;
+    dl.appendChild(opt);
   });
 }
 
@@ -593,6 +593,8 @@ function openModal() {
   document.getElementById('modalAmount').value = '';
   document.getElementById('modalNotes').value = '';
   document.getElementById('modalDist').value = '';
+  document.getElementById('distDatalist').innerHTML = '';
+  populateDistSelect();
   document.getElementById('fileSelectedLabel').textContent = '';
   document.getElementById('modalFile').value = '';
   selectedFile = null;
@@ -612,15 +614,16 @@ function onFileSelect(input) {
 }
 
 async function submitInvoice() {
-  const distEl = document.getElementById('modalDist');
+  const typedName = document.getElementById('modalDist').value.trim();
   const amount = parseFloat(document.getElementById('modalAmount').value) || 0;
   const notes = document.getElementById('modalNotes').value.trim();
-  const distId = distEl.value;
-  const distName = distId ? distEl.options[distEl.selectedIndex].text : '';
 
-  if (!distId && !distName) {
-    alert('Please select a distributor.'); return;
-  }
+  if (!typedName) { alert('Please enter a distributor name.'); return; }
+
+  // Match typed name to a known distributor (case-insensitive) to get its ID
+  const matched = distributors.find(d => d.name.toLowerCase() === typedName.toLowerCase());
+  const distId = matched ? matched.id : null;
+  const distName = typedName;
 
   const btn = document.getElementById('modalSubmitBtn');
   btn.disabled = true;
