@@ -112,12 +112,16 @@ const CATEGORIES = [
 ];
 
 async function init() {
+  try {
   const [sRes, rRes] = await Promise.all([
     fetch('/api/inventory/stores', { headers: { Authorization: 'Bearer ' + token } }),
     fetch('/api/tax-rules', { headers: { Authorization: 'Bearer ' + token } })
   ]);
-  stores = (await sRes.json()).stores || [];
-  rules = (await rRes.json()).rules || [];
+  const sData = await sRes.json();
+  const rData = await rRes.json();
+  stores = sData.stores || [];
+  rules = rData.rules || [];
+  if (rData.error) console.error('Tax rules error:', rData.error);
 
   // Populate store select
   const sel = document.getElementById('fStore');
@@ -134,6 +138,9 @@ async function init() {
   });
 
   renderRules();
+  } catch (err) {
+    document.getElementById('rulesContainer').innerHTML = `<div class="empty" style="color:#c00">Failed to load: ${err.message}</div>`;
+  }
 }
 
 function renderRules() {
@@ -148,7 +155,7 @@ function renderRules() {
   // Group by store
   const byStore = {};
   rules.forEach(r => {
-    const name = r.stores?.name || r.store_id;
+    const name = r.store_name || stores.find(s => s.id === r.store_id)?.name || r.store_id;
     if (!byStore[name]) byStore[name] = [];
     byStore[name].push(r);
   });

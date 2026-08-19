@@ -15,13 +15,23 @@ router.get('/', auth, async (req, res) => {
     const { store_id } = req.query;
     let query = supabase
       .from('store_tax_rules')
-      .select('*, stores(name)')
+      .select('*')
       .order('store_id')
       .order('category');
     if (store_id) query = query.eq('store_id', store_id);
     const { data, error } = await query;
     if (error) throw error;
-    res.json({ rules: data || [] });
+
+    // Attach store names via a separate query so we don't need the PostgREST FK cache
+    const storeIds = [...new Set((data || []).map(r => r.store_id))];
+    let storeNames = {};
+    if (storeIds.length > 0) {
+      const { data: stores } = await supabase.from('stores').select('id, name').in('id', storeIds);
+      (stores || []).forEach(s => { storeNames[s.id] = s.name; });
+    }
+
+    const rules = (data || []).map(r => ({ ...r, store_name: storeNames[r.store_id] || r.store_id }));
+    res.json({ rules });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -42,7 +52,7 @@ router.post('/', auth, adminOnly, async (req, res) => {
         tax_pct: parseFloat(tax_pct),
         label: label?.trim() || null
       }], { onConflict: 'store_id,category' })
-      .select('*, stores(name)')
+      .select('*')
       .single();
     if (error) throw error;
     res.json({ rule: data });
