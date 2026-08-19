@@ -65,14 +65,17 @@ router.get('/', auth, async (req, res) => {
   try {
     let eventIds = null;
 
-    // Non-admins: only see events their store is assigned to
-    if (!isHim(req.user.role) && req.user.store_id) {
-      const { data: assigned } = await supabase
-        .from('sale_event_stores')
-        .select('sale_event_id')
-        .eq('store_id', req.user.store_id);
-      eventIds = (assigned || []).map(r => r.sale_event_id);
-      if (!eventIds.length) return res.json([]);
+    // Non-admins: only see events assigned to their store(s)
+    if (!isHim(req.user.role)) {
+      const storeIds = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (storeIds.length) {
+        const { data: assigned } = await supabase
+          .from('sale_event_stores')
+          .select('sale_event_id')
+          .in('store_id', storeIds);
+        eventIds = (assigned || []).map(r => r.sale_event_id);
+        if (!eventIds.length) return res.json([]);
+      }
     }
 
     let query = supabase.from('sale_events').select('*').order('start_date', { ascending: false });

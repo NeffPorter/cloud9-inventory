@@ -350,7 +350,11 @@
 
     const params = new URLSearchParams(window.location.search);
     let storeId = params.get('store');
-    const isMultiStoreRole = ['him', 'admin', 'regional_manager', 'owner'].includes(user.role);
+    const userStoreIds = user.store_ids?.length ? user.store_ids : (user.store_id ? [user.store_id] : []);
+    const isMultiStoreRole = ['him', 'admin', 'regional_manager', 'owner'].includes(user.role)
+      || (['store_user', 'gm'].includes(user.role) && userStoreIds.length > 1);
+    // Single-store IM/GM with no ?store= param — default to their assigned store
+    if (!storeId && ['store_user', 'gm'].includes(user.role) && userStoreIds.length === 1) storeId = userStoreIds[0];
 
     let allItems = [];
     let storeName = '';

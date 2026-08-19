@@ -207,8 +207,9 @@ router.get('/items', auth, async (req, res) => {
     const privileged = isHim(req.user.role) || ['owner','marketing'].includes(req.user.role);
     if (!store_id && !privileged) return res.status(400).json({ error: 'store_id required' });
 
-    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== store_id) {
-      return res.status(403).json({ error: 'Access denied' });
+    if (['gm', 'store_user'].includes(req.user.role)) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!allowed.includes(store_id)) return res.status(403).json({ error: 'Access denied' });
     }
 
     let allItems = [];
@@ -642,8 +643,9 @@ router.get('/category-settings', auth, async (req, res) => {
   try {
     const { store_id } = req.query;
     if (!store_id) return res.status(400).json({ error: 'store_id required' });
-    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== store_id) {
-      return res.status(403).json({ error: 'Access denied' });
+    if (['gm', 'store_user'].includes(req.user.role)) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!allowed.includes(store_id)) return res.status(403).json({ error: 'Access denied' });
     }
     const { data, error } = await supabase
       .from('category_settings')
@@ -661,8 +663,9 @@ router.get('/category-stats', auth, async (req, res) => {
   try {
     const { store_id } = req.query;
     if (!store_id) return res.status(400).json({ error: 'store_id required' });
-    if (['gm', 'store_user'].includes(req.user.role) && req.user.store_id !== store_id) {
-      return res.status(403).json({ error: 'Access denied' });
+    if (['gm', 'store_user'].includes(req.user.role)) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!allowed.includes(store_id)) return res.status(403).json({ error: 'Access denied' });
     }
     const { data: items, error } = await supabase
       .from('inventory_items')
