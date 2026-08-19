@@ -74,6 +74,8 @@
   <div id="pricesContainer"></div>
 </div>
 
+<input type="file" id="csvImportInput" accept=".csv" style="display:none" onchange="handleImportFile(event)">
+
 <script>
   const token = localStorage.getItem('token');
   const user = JSON.parse(localStorage.getItem('user') || '{}');
@@ -87,6 +89,7 @@
   let allInventory = [];
   let priceMap = {};     // item_id -> unit_cost (from DB)
   let pendingChanges = {}; // groupKey -> unit_cost  (key = 'g:cat:grp' or 'i:itemId')
+  let taxRules = [];     // [{ category, tax_pct, label }] for selected store
   const isAdmin = ['admin', 'him', 'regional_manager'].includes(user.role);
 
   let allStores = [];
@@ -143,16 +146,19 @@
   async function loadForStore(storeId) {
     document.getElementById('pricesContainer').innerHTML = '<div class="loading">Loading...</div>';
     try {
-      const [priceRes, invRes] = await Promise.all([
+      const [priceRes, invRes, taxRes] = await Promise.all([
         fetch(`/api/distributors/${distId}/prices?store_id=${storeId}`, { headers: { 'Authorization': 'Bearer ' + token } }),
-        fetch(`/api/inventory/items?store_id=${storeId}`, { headers: { 'Authorization': 'Bearer ' + token } })
+        fetch(`/api/inventory/items?store_id=${storeId}`, { headers: { 'Authorization': 'Bearer ' + token } }),
+        fetch(`/api/tax-rules?store_id=${storeId}`, { headers: { 'Authorization': 'Bearer ' + token } })
       ]);
       const priceData = await priceRes.json();
       const invData = await invRes.json();
+      const taxData = await taxRes.json();
 
       priceMap = {};
       (priceData.prices || []).forEach(p => { priceMap[p.item_id] = p.unit_cost; });
       allInventory = (invData.items || []).filter(i => i.status !== 'Not Tracking');
+      taxRules = taxData.rules || [];
 
       renderPrices();
     } catch (err) {
@@ -169,7 +175,11 @@
           ${d.rep_name ? `<div class="dist-meta">👤 ${d.rep_name}${d.rep_phone ? ` · <a href="tel:${d.rep_phone}" style="color:#2f5597">${d.rep_phone}</a>` : ''}${d.rep_email ? ` · <a href="mailto:${d.rep_email}" style="color:#2f5597">${d.rep_email}</a>` : ''}</div>` : ''}
           ${d.website ? `<div class="dist-meta">🌐 <a href="${d.website}" target="_blank" style="color:#2f5597">${d.website}</a></div>` : ''}
         </div>
-        ${isAdmin ? `<button class="btn btn-blue" onclick="exportCSV()">⬇ Export CSV</button>` : ''}
+        ${isAdmin ? `
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <button class="btn btn-blue" onclick="exportCSV()">⬇ Export CSV</button>
+            <button class="btn btn-gray" onclick="triggerImport()" title="Upload a previously exported CSV to bulk-update prices. Mark X in the Remove column to delete items.">⬆ Import CSV</button>
+          </div>` : ''}
       </div>`;
   }
 
@@ -203,6 +213,12 @@
     return '<span style="color:#999;font-size:11px">Same</span>';
   }
 
+  function taxCell(price, taxPct) {
+    if (!taxPct || price === '' || price === null) return '<td style="color:#aaa">—</td>';
+    const effective = (parseFloat(price) * (1 + taxPct / 100)).toFixed(2);
+    return `<td style="color:#856404;font-weight:600">$${effective}</td>`;
+  }
+
   function renderPrices() {
     const el = document.getElementById('pricesContainer');
 
@@ -224,6 +240,10 @@
       const { groups, standalone } = cats[cat];
       const groupNames = Object.keys(groups).sort();
       const totalGroups = groupNames.length + standalone.length;
+      const taxRule = taxRules.find(r => r.category === cat);
+      const taxPct = taxRule?.tax_pct || 0;
+      const cols = taxRule ? 5 : 4;
+
       const pricedGroups = groupNames.filter(g => {
         const k = groupKey(cat, g);
         const p = pendingChanges.hasOwnProperty(k) ? pendingChanges[k] : (priceMap[groups[g][0]?.id] ?? 0);
@@ -247,13 +267,14 @@
           <td style="color:#666">$${invCost.toFixed(2)}</td>
           <td><span style="color:#888;margin-right:2px">$</span><input type="number" step="0.01" min="0" class="price-input ${changed ? 'changed' : ''}"
             value="${price}" placeholder="—" id="pi_${k.replace(/[^a-zA-Z0-9]/g,'_')}" ${inputAttrs} /></td>
+          ${taxRule ? taxCell(price, taxPct) : ''}
           <td>${savingsBadge(price, invCost)}</td>
         </tr>`;
       });
 
       if (standalone.length > 0) {
         if (groupNames.length > 0) {
-          rows += `<tr class="standalone-header"><td colspan="4">— No variant group —</td></tr>`;
+          rows += `<tr class="standalone-header"><td colspan="${cols}">— No variant group —</td></tr>`;
         }
         standalone.forEach(item => {
           const k = itemKey(item.id);
@@ -267,14 +288,19 @@
             <td style="color:#666">$${(item.cost || 0).toFixed(2)}</td>
             <td><span style="color:#888;margin-right:2px">$</span><input type="number" step="0.01" min="0" class="price-input ${changed ? 'changed' : ''}"
               value="${price}" placeholder="—" id="pi_i_${item.id}" ${inputAttrs} /></td>
+            ${taxRule ? taxCell(price, taxPct) : ''}
             <td>${savingsBadge(price, item.cost || 0)}</td>
           </tr>`;
         });
       }
 
+      const taxBadge = taxRule
+        ? `<span style="background:#fff3cd;color:#856404;font-size:11px;font-weight:700;padding:2px 7px;border-radius:8px;margin-left:8px">${taxRule.label || taxRule.tax_pct + '% tax'}</span>`
+        : '';
+
       html += `<div class="cat-section">
         <div class="cat-header" onclick="toggleCat('catbody_${cat.replace(/[^a-zA-Z0-9]/g,'_')}', this)">
-          <span>${cat}</span>
+          <span>${cat}${taxBadge}</span>
           <span style="font-size:12px;opacity:0.8">${pricedGroups}/${totalGroups} priced ▼</span>
         </div>
         <div class="cat-body" id="catbody_${cat.replace(/[^a-zA-Z0-9]/g,'_')}">
@@ -283,6 +309,7 @@
               <th>Variant Group / Item</th>
               <th>Inventory Cost</th>
               <th>${distributor.name} Price</th>
+              ${taxRule ? `<th style="color:#856404">Effective Cost (+${taxRule.tax_pct}%)</th>` : ''}
               <th>vs. Inventory</th>
             </tr></thead>
             <tbody>${rows}</tbody>
@@ -398,17 +425,114 @@
   }
 
   function exportCSV() {
-    const rows = [['Variant Group', 'Item', 'Category', 'Inventory Cost', `${distributor.name} Price`, 'Savings']];
+    if (!selectedStore) { alert('Please select a store first.'); return; }
+    const storeName = allStores.find(s => s.id === selectedStore)?.name || 'store';
+    // Header row — item_id is needed for import matching; Remove column for flagging deletions
+    const rows = [['item_id', 'Category', 'Brand/Group', 'Item Name', 'Inventory Cost', `${distributor.name} Price`, 'Remove']];
     allInventory.forEach(item => {
       const price = priceMap[item.id] ?? '';
-      const savings = price && item.cost ? (item.cost - price).toFixed(2) : '';
-      rows.push([item.group_name || '', item.variant_name, item.category || '', (item.cost || 0).toFixed(2), price !== '' ? parseFloat(price).toFixed(2) : '', savings]);
+      rows.push([
+        item.id,
+        item.category || '',
+        item.group_name || '',
+        item.variant_name,
+        (item.cost || 0).toFixed(2),
+        price !== '' ? parseFloat(price).toFixed(2) : '',
+        ''   // Put X here to remove item from this distributor
+      ]);
     });
     const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-    a.download = `${distributor.name.replace(/[^a-z0-9]/gi,'_')}_prices.csv`;
+    a.download = `${distributor.name.replace(/[^a-z0-9]/gi,'_')}_${storeName.replace(/[^a-z0-9]/gi,'_')}_prices.csv`;
     a.click();
+  }
+
+  function triggerImport() {
+    if (!selectedStore) { alert('Please select a store first.'); return; }
+    document.getElementById('csvImportInput').click();
+  }
+
+  function parseCSVRow(line) {
+    const cols = [];
+    let cur = '', inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] === '"') {
+        if (inQ && line[i + 1] === '"') { cur += '"'; i++; }
+        else inQ = !inQ;
+      } else if (line[i] === ',' && !inQ) {
+        cols.push(cur); cur = '';
+      } else {
+        cur += line[i];
+      }
+    }
+    cols.push(cur);
+    return cols;
+  }
+
+  async function handleImportFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    e.target.value = '';
+
+    const text = await file.text();
+    const lines = text.split('\n').map(l => l.trimEnd()).filter(l => l.trim());
+    if (lines.length < 2) { alert('CSV appears empty.'); return; }
+
+    const header = parseCSVRow(lines[0]).map(h => h.trim().toLowerCase());
+    const idxId = header.indexOf('item_id');
+    const idxPrice = header.findIndex(h => h.includes('price'));
+    const idxRemove = header.indexOf('remove');
+
+    if (idxId === -1) {
+      alert('This CSV is missing the item_id column.\nPlease use the "Export CSV" button to get the correct template, then re-upload.');
+      return;
+    }
+
+    const toUpsert = [], toRemove = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = parseCSVRow(lines[i]);
+      const itemId = cols[idxId]?.trim();
+      if (!itemId) continue;
+
+      const removeFlag = (idxRemove >= 0 ? cols[idxRemove]?.trim() : '').toLowerCase();
+      if (removeFlag && removeFlag !== '0' && removeFlag !== 'no') {
+        toRemove.push(itemId);
+        continue;
+      }
+
+      const priceStr = idxPrice >= 0 ? cols[idxPrice]?.trim() : '';
+      if (priceStr !== '' && !isNaN(parseFloat(priceStr))) {
+        toUpsert.push({ item_id: itemId, unit_cost: parseFloat(priceStr) });
+      }
+    }
+
+    if (toUpsert.length === 0 && toRemove.length === 0) {
+      alert('No changes found in this CSV. Make sure prices are filled in or items are marked for removal in the Remove column.');
+      return;
+    }
+
+    const parts = [
+      toUpsert.length > 0 ? `${toUpsert.length} price update${toUpsert.length !== 1 ? 's' : ''}` : '',
+      toRemove.length > 0 ? `remove ${toRemove.length} item${toRemove.length !== 1 ? 's' : ''} from this distributor` : ''
+    ].filter(Boolean);
+
+    if (!confirm(`Ready to import:\n• ${parts.join('\n• ')}\n\nContinue?`)) return;
+
+    try {
+      const res = await fetch(`/api/distributors/${distId}/prices/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ store_id: selectedStore, upsert: toUpsert, remove: toRemove })
+      });
+      const data = await res.json();
+      if (!res.ok) { alert('Import failed: ' + (data.error || 'Unknown error')); return; }
+      alert(`✅ Import complete!\n${data.updated} price${data.updated !== 1 ? 's' : ''} updated, ${data.removed} item${data.removed !== 1 ? 's' : ''} removed.`);
+      await loadForStore(selectedStore);
+    } catch (err) {
+      alert('Import error: ' + err.message);
+    }
   }
 
   init();

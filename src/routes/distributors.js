@@ -249,6 +249,80 @@ router.put('/:id/prices', auth, adminOnly, async (req, res) => {
   }
 });
 
+// CSV import — upserts prices and removes flagged items (admin only)
+// Body: { store_id, upsert: [{ item_id, unit_cost }], remove: [item_id, ...] }
+router.post('/:id/prices/import', auth, adminOnly, async (req, res) => {
+  try {
+    const { store_id, upsert = [], remove = [] } = req.body;
+    if (!store_id) return res.status(400).json({ error: 'store_id required' });
+
+    let updated = 0, removed = 0;
+
+    // Delete items marked for removal
+    if (remove.length > 0) {
+      const { error } = await supabase
+        .from('distributor_prices')
+        .delete()
+        .eq('distributor_id', req.params.id)
+        .eq('store_id', store_id)
+        .in('item_id', remove);
+      if (error) throw error;
+      removed = remove.length;
+    }
+
+    // Upsert prices
+    if (upsert.length > 0) {
+      const upsertData = upsert
+        .filter(p => p.item_id && !isNaN(parseFloat(p.unit_cost)))
+        .map(p => ({
+          distributor_id: req.params.id,
+          store_id,
+          item_id: p.item_id,
+          unit_cost: Math.round(parseFloat(p.unit_cost) * 100) / 100,
+          updated_at: new Date().toISOString()
+        }));
+
+      if (upsertData.length > 0) {
+        const { error } = await supabase
+          .from('distributor_prices')
+          .upsert(upsertData, { onConflict: 'distributor_id,item_id,store_id' });
+        if (error) throw error;
+        updated = upsertData.length;
+
+        // Sync cheapest cost to inventory (same logic as PUT route)
+        const { data: store } = await supabase.from('stores').select('*').eq('id', store_id).single();
+        const distToken = store ? await getValidApiToken(store) : null;
+
+        for (const p of upsertData.filter(p => p.unit_cost > 0)) {
+          try {
+            const { data: allPrices } = await supabase
+              .from('distributor_prices').select('unit_cost')
+              .eq('item_id', p.item_id).eq('store_id', store_id).gt('unit_cost', 0);
+            if (!allPrices?.length) continue;
+            const cheapest = Math.min(...allPrices.map(x => x.unit_cost));
+            const { data: invItem } = await supabase
+              .from('inventory_items').select('cost, price')
+              .eq('id', p.item_id).eq('store_id', store_id).single();
+            if (!invItem || invItem.cost === cheapest) continue;
+            await supabase.from('inventory_items').update({ cost: cheapest })
+              .eq('id', p.item_id).eq('store_id', store_id);
+            if (store && distToken) {
+              await updateItemPriceAndCost(store.merchant_id, distToken, p.item_id, invItem.price || 0, cheapest);
+            }
+          } catch (syncErr) {
+            console.error('Cost sync error:', syncErr.message);
+          }
+        }
+      }
+    }
+
+    res.json({ success: true, updated, removed });
+  } catch (err) {
+    console.error('Import prices error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Upsert per-store lead time for a distributor (admin only)
 router.put('/:id/lead-time', auth, adminOnly, async (req, res) => {
   try {

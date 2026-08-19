@@ -113,7 +113,11 @@
   let editingId = null;
 
   if (['admin', 'him', 'regional_manager'].includes(user.role)) {
-    document.getElementById('addBtn').innerHTML = `<button class="btn btn-blue" onclick="openModal()">➕ Add Distributor</button>`;
+    document.getElementById('addBtn').innerHTML = `
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn" style="background:#fff3cd;color:#856404;border:1.5px solid #fcd34d" onclick="window.location.href='/tax-rules'">🧾 Tax Rules</button>
+        <button class="btn btn-blue" onclick="openModal()">➕ Add Distributor</button>
+      </div>`;
   }
 
   async function loadDists() {

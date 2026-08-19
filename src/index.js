@@ -39,6 +39,7 @@ app.use('/api/system', require('./routes/system'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/assigned-tasks', require('./routes/assigned-tasks'));
 app.use('/api/calendar', require('./routes/calendar'));
+app.use('/api/tax-rules', require('./routes/tax-rules'));
 
 // Static files
 app.use(express.static(path.join(__dirname, '../public')));
