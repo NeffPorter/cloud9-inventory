@@ -427,20 +427,38 @@
   function exportCSV() {
     if (!selectedStore) { alert('Please select a store first.'); return; }
     const storeName = allStores.find(s => s.id === selectedStore)?.name || 'store';
-    // Header row — item_id is needed for import matching; Remove column for flagging deletions
-    const rows = [['item_id', 'Category', 'Brand/Group', 'Item Name', 'Inventory Cost', `${distributor.name} Price`, 'Remove']];
+
+    // Build groups exactly as the page displays them (one row per group/standalone)
+    const cats = {};
     allInventory.forEach(item => {
-      const price = priceMap[item.id] ?? '';
-      rows.push([
-        item.id,
-        item.category || '',
-        item.group_name || '',
-        item.variant_name,
-        (item.cost || 0).toFixed(2),
-        price !== '' ? parseFloat(price).toFixed(2) : '',
-        ''   // Put X here to remove item from this distributor
-      ]);
+      const cat = item.category || 'No Category';
+      if (!cats[cat]) cats[cat] = { groups: {}, standalone: [] };
+      if (item.group_name) {
+        if (!cats[cat].groups[item.group_name]) cats[cat].groups[item.group_name] = [];
+        cats[cat].groups[item.group_name].push(item);
+      } else {
+        cats[cat].standalone.push(item);
+      }
     });
+
+    // item_ids = semicolon-separated list of all IDs in the group (used for import)
+    const rows = [['item_ids', 'Category', 'Brand / Group Name', 'Inventory Cost', `${distributor.name} Price`, 'Remove']];
+
+    Object.keys(cats).sort().forEach(cat => {
+      const { groups, standalone } = cats[cat];
+      Object.keys(groups).sort().forEach(grp => {
+        const grpItems = groups[grp];
+        const ids = grpItems.map(i => i.id).join(';');
+        const price = grpItems.map(i => priceMap[i.id]).find(p => p != null) ?? '';
+        const invCost = grpItems[0]?.cost || 0;
+        rows.push([ids, cat, grp, invCost.toFixed(2), price !== '' ? parseFloat(price).toFixed(2) : '', '']);
+      });
+      standalone.forEach(item => {
+        const price = priceMap[item.id] ?? '';
+        rows.push([item.id, cat, item.variant_name, (item.cost || 0).toFixed(2), price !== '' ? parseFloat(price).toFixed(2) : '', '']);
+      });
+    });
+
     const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
@@ -480,12 +498,12 @@
     if (lines.length < 2) { alert('CSV appears empty.'); return; }
 
     const header = parseCSVRow(lines[0]).map(h => h.trim().toLowerCase());
-    const idxId = header.indexOf('item_id');
+    const idxIds = header.findIndex(h => h.includes('item_id'));
     const idxPrice = header.findIndex(h => h.includes('price'));
     const idxRemove = header.indexOf('remove');
 
-    if (idxId === -1) {
-      alert('This CSV is missing the item_id column.\nPlease use the "Export CSV" button to get the correct template, then re-upload.');
+    if (idxIds === -1) {
+      alert('This CSV is missing the item_ids column.\nPlease use the "Export CSV" button to get the correct template, then re-upload.');
       return;
     }
 
@@ -493,18 +511,21 @@
 
     for (let i = 1; i < lines.length; i++) {
       const cols = parseCSVRow(lines[i]);
-      const itemId = cols[idxId]?.trim();
-      if (!itemId) continue;
+      const idsRaw = cols[idxIds]?.trim();
+      if (!idsRaw) continue;
+      // Each row may have multiple IDs (semicolon-separated for groups)
+      const itemIds = idsRaw.split(';').map(s => s.trim()).filter(Boolean);
 
       const removeFlag = (idxRemove >= 0 ? cols[idxRemove]?.trim() : '').toLowerCase();
       if (removeFlag && removeFlag !== '0' && removeFlag !== 'no') {
-        toRemove.push(itemId);
+        toRemove.push(...itemIds);
         continue;
       }
 
       const priceStr = idxPrice >= 0 ? cols[idxPrice]?.trim() : '';
       if (priceStr !== '' && !isNaN(parseFloat(priceStr))) {
-        toUpsert.push({ item_id: itemId, unit_cost: parseFloat(priceStr) });
+        const cost = parseFloat(priceStr);
+        itemIds.forEach(id => toUpsert.push({ item_id: id, unit_cost: cost }));
       }
     }
 
