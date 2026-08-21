@@ -922,8 +922,8 @@ async function init() {
   const ALLOWED = ['regional_manager', 'him', 'admin', 'owner', 'marketing', 'gm', 'store_user'];
   if (!ALLOWED.includes(role)) { window.location.href = '/dashboard'; return; }
 
-  // Show Discount Schedules tab only for HIM/admin/RM
-  if (canManageDiscounts) {
+  // Show Discount Schedules tab for HIM/admin/RM (who can manage) and GMs/IMs (view only)
+  if (canManageDiscounts || ['gm', 'store_user'].includes(role)) {
     document.getElementById('tabDiscounts').style.display = '';
   }
 

@@ -219,14 +219,17 @@ async function init() {
       ${stores.map(s => `<button class="store-btn" onclick="setStore('${s.id}', this)">${s.name}</button>`).join('')}
     `;
   } else if (isMultiStoreIM) {
-    // Multi-store IM: show their stores without "All Stores", auto-select first
-    if (stores.length > 0) currentStoreId = stores[0].id;
-    wrap.innerHTML = stores.map((s, i) =>
+    // Multi-store IM/GM: show only their assigned stores without "All Stores"
+    const myStores = stores.filter(s => userStoreIds.includes(s.id));
+    const displayStores = myStores.length ? myStores : stores;
+    if (displayStores.length > 0) currentStoreId = displayStores[0].id;
+    wrap.innerHTML = displayStores.map((s, i) =>
       `<button class="store-btn${i === 0 ? ' active' : ''}" onclick="setStore('${s.id}', this)">${s.name}</button>`
     ).join('');
   } else {
     // Single-store IM/GM: auto-set store, hide picker
-    if (stores.length > 0) currentStoreId = stores[0].id;
+    if (userStoreIds.length > 0) currentStoreId = userStoreIds[0];
+    else if (stores.length > 0) currentStoreId = stores[0].id;
     wrap.style.display = 'none';
   }
 
