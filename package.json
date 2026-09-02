@@ -12,6 +12,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@sendgrid/mail": "^8.1.6",
     "@supabase/supabase-js": "^2.106.2",
     "axios": "^1.16.1",
     "bcryptjs": "^3.0.3",
