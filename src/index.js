@@ -10,7 +10,7 @@ const cron = require('node-cron');
 dotenv.config();
 
 console.log('[Startup] GMAIL_USER:', process.env.GMAIL_USER || 'MISSING');
-console.log('[Startup] GMAIL_PASS:', process.env.GMAIL_PASS ? '***set***' : 'MISSING');
+console.log('[Startup] GMAIL_APP_PASSWORD:', process.env.GMAIL_APP_PASSWORD ? '***set***' : 'MISSING');
 
 const app = express();
 app.use(cors());
