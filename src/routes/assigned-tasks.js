@@ -11,6 +11,8 @@ function requireCreator(req, res, next) {
   next();
 }
 
+const APP_URL = process.env.APP_BASE_URL || 'https://cloud9systems.up.railway.app';
+
 // Notify a specific user in their notification bell + email
 async function notifyUser({ userId, userEmail, userName, title, message, link }) {
   // In-app notification (target_user_id)
@@ -28,18 +30,15 @@ async function notifyUser({ userId, userEmail, userName, title, message, link })
     console.error('[assigned-tasks] notify insert error:', err.message);
   }
 
-  // Email
-  try {
-    if (userEmail) {
-      await sendEmail({
-        to: userEmail,
-        subject: title,
-        html: `<p>Hi ${userName || 'there'},</p><p>${message}</p>${link ? `<p><a href="${link}">View Task</a></p>` : ''}<p>— Cloud 9 Systems</p>`,
-        text: message
-      });
-    }
-  } catch (err) {
-    console.error('[assigned-tasks] email error:', err.message);
+  // Email (fire-and-forget — don't block the response)
+  if (userEmail) {
+    const fullLink = link ? `${APP_URL}${link}` : null;
+    sendEmail({
+      to: userEmail,
+      subject: title,
+      html: `<p>Hi ${userName || 'there'},</p><p>${message}</p>${fullLink ? `<p><a href="${fullLink}">View Task</a></p>` : ''}<p>— Cloud 9 Systems</p>`,
+      text: message + (fullLink ? `\n\n${fullLink}` : '')
+    }).catch(err => console.error('[assigned-tasks] email error:', err.message));
   }
 }
 
@@ -63,11 +62,12 @@ async function notifyManagers({ title, message, link, excludeUserId }) {
         read: false
       }]);
       if (mgr.email) {
-        await sendEmail({
+        const fullLink = link ? `${APP_URL}${link}` : null;
+        sendEmail({
           to: mgr.email,
           subject: title,
-          html: `<p>${message}</p>${link ? `<p><a href="${link}">View in Task Manager</a></p>` : ''}<p>— Cloud 9 Systems</p>`,
-          text: message
+          html: `<p>${message}</p>${fullLink ? `<p><a href="${fullLink}">View in Task Manager</a></p>` : ''}<p>— Cloud 9 Systems</p>`,
+          text: message + (fullLink ? `\n\n${fullLink}` : '')
         }).catch(() => {});
       }
     }
@@ -90,6 +90,13 @@ router.post('/', auth, requireCreator, async (req, res) => {
       .single();
     if (!assignee) return res.status(404).json({ error: 'Assignee not found' });
 
+    // Lookup creator name from DB (JWT may not have it)
+    const { data: creator } = await supabase
+      .from('users')
+      .select('name, email')
+      .eq('id', req.user.id)
+      .single();
+
     const { data: task, error } = await supabase
       .from('assigned_tasks')
       .insert([{
@@ -106,7 +113,7 @@ router.post('/', auth, requireCreator, async (req, res) => {
 
     if (error) throw error;
 
-    const creatorName = req.user.name || req.user.email;
+    const creatorName = creator?.name || creator?.email || req.user.email;
     const dueStr = due_date ? ` Due: ${due_date}.` : '';
     await notifyUser({
       userId: assignee.id,
