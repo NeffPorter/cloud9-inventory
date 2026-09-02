@@ -1,52 +1,45 @@
 /**
- * Email service via Gmail SMTP (port 587 / STARTTLS) + App Password.
- * Set GMAIL_USER and GMAIL_APP_PASSWORD in Railway env vars.
+ * Email service via SendGrid HTTP API.
+ * Set SENDGRID_API_KEY in Railway env vars.
+ * FROM address: admin@cloud9vapor.co
  */
 
-const nodemailer = require('nodemailer');
+const sgMail = require('@sendgrid/mail');
 
-let _transporter = null;
+let _configured = false;
 
-function getTransporter() {
-  if (_transporter) return _transporter;
-
-  const user = process.env.GMAIL_USER;
-  const pass = process.env.GMAIL_APP_PASSWORD;
-
-  if (!user || !pass) return null;
-
-  _transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
-    requireTLS: true,
-    auth: { user, pass }
-  });
-
-  return _transporter;
+function configure() {
+  if (_configured) return true;
+  const key = process.env.SENDGRID_API_KEY;
+  if (!key) return false;
+  sgMail.setApiKey(key);
+  _configured = true;
+  return true;
 }
 
+const FROM = 'Cloud 9 Vapor <admin@cloud9vapor.co>';
+
 async function sendEmail({ to, subject, html, text }) {
-  const transporter = getTransporter();
-  if (!transporter) {
-    console.warn('[Email] Not configured — GMAIL_USER or GMAIL_APP_PASSWORD missing.');
+  if (!configure()) {
+    console.warn('[Email] Not configured — SENDGRID_API_KEY missing.');
     return;
   }
 
-  const recipient = Array.isArray(to) ? to.join(', ') : to;
-  console.log(`[Email] Sending "${subject}" to ${recipient}`);
+  const recipient = Array.isArray(to) ? to : [to];
+  console.log(`[Email] Sending "${subject}" to ${recipient.join(', ')}`);
 
   try {
-    await transporter.sendMail({
-      from: `Cloud 9 Vapor <${process.env.GMAIL_USER}>`,
+    await sgMail.send({
+      from: FROM,
       to: recipient,
       subject,
-      html: html || undefined,
-      text: text || undefined
+      html: html || text || '',
+      text: text || ''
     });
-    console.log(`[Email] Sent OK to ${recipient}`);
+    console.log(`[Email] Sent OK to ${recipient.join(', ')}`);
   } catch (err) {
-    console.error(`[Email] Failed to send to ${recipient}:`, err.message);
+    const detail = err.response?.body?.errors?.[0]?.message || err.message;
+    console.error(`[Email] Failed to send to ${recipient.join(', ')}:`, detail);
     throw err;
   }
 }
