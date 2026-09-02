@@ -1,7 +1,6 @@
 /**
- * Email service via Gmail SMTP + App Password.
+ * Email service via Gmail SMTP (port 587 / STARTTLS) + App Password.
  * Set GMAIL_USER and GMAIL_APP_PASSWORD in Railway env vars.
- * App passwords never expire — no OAuth tokens needed.
  */
 
 const nodemailer = require('nodemailer');
@@ -14,12 +13,13 @@ function getTransporter() {
   const user = process.env.GMAIL_USER;
   const pass = process.env.GMAIL_APP_PASSWORD;
 
-  if (!user || !pass) {
-    return null;
-  }
+  if (!user || !pass) return null;
 
   _transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    requireTLS: true,
     auth: { user, pass }
   });
 
