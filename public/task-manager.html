@@ -206,7 +206,7 @@ function renderTasks() {
           ${isDone ? `<span class="meta-pill pill-done">✓ Done ${t.completed_at ? fmtDate(t.completed_at) : ''}</span>` : ''}
         </div>
         <div class="task-actions">
-          ${canComplete ? `<button class="btn-sm btn-complete" onclick="completeTask('${t.id}')">✓ Mark Complete</button>` : ''}
+          ${canComplete ? `<button class="btn-sm btn-complete" onclick="completeTask('${t.id}', this)">✓ Mark Complete</button>` : ''}
           ${canDelete   ? `<button class="btn-sm btn-delete"   onclick="deleteTask('${t.id}')">Delete</button>` : ''}
         </div>
       </div>
@@ -258,8 +258,9 @@ async function createTask() {
   }
 }
 
-async function completeTask(id) {
+async function completeTask(id, btn) {
   if (!confirm('Mark this task as complete?')) return;
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
   try {
     const r = await fetch(`/api/assigned-tasks/${id}/complete`, {
       method: 'PUT',
@@ -271,6 +272,7 @@ async function completeTask(id) {
     await loadTasks();
   } catch (e) {
     toast('Error: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Mark Complete'; }
   }
 }
 

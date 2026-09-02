@@ -21,6 +21,7 @@ async function notifyUser({ userId, userEmail, userName, title, message, link })
       message,
       link: link || null,
       target_user_id: userId,
+      target_role: null,
       read: false
     }]);
   } catch (err) {
@@ -58,6 +59,7 @@ async function notifyManagers({ title, message, link, excludeUserId }) {
         message,
         link: link || null,
         target_user_id: mgr.id,
+        target_role: null,
         read: false
       }]);
       if (mgr.email) {
@@ -189,6 +191,9 @@ router.put('/:id/complete', auth, async (req, res) => {
     const isAssignee = task.assigned_to === req.user.id;
     const isManager = CREATOR_ROLES.includes(req.user.role);
     if (!isAssignee && !isManager) return res.status(403).json({ error: 'Forbidden' });
+
+    // Idempotency guard — don't re-notify if already complete
+    if (task.status === 'complete') return res.json({ success: true });
 
     const { error } = await supabase
       .from('assigned_tasks')
