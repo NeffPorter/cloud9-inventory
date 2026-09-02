@@ -200,7 +200,8 @@ router.post('/', auth, async (req, res) => {
         title: 'PO needs approval',
         message: `PO ${po.po_number} (${distributor}) for ${store?.name || 'a store'} — $${po.total_cost.toFixed(2)} would put this week's spending over the ${budget.budget_30 > 0 ? '30%' : 'budget'} line and needs approval.`,
         link: `/pos/view?id=${po.id}`,
-        store_id
+        store_id,
+        target_role: 'him'
       });
       await logActivity({
         actor: req.user,
@@ -452,7 +453,8 @@ router.put('/:id/items/:itemId', auth, async (req, res) => {
           title: 'PO needs approval',
           message: `PO ${po.po_number} (${po.distributor}) for ${store?.name || 'a store'} — qty change brought total to $${(Math.round(newTotal * 100) / 100).toFixed(2)}, pushing this week's spend over budget.`,
           link: `/pos/view?id=${po.id}`,
-          store_id: po.store_id
+          store_id: po.store_id,
+          target_role: 'him'
         });
       } else if (!needsApproval && po.status === 'pending_approval') {
         poUpdates.status = 'ordered';
@@ -575,7 +577,8 @@ router.post('/:id/items', auth, async (req, res) => {
           title: 'PO needs approval',
           message: `PO ${po.po_number} (${po.distributor}) for ${store?.name || 'a store'} — now $${newTotalCost.toFixed(2)} after items were added, putting this week's spending over budget.`,
           link: `/pos/view?id=${po.id}`,
-          store_id: po.store_id
+          store_id: po.store_id,
+          target_role: 'him'
         });
         await logActivity({
           actor: req.user,

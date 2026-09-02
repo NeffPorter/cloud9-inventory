@@ -64,7 +64,8 @@ async function recalcTotal(budgetId) {
       title: 'Budget needs approval',
       message: `${store?.name || 'A store'}'s budget for week ${budget.week_start} – ${budget.week_end} has exceeded its 45% limit and needs approval to continue spending.`,
       link: `/budget-view?id=${budgetId}`,
-      store_id: budget.store_id
+      store_id: budget.store_id,
+      target_role: 'him'
     });
   }
 
@@ -287,7 +288,8 @@ router.put('/:id', auth, async (req, res) => {
         title: 'Budget marked complete',
         message: `${store?.name || 'A store'}'s budget for week ${data.week_start} – ${data.week_end} was marked complete by ${req.user.name || req.user.email}.`,
         link: `/budget-view?id=${req.params.id}`,
-        store_id: data.store_id
+        store_id: data.store_id,
+        target_role: 'him'
       });
       await logActivity({
         actor: req.user,

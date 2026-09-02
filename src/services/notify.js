@@ -51,12 +51,32 @@ async function notify({ type, title, message, link = null, store_id = null, targ
       users = (data || []).filter(u => u.role !== 'admin');
 
     } else if (target_store_id) {
-      const { data } = await supabase
+      // Get store GM/IM users — check both store_id (primary) and store_ids (array)
+      const { data: storeUsers } = await supabase
         .from('users')
-        .select('email, notification_prefs')
-        .eq('store_id', target_store_id)
+        .select('email, notification_prefs, role')
+        .or(`store_id.eq.${target_store_id},store_ids.cs.{"${target_store_id}"}`)
         .in('role', ['store_user', 'gm']);
-      users = data || [];
+      users = storeUsers || [];
+
+      // For optional (non-mandatory) notification types, also include HIM/regional managers
+      // who have the matching pref enabled — they see the same toggle in their settings
+      const prefKey = TYPE_TO_PREF[type];
+      if (prefKey && !MANDATORY_TYPES.has(type)) {
+        const { data: himUsers } = await supabase
+          .from('users')
+          .select('email, notification_prefs, role')
+          .in('role', ['regional_manager', 'him']);
+        // Only include HIM users who have the pref on (default true)
+        const himFiltered = (himUsers || []).filter(u => {
+          const prefs = u.notification_prefs || {};
+          return prefs[prefKey] !== false;
+        });
+        // Merge, deduplicating by email
+        const seen = new Set(users.map(u => u.email));
+        himFiltered.forEach(u => { if (!seen.has(u.email)) users.push(u); });
+      }
+
       console.log(`[notify] store=${target_store_id} found ${users.length} recipient(s):`, users.map(u => u.email));
     }
 

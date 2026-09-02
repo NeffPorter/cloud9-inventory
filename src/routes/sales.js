@@ -346,7 +346,8 @@ await supabase.from('inventory_items').upsert([{
             ? `${displayName} (${displayCategory}) at ${store.name} is out of stock.`
             : `${displayName} (${displayCategory}) at ${store.name} is low on stock — ${cloverQty} left.`,
           link: `/inventory?store=${store.id}`,
-          store_id: store.id
+          store_id: store.id,
+          target_store_id: store.id
         });
       }
     }
