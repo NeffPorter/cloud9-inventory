@@ -84,6 +84,7 @@
     }
     .invoice-table td { padding: 12px 16px; font-size: 14px; border-bottom: 1px solid #f7f7f7; vertical-align: middle; }
     .invoice-table tr:last-child td { border-bottom: none; }
+    .invoice-subtotal td { background: #f0f4ff; font-weight: 700; color: #2f5597; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
     .invoice-table input[type="text"],
     .invoice-table input[type="number"] {
@@ -213,6 +214,7 @@
 
       .invoice-table th { background: #f0f0f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; color: #333 !important; }
       .invoice-table input { border: none !important; background: transparent !important; padding: 0 !important; -webkit-appearance: none; }
+      .invoice-subtotal td { background: #f0f4ff !important; color: #2f5597 !important; font-weight: 700 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
       .progress-fill, .budget-bar-fill { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
@@ -522,9 +524,9 @@ function renderPage() {
       // Subtotal row when distributor has multiple invoices
       if (group.length > 1) {
         const subtotal = group.reduce((sum, inv) => sum + (inv.invoice_amount || 0), 0);
-        html += `<tr style="background:#f0f4ff;">
-          <td colspan="${colSpan - 2}" style="font-weight:700;color:#2f5597;font-size:13px;padding-left:24px">${distName} — Total</td>
-          <td style="font-weight:700;color:#2f5597">${formatMoney(subtotal)}</td>
+        html += `<tr class="invoice-subtotal">
+          <td colspan="${colSpan - 2}" style="font-size:13px;padding-left:24px">${distName} — Total</td>
+          <td>${formatMoney(subtotal)}</td>
           ${!isComplete ? '<td></td>' : ''}
         </tr>`;
       }
