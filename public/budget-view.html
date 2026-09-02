@@ -283,6 +283,7 @@ const budgetId = urlParams.get('id');
 let budget = null;
 let invoices = [];
 let storeName = '';
+let storeEntityName = '';
 let distributors = [];
 let committedPos = 0;
 let openPos = [];
@@ -324,6 +325,7 @@ async function init() {
     budget = budgetData.budget;
     invoices = budgetData.invoices || [];
     storeName = budgetData.store_name || '';
+    storeEntityName = budgetData.store_entity_name || '';
     distributors = distData.distributors || [];
     committedPos = budgetData.committed_pos || 0;
     openPos = budgetData.open_pos || [];
@@ -757,7 +759,7 @@ function doPrint() {
     </div>` : '';
 
   const html = `<!DOCTYPE html><html><head><meta charset="UTF-8">
-  <title>Budget Report — ${storeName}</title>
+  <title>${(storeEntityName || storeName)} - budget report ${budget.week_start ? (d => `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}-${d.getFullYear()}`)(new Date(budget.week_start + 'T00:00:00')) : ''}</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0;}
     body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:11px;color:#1a1a2e;background:#fff;}

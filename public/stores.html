@@ -124,6 +124,10 @@
       <label>Store Name</label>
       <input type="text" id="editStoreName" placeholder="e.g. Cloud 9 Vapor Littlefield">
     </div>
+    <div class="form-group">
+      <label>Legal Entity / LLC Name <span class="label-hint">— used in PDF report filenames</span></label>
+      <input type="text" id="editEntityName" placeholder="e.g. Cloud 9 Systems AZ, LLC">
+    </div>
 
     <div class="section-divider">🔍 Google Business Profile</div>
     <div class="form-group">
@@ -242,6 +246,7 @@ function openModal(storeId) {
   editingStoreId = store.id;
   document.getElementById('editModalTitle').textContent = '✏️ ' + store.name;
   document.getElementById('editStoreName').value         = store.name || '';
+  document.getElementById('editEntityName').value        = store.entity_name        || '';
   document.getElementById('editGoogleLocationId').value = store.google_location_id || '';
   document.getElementById('editFacebookPageId').value   = store.facebook_page_id   || '';
   document.getElementById('editFacebookToken').value    = '';
@@ -264,6 +269,7 @@ async function saveStore() {
 
   const body = {
     name:                document.getElementById('editStoreName').value.trim()        || undefined,
+    entity_name:         document.getElementById('editEntityName').value.trim()       || null,
     google_location_id:  document.getElementById('editGoogleLocationId').value.trim() || null,
     facebook_page_id:    document.getElementById('editFacebookPageId').value.trim()   || null,
   };

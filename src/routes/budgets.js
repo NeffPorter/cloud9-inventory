@@ -217,10 +217,10 @@ router.get('/:id', auth, async (req, res) => {
       .eq('budget_id', req.params.id)
       .order('created_at');
 
-    // Get store name
+    // Get store name + entity name
     const { data: store } = await supabase
       .from('stores')
-      .select('name')
+      .select('name, entity_name')
       .eq('id', budget.store_id)
       .single();
 
@@ -237,7 +237,7 @@ router.get('/:id', auth, async (req, res) => {
       (openPOs || []).reduce((sum, p) => sum + (p.total_cost || 0), 0) * 100
     ) / 100;
 
-    res.json({ budget, invoices: invoices || [], store_name: store?.name || '', committed_pos, open_pos: openPOs || [] });
+    res.json({ budget, invoices: invoices || [], store_name: store?.name || '', store_entity_name: store?.entity_name || '', committed_pos, open_pos: openPOs || [] });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

@@ -149,9 +149,10 @@ async function triggerBackgroundSync(store) {
 router.put('/stores/:id', auth, async (req, res) => {
   try {
     if (!isHim(req.user.role)) return res.status(403).json({ error: 'Admin only' });
-    const { google_location_id, apple_location_id, facebook_page_id, facebook_page_token, ga4_property_id, name } = req.body;
+    const { google_location_id, apple_location_id, facebook_page_id, facebook_page_token, ga4_property_id, name, entity_name } = req.body;
     const updates = {};
     if (name                !== undefined) updates.name                = name;
+    if (entity_name         !== undefined) updates.entity_name         = entity_name         || null;
     if (google_location_id  !== undefined) updates.google_location_id  = google_location_id  || null;
     if (apple_location_id   !== undefined) updates.apple_location_id   = apple_location_id   || null;
     if (facebook_page_id    !== undefined) updates.facebook_page_id    = facebook_page_id    || null;
