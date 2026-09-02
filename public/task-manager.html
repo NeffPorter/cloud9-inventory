@@ -111,8 +111,9 @@
 const token = localStorage.getItem('token');
 const user  = JSON.parse(localStorage.getItem('user') || '{}');
 const ALLOWED = ['regional_manager', 'him', 'admin', 'owner', 'gm', 'store_user', 'marketing'];
-const CREATOR_ROLES = ['regional_manager', 'him', 'admin'];
-const isCreator = CREATOR_ROLES.includes(user.role);
+const MANAGER_ROLES = ['regional_manager', 'him', 'admin'];
+const isManager = MANAGER_ROLES.includes(user.role);
+const isCreator = true; // everyone can assign tasks
 
 if (!token || !ALLOWED.includes(user.role)) window.location.href = '/dashboard';
 
@@ -189,8 +190,10 @@ function renderTasks() {
     const isDone = t.status === 'complete';
     const storeName = t.store_id ? storesMap[t.store_id] : null;
 
-    const canComplete = (t.assigned_to === user.id || isCreator) && !isDone;
-    const canDelete = isCreator && !isDone;
+    const isMyTask = t.assigned_to === user.id;
+    const iMyCreation = t.assigned_by === user.id;
+    const canComplete = (isMyTask || iMyCreation || isManager) && !isDone;
+    const canDelete = (iMyCreation || isManager) && !isDone;
 
     return `<div class="task-card${isDone ? ' complete' : ''}">
       <div class="task-check${isDone ? ' done' : ''}">
@@ -200,7 +203,7 @@ function renderTasks() {
         <div class="task-title">${escHtml(t.title)}</div>
         ${t.description ? `<div class="task-desc">${escHtml(t.description)}</div>` : ''}
         <div class="task-meta">
-          ${isCreator ? `<span class="meta-pill pill-user">→ ${escHtml(assigneeName)}</span>` : `<span class="meta-pill pill-user">From: ${escHtml(creatorName)}</span>`}
+          ${iMyCreation ? `<span class="meta-pill pill-user">→ ${escHtml(assigneeName)}</span>` : `<span class="meta-pill pill-user">From: ${escHtml(creatorName)}</span>`}
           ${storeName ? `<span class="meta-pill pill-store">${escHtml(storeName)}</span>` : ''}
           ${t.due_date ? `<span class="meta-pill ${isOverdue ? 'pill-overdue' : 'pill-due'}">${isOverdue ? '⚠️ Overdue · ' : ''}Due ${t.due_date}</span>` : ''}
           ${isDone ? `<span class="meta-pill pill-done">✓ Done ${t.completed_at ? fmtDate(t.completed_at) : ''}</span>` : ''}

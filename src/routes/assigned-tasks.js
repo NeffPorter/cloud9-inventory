@@ -4,12 +4,7 @@ const auth = require('../middleware/auth');
 const supabase = require('../lib/supabase');
 const { sendEmail } = require('../services/email');
 
-const CREATOR_ROLES = ['regional_manager', 'him', 'admin'];
-
-function requireCreator(req, res, next) {
-  if (!CREATOR_ROLES.includes(req.user.role)) return res.status(403).json({ error: 'Forbidden' });
-  next();
-}
+const MANAGER_ROLES = ['regional_manager', 'him', 'admin'];
 
 const APP_URL = process.env.APP_BASE_URL || 'https://cloud9systems.up.railway.app';
 
@@ -77,7 +72,7 @@ async function notifyManagers({ title, message, link, excludeUserId }) {
 }
 
 // ── POST /api/assigned-tasks — create a task ──────────────────────────────────
-router.post('/', auth, requireCreator, async (req, res) => {
+router.post('/', auth, async (req, res) => {
   try {
     const { title, description, due_date, assigned_to, store_id } = req.body;
     if (!title || !assigned_to) return res.status(400).json({ error: 'title and assigned_to required' });
@@ -132,10 +127,10 @@ router.post('/', auth, requireCreator, async (req, res) => {
 });
 
 // ── GET /api/assigned-tasks — list tasks ─────────────────────────────────────
-// Creators see tasks they assigned. Assignees see tasks assigned to them.
+// HIM/RM see all tasks. Everyone else sees tasks they created OR are assigned to.
 router.get('/', auth, async (req, res) => {
   try {
-    const isCreator = CREATOR_ROLES.includes(req.user.role);
+    const isManager = MANAGER_ROLES.includes(req.user.role);
 
     let query = supabase
       .from('assigned_tasks')
@@ -146,15 +141,9 @@ router.get('/', auth, async (req, res) => {
       `)
       .order('created_at', { ascending: false });
 
-    if (isCreator) {
-      // Admins/HIM/RM see everything they created; HIM/RM see all tasks
-      if (req.user.role === 'admin') {
-        query = query.eq('assigned_by', req.user.id);
-      }
-      // him/regional_manager see all tasks
-    } else {
-      // Regular users see only their own assigned tasks
-      query = query.eq('assigned_to', req.user.id);
+    if (!isManager) {
+      // See tasks you created OR are assigned to
+      query = query.or(`assigned_to.eq.${req.user.id},assigned_by.eq.${req.user.id}`);
     }
 
     const { data, error } = await query;
@@ -194,10 +183,11 @@ router.put('/:id/complete', auth, async (req, res) => {
 
     if (fetchErr || !task) return res.status(404).json({ error: 'Task not found' });
 
-    // Only assignee or creator/manager can mark complete
+    // Assignee, task creator, or manager can mark complete
     const isAssignee = task.assigned_to === req.user.id;
-    const isManager = CREATOR_ROLES.includes(req.user.role);
-    if (!isAssignee && !isManager) return res.status(403).json({ error: 'Forbidden' });
+    const isTaskCreator = task.assigned_by === req.user.id;
+    const isManager = MANAGER_ROLES.includes(req.user.role);
+    if (!isAssignee && !isTaskCreator && !isManager) return res.status(403).json({ error: 'Forbidden' });
 
     // Idempotency guard — don't re-notify if already complete
     if (task.status === 'complete') return res.json({ success: true });
@@ -220,8 +210,8 @@ router.put('/:id/complete', auth, async (req, res) => {
     });
 
     // Also notify the original creator if they're not a manager
-    if (!CREATOR_ROLES.includes('gm') && task.creator && task.creator.id !== req.user.id) {
-      if (!CREATOR_ROLES.includes(task.creator.role || '')) {
+    if (task.creator && task.creator.id !== req.user.id) {
+      if (!MANAGER_ROLES.includes(task.creator.role || '')) {
         // creator is not already getting manager notification
         await notifyUser({
           userId: task.creator.id,
@@ -242,8 +232,20 @@ router.put('/:id/complete', auth, async (req, res) => {
 });
 
 // ── DELETE /api/assigned-tasks/:id — delete a task ───────────────────────────
-router.delete('/:id', auth, requireCreator, async (req, res) => {
+router.delete('/:id', auth, async (req, res) => {
   try {
+    // Only the task creator or a manager can delete
+    const { data: task } = await supabase
+      .from('assigned_tasks')
+      .select('assigned_by')
+      .eq('id', req.params.id)
+      .single();
+
+    if (!task) return res.status(404).json({ error: 'Task not found' });
+    if (task.assigned_by !== req.user.id && !MANAGER_ROLES.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
     const { error } = await supabase
       .from('assigned_tasks')
       .delete()

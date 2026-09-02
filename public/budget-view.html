@@ -481,30 +481,53 @@ function renderPage() {
         ${!isComplete ? '<th>Actions</th>' : ''}
       </tr></thead><tbody id="invoiceTbody">`;
 
+    // Group invoices by distributor name
+    const groups = {};
+    const groupOrder = [];
     invoices.forEach(inv => {
       const distName = inv.distributor_name || distributors.find(d => d.id === inv.distributor_id)?.name || '—';
-      html += `<tr id="inv-row-${inv.id}">
-        <td style="font-weight:600">${distName}</td>
-        <td>
-          ${inv.invoice_pdf_url
-            ? `<a class="pdf-link" href="${inv.invoice_pdf_url}" target="_blank" title="${inv.invoice_pdf_name || 'Invoice'}">📎 ${inv.invoice_pdf_name || 'View PDF'}</a>`
-            : `<label class="upload-later-label" id="upload-label-${inv.id}">
-                 📎 Add file
-                 <input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="uploadInvoicePdf('${inv.id}', this)">
-               </label>`}
-        </td>
-        <td>
-          ${!isComplete
-            ? `<input type="number" step="0.01" min="0" value="${(inv.invoice_amount || 0).toFixed(2)}"
-                 id="amt-${inv.id}" style="width:110px"
-                 onchange="updateInvoiceAmount('${inv.id}', this.value)">`
-            : `<strong>${formatMoney(inv.invoice_amount)}</strong>`}
-        </td>
-        <td style="color:#888;font-size:13px">${inv.notes || ''}</td>
-        ${!isComplete ? `<td>
-          <button class="btn-del-row" onclick="deleteInvoice('${inv.id}')">🗑</button>
-        </td>` : ''}
-      </tr>`;
+      inv._distName = distName;
+      if (!groups[distName]) { groups[distName] = []; groupOrder.push(distName); }
+      groups[distName].push(inv);
+    });
+
+    groupOrder.forEach(distName => {
+      const group = groups[distName];
+      const colSpan = !isComplete ? 5 : 4;
+      group.forEach(inv => {
+        html += `<tr id="inv-row-${inv.id}">
+          <td style="font-weight:600">${group.length > 1 ? `<span style="color:#aaa;font-size:12px;margin-right:4px">↳</span>${distName}` : distName}</td>
+          <td>
+            ${inv.invoice_pdf_url
+              ? `<a class="pdf-link" href="${inv.invoice_pdf_url}" target="_blank" title="${inv.invoice_pdf_name || 'Invoice'}">📎 ${inv.invoice_pdf_name || 'View PDF'}</a>`
+              : `<label class="upload-later-label" id="upload-label-${inv.id}">
+                   📎 Add file
+                   <input type="file" accept=".pdf,.jpg,.jpeg,.png" onchange="uploadInvoicePdf('${inv.id}', this)">
+                 </label>`}
+          </td>
+          <td>
+            ${!isComplete
+              ? `<input type="number" step="0.01" min="0" value="${(inv.invoice_amount || 0).toFixed(2)}"
+                   id="amt-${inv.id}" style="width:110px"
+                   onchange="updateInvoiceAmount('${inv.id}', this.value)">`
+              : `<strong>${formatMoney(inv.invoice_amount)}</strong>`}
+          </td>
+          <td style="color:#888;font-size:13px">${inv.notes || ''}</td>
+          ${!isComplete ? `<td>
+            <button class="btn-del-row" onclick="deleteInvoice('${inv.id}')">🗑</button>
+          </td>` : ''}
+        </tr>`;
+      });
+
+      // Subtotal row when distributor has multiple invoices
+      if (group.length > 1) {
+        const subtotal = group.reduce((sum, inv) => sum + (inv.invoice_amount || 0), 0);
+        html += `<tr style="background:#f0f4ff;">
+          <td colspan="${colSpan - 2}" style="font-weight:700;color:#2f5597;font-size:13px;padding-left:24px">${distName} — Total</td>
+          <td style="font-weight:700;color:#2f5597">${formatMoney(subtotal)}</td>
+          ${!isComplete ? '<td></td>' : ''}
+        </tr>`;
+      }
     });
 
     html += `</tbody></table>`;
