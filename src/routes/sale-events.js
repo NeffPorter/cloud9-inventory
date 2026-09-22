@@ -353,7 +353,7 @@ router.post('/proposals/:proposalId/submit', auth, async (req, res) => {
     const { data: saleEvent } = await supabase.from('sale_events').select('name').eq('id', proposal.sale_event_id).single();
     const { data: store } = await supabase.from('stores').select('name').eq('id', proposal.store_id).single();
     notify({
-      type: 'proposal_submitted',
+      type: 'sale_proposal_submitted',
       title: '📋 Sale Proposal Needs Review',
       message: `${store?.name || 'A store'} submitted their proposal for "${saleEvent?.name || 'a sale event'}". Review and approve or send back for revision.`,
       link: `/sale-events`,
@@ -419,7 +419,7 @@ router.post('/proposals/:proposalId/reject', auth, requireAdmin, async (req, res
     // Notify the store's GM/IM via in-app + email
     if (proposal?.store_id) {
       await notify({
-        type: 'proposal_revision_requested',
+        type: 'sale_proposal_revision',
         title: '⚠️ Sale Proposal Needs Revision',
         message: him_notes
           ? `Your proposal for "${eventName}" needs changes: ${him_notes}`

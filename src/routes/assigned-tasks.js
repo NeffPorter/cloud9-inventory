@@ -45,27 +45,29 @@ async function notifyManagers({ title, message, link, excludeUserId }) {
       .select('id, email, name')
       .in('role', ['regional_manager', 'him', 'admin']);
 
-    for (const mgr of managers || []) {
-      if (mgr.id === excludeUserId) continue;
-      await supabase.from('notifications').insert([{
-        type: 'assigned_task_complete',
-        title,
-        message,
-        link: link || null,
-        target_user_id: mgr.id,
-        target_role: null,
-        read: false
-      }]);
-      if (mgr.email) {
-        const fullLink = link ? `${APP_URL}${link}` : null;
-        sendEmail({
-          to: mgr.email,
-          subject: title,
-          html: `<p>${message}</p>${fullLink ? `<p><a href="${fullLink}">View in Task Manager</a></p>` : ''}<p>— Cloud 9 Systems</p>`,
-          text: message + (fullLink ? `\n\n${fullLink}` : '')
-        }).catch(() => {});
-      }
-    }
+    const fullLink = link ? `${APP_URL}${link}` : null;
+    await Promise.all((managers || [])
+      .filter(mgr => mgr.id !== excludeUserId)
+      .map(async mgr => {
+        await supabase.from('notifications').insert([{
+          type: 'assigned_task_complete',
+          title,
+          message,
+          link: link || null,
+          target_user_id: mgr.id,
+          target_role: null,
+          read: false
+        }]);
+        if (mgr.email) {
+          sendEmail({
+            to: mgr.email,
+            subject: title,
+            html: `<p>${message}</p>${fullLink ? `<p><a href="${fullLink}">View in Task Manager</a></p>` : ''}<p>— Cloud 9 Systems</p>`,
+            text: message + (fullLink ? `\n\n${fullLink}` : '')
+          }).catch(() => {});
+        }
+      })
+    );
   } catch (err) {
     console.error('[assigned-tasks] notifyManagers error:', err.message);
   }

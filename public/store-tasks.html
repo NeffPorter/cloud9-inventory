@@ -198,7 +198,10 @@ async function completeAssigned(taskId) {
 function renderTask(task) {
   const today = new Date().toISOString().split('T')[0];
   const isOverdue = task.due_date && task.due_date < today;
-  const icon = task.task_type === 'stocktake' ? '\U0001F4E6' : '\U0001F3AF';
+  const icon = task.task_type === 'stocktake' ? '\ud83d\udce6' : '\ud83c\udfaf';
+  const action = task.task_type === 'sale_proposal' && task.reference_id
+    ? `<a href="/sale-proposal?id=${task.reference_id}" class="btn btn-primary btn-sm">Open Proposal</a>`
+    : `<span class="badge badge-${task.status || 'pending'}">${task.status === 'in_progress' ? 'In Progress' : 'Pending'}</span>`;
   return `
   <div class="task-card">
     <div class="task-icon">${icon}</div>
@@ -207,9 +210,7 @@ function renderTask(task) {
       ${task.description ? `<div class="task-desc">${task.description}</div>` : ''}
       ${task.due_date ? `<div class="task-due ${isOverdue ? 'overdue' : ''}">Due ${task.due_date}${isOverdue ? ' \u2014 OVERDUE' : ''}</div>` : ''}
     </div>
-    <div class="task-actions">
-      <span class="badge badge-${task.status || 'pending'}">${task.status === 'in_progress' ? 'In Progress' : 'Pending'}</span>
-    </div>
+    <div class="task-actions">${action}</div>
   </div>`;
 }
 

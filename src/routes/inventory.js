@@ -330,6 +330,11 @@ router.post('/sync/:store_id', auth, async (req, res) => {
   try {
     const { store_id } = req.params;
 
+    if (['gm', 'store_user'].includes(req.user.role)) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!allowed.includes(store_id)) return res.status(403).json({ error: 'Access denied' });
+    }
+
     const { data: store, error } = await supabase
       .from('stores')
       .select('*')
@@ -553,6 +558,12 @@ router.get('/stocktake/reports/:id', auth, async (req, res) => {
       .eq('id', req.params.id)
       .single();
     if (error) throw error;
+    if (!data) return res.status(404).json({ error: 'Report not found' });
+    // Verify store access for non-admin roles
+    if (['gm', 'store_user'].includes(req.user.role)) {
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!allowed.includes(data.store_id)) return res.status(403).json({ error: 'Access denied' });
+    }
     res.json({ report: data });
   } catch (err) {
     res.status(500).json({ error: 'Failed to load report' });
@@ -633,6 +644,14 @@ router.get('/stocktake/drafts', auth, async (req, res) => {
 // Delete draft (when finished)
 router.delete('/stocktake/drafts/:id', auth, async (req, res) => {
   try {
+    // Verify the draft belongs to one of the user's stores
+    if (['gm', 'store_user'].includes(req.user.role)) {
+      const { data: draft } = await supabase
+        .from('stock_take_drafts').select('store_id').eq('id', req.params.id).single();
+      if (!draft) return res.status(404).json({ error: 'Draft not found' });
+      const allowed = req.user.store_ids?.length ? req.user.store_ids : (req.user.store_id ? [req.user.store_id] : []);
+      if (!allowed.includes(draft.store_id)) return res.status(403).json({ error: 'Access denied' });
+    }
     const { error } = await supabase
       .from('stock_take_drafts')
       .delete()
@@ -864,7 +883,6 @@ router.post('/add-stock', auth, async (req, res) => {
       .update({ clover_qty: newQty, suggested_order: newSuggested })
       .eq('id', item_id).eq('store_id', store_id);
 
-    console.log(`[add-stock] ${store.name} — ${item.variant_name}: +${qty} → ${newQty} (suggested: ${newSuggested})`);
     console.log(`[add-stock] ${store.name} — ${item.variant_name}: +${qty} → ${newQty} (suggested: ${newSuggested})`);
     res.json({ ok: true, new_qty: newQty, new_suggested: newSuggested });
   } catch (err) {

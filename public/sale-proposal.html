@@ -123,7 +123,7 @@ function render() {
   const ev = proposal.sale_events || {};
   const adminRoles = ['admin', 'him', 'regional_manager'];
   const isAdmin = adminRoles.includes(userRole);
-  const isEditable = (proposal.status === 'pending' || proposal.status === 'rejected') && !isAdmin || isAdmin;
+  const isEditable = isAdmin || (proposal.status === 'pending' || proposal.status === 'rejected');
 
   const today = new Date().toISOString().split('T')[0];
   const dueDate = ev.proposal_due_date;
@@ -196,7 +196,8 @@ function render() {
 function renderItemRow(item) {
   const tid = item._tempId;
   const isPercent = item.discount_type === 'percent';
-  const canEdit = (proposal.status === 'pending' || proposal.status === 'rejected');
+  const isAdminUser = ['admin', 'him', 'regional_manager'].includes(userRole);
+  const canEdit = (proposal.status === 'pending' || proposal.status === 'rejected') || isAdminUser;
   return `
   <div class="item-row" id="irow-${tid}">
     <div>
@@ -218,8 +219,9 @@ let itemPickerVal = null, itemPickerData = null, addMode = 'item';
 
 function setAddMode(mode) {
   addMode = mode;
+  const btnIds = { item: 'addModeItem', item_group: 'addModeGroup', category: 'addModeCategory' };
   ['item','item_group','category'].forEach(m => {
-    const btn = document.getElementById('addMode' + m.charAt(0).toUpperCase() + m.slice(1).replace('_g','G').replace('_c','C'));
+    const btn = document.getElementById(btnIds[m]);
     if (btn) btn.classList.toggle('active', m === mode);
   });
   const hints = { item: 'Adding individual items.', item_group: 'All variants in the selected group will be added.', category: 'All items in the selected category will be added.' };
