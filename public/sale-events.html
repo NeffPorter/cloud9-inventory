@@ -204,7 +204,37 @@ async function loadEvents() {
     return;
   }
 
-  list.innerHTML = events.map(ev => {
+  // For non-admins: show a "My Proposals" quick-action section at the top
+  let myProposalsHtml = '';
+  if (!isAdminOrHim) {
+    const myProposals = [];
+    events.forEach(ev => {
+      (ev.proposals || []).forEach(p => {
+        if (currentUserStoreIds.includes(p.store_id)) {
+          myProposals.push({ ev, p });
+        }
+      });
+    });
+    if (myProposals.length) {
+      myProposalsHtml = `
+      <div style="background:white;border-radius:12px;border:1px solid #e5e7eb;padding:18px 20px;margin-bottom:16px">
+        <div style="font-size:15px;font-weight:600;margin-bottom:12px">📋 My Proposals</div>
+        ${myProposals.map(({ ev, p }) => `
+          <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f0f0f0">
+            <div style="flex:1">
+              <div style="font-weight:500;font-size:14px">${ev.name}</div>
+              <div style="font-size:12px;color:#888">Due ${ev.proposal_due_date} · <span class="badge badge-${p.status}" style="font-size:11px">${p.status}</span></div>
+            </div>
+            ${p.status === 'pending' ? `<a href="/sale-proposal?id=${p.id}" class="btn btn-primary btn-sm">Fill Out Proposal</a>` : ''}
+            ${p.status === 'rejected' ? `<a href="/sale-proposal?id=${p.id}" class="btn btn-warning btn-sm">⚠️ Revise & Resubmit</a>` : ''}
+            ${p.status === 'submitted' || p.status === 'under_review' ? `<span style="font-size:12px;color:#1d4ed8">⏳ Under review</span>` : ''}
+            ${p.status === 'approved' ? `<a href="/sale-proposal?id=${p.id}" class="btn btn-ghost btn-sm">✅ View Approved</a>` : ''}
+          </div>`).join('')}
+      </div>`;
+    }
+  }
+
+  list.innerHTML = myProposalsHtml + events.map(ev => {
     const proposalSummary = buildProposalSummary(ev.proposals || []);
     return `
     <div class="event-card" id="event-${ev.id}">
@@ -224,7 +254,7 @@ async function loadEvents() {
           ${isAdminOrHim ? `<button class="btn btn-danger btn-sm" onclick="deleteEvent('${ev.id}','${ev.name.replace(/'/g,"\\'")}')">Delete</button>` : ''}
         </div>
       </div>
-      <div class="event-body" id="body-${ev.id}">
+      <div class="event-body${!isAdminOrHim ? ' open' : ''}" id="body-${ev.id}">
         <div style="font-size:13px;color:#555;margin-bottom:12px">${ev.purpose || ev.description || '<em style="color:#999">No description</em>'}</div>
         <div class="proposal-list">
           ${(ev.proposals || []).map(p => {
