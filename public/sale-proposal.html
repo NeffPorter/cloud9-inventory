@@ -150,14 +150,24 @@ function render() {
 
     <div class="items-card">
       <h3>Items to Put on Sale</h3>
-      <div id="itemRows">
-        ${proposalItems.length === 0
-          ? '<div class="empty-items">No items added yet. Use the selector below to add items.</div>'
-          : proposalItems.map(renderItemRow).join('')}
-      </div>
+
       ${isEditable ? `
-      <div style="margin-top:14px">
-        <div style="display:flex;gap:6px;margin-bottom:8px">
+      <div style="background:#eff6ff;border-radius:10px;padding:14px 16px;border:1px solid #bfdbfe;margin-bottom:14px">
+        <div style="font-size:13px;font-weight:700;color:#1d4ed8;margin-bottom:10px">Step 1 — Set the discount</div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div class="discount-type-toggle">
+            <button class="dt-btn active" id="batchTypePct" onclick="setBatchType('percent')">%</button>
+            <button class="dt-btn" id="batchTypeFixed" onclick="setBatchType('fixed')">$</button>
+          </div>
+          <input type="number" id="batchValue" class="discount-input" min="0.01" step="0.01" placeholder="e.g. 10" style="width:110px">
+          <span id="batchHint" style="font-size:13px;color:#1d4ed8;font-weight:500">% off</span>
+          ${proposalItems.length > 0 ? `<button class="btn btn-ghost btn-sm" onclick="applyBatchToAll()" style="margin-left:4px">Apply to all items</button>` : ''}
+        </div>
+      </div>
+
+      <div style="background:#f8fafc;border-radius:10px;padding:14px 16px;border:1px solid #e5e7eb;margin-bottom:14px">
+        <div style="font-size:13px;font-weight:700;color:#444;margin-bottom:10px">Step 2 — Add items at that discount</div>
+        <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
           <button class="dt-btn active" id="addModeItem" onclick="setAddMode('item')">Specific Item</button>
           <button class="dt-btn" id="addModeGroup" onclick="setAddMode('item_group')">Item Group</button>
           <button class="dt-btn" id="addModeCategory" onclick="setAddMode('category')">Category</button>
@@ -168,10 +178,16 @@ function render() {
               oninput="filterItemPicker()" onfocus="filterItemPicker()">
             <div class="search-list" id="itemPickerList"></div>
           </div>
-          <button class="btn btn-ghost btn-sm" onclick="addItem()">+ Add</button>
+          <button class="btn btn-primary btn-sm" onclick="addItem()">+ Add</button>
         </div>
-        <div id="addModeHint" style="font-size:12px;color:#888;margin-top:4px">Adding individual items. All variants of a group or category will be added at once.</div>
+        <div id="addModeHint" style="font-size:12px;color:#888;margin-top:6px">Adding individual items.</div>
       </div>` : ''}
+
+      <div id="itemRows">
+        ${proposalItems.length === 0
+          ? '<div class="empty-items">No items added yet. Set a discount above, then search and add items.</div>'
+          : proposalItems.map(renderItemRow).join('')}
+      </div>
     </div>
 
     <div class="notes-card">
@@ -215,7 +231,15 @@ function renderItemRow(item) {
   </div>`;
 }
 
-let itemPickerVal = null, itemPickerData = null, addMode = 'item';
+let itemPickerVal = null, itemPickerData = null, addMode = 'item', batchType = 'percent';
+
+function setBatchType(type) {
+  batchType = type;
+  document.getElementById('batchTypePct')?.classList.toggle('active', type === 'percent');
+  document.getElementById('batchTypeFixed')?.classList.toggle('active', type === 'fixed');
+  const hint = document.getElementById('batchHint');
+  if (hint) hint.textContent = type === 'percent' ? '% off' : '$ off';
+}
 
 function setAddMode(mode) {
   addMode = mode;
@@ -282,9 +306,16 @@ function selectItemPicker(id, label) {
 }
 
 function addItem() {
-  if (!itemPickerVal || !itemPickerData) return;
-  const { id, label } = itemPickerData;
+  if (!itemPickerVal || !itemPickerData) { alert('Search and select an item, group, or category first.'); return; }
 
+  const batchVal = parseFloat(document.getElementById('batchValue')?.value);
+  if (!batchVal || batchVal <= 0) {
+    alert('Set a discount amount in Step 1 before adding items.');
+    document.getElementById('batchValue')?.focus();
+    return;
+  }
+
+  const { id, label } = itemPickerData;
   let itemsToAdd = [];
   if (addMode === 'item') {
     const inv = allItems.find(i => i.id === id);
@@ -304,12 +335,20 @@ function addItem() {
   }
 
   for (const item of itemsToAdd) {
-    proposalItems.push({ _tempId: Math.random(), ...item, discount_type: 'percent', discount_value: '' });
+    proposalItems.push({ _tempId: Math.random(), ...item, discount_type: batchType, discount_value: batchVal });
   }
 
   itemPickerVal = null; itemPickerData = null;
   const el = document.getElementById('itemSearch');
   if (el) el.value = '';
+  refreshItemRows();
+}
+
+function applyBatchToAll() {
+  const batchVal = parseFloat(document.getElementById('batchValue')?.value);
+  if (!batchVal || batchVal <= 0) { alert('Enter a discount amount first.'); return; }
+  if (!confirm(`Set all ${proposalItems.length} item(s) to ${batchVal}${batchType === 'percent' ? '%' : '$'} off?`)) return;
+  proposalItems.forEach(item => { item.discount_type = batchType; item.discount_value = batchVal; });
   refreshItemRows();
 }
 
@@ -330,8 +369,28 @@ function updateValue(tid, val) {
 
 function refreshItemRows() {
   document.getElementById('itemRows').innerHTML = proposalItems.length === 0
-    ? '<div class="empty-items">No items added yet. Use the selector below to add items.</div>'
+    ? '<div class="empty-items">No items added yet. Set a discount above, then search and add items.</div>'
     : proposalItems.map(renderItemRow).join('');
+
+  // Show/hide "Apply to all" button based on whether items exist
+  const existing = document.querySelector('[onclick="applyBatchToAll()"]');
+  const step1 = document.getElementById('batchTypePct')?.closest('div[style*="background:#eff6ff"]');
+  if (step1) {
+    const applyBtn = step1.querySelector('[onclick="applyBatchToAll()"]');
+    if (proposalItems.length > 0 && !applyBtn) {
+      const hint = step1.querySelector('#batchHint');
+      if (hint) {
+        const btn = document.createElement('button');
+        btn.className = 'btn btn-ghost btn-sm';
+        btn.style.marginLeft = '4px';
+        btn.textContent = 'Apply to all items';
+        btn.setAttribute('onclick', 'applyBatchToAll()');
+        hint.insertAdjacentElement('afterend', btn);
+      }
+    } else if (proposalItems.length === 0 && applyBtn) {
+      applyBtn.remove();
+    }
+  }
 }
 
 function collectItems() {
