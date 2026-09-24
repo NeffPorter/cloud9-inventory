@@ -370,11 +370,14 @@ router.post('/proposals/:proposalId/submit', auth, async (req, res) => {
 router.post('/proposals/:proposalId/approve', auth, requireAdmin, async (req, res) => {
   try {
     const { him_notes } = req.body;
+    // Verify reviewer exists in users table (JWT may outlive the user record)
+    const { data: reviewer } = await supabase.from('users').select('id').eq('id', req.user.id).single();
+
     const { data, error } = await supabase.from('sale_proposals').update({
       status: 'approved',
       him_notes: him_notes || null,
       reviewed_at: new Date().toISOString(),
-      reviewed_by: req.user.id,
+      reviewed_by: reviewer ? req.user.id : null,
       updated_at: new Date().toISOString()
     }).eq('id', req.params.proposalId).select('id, status').single();
 
@@ -395,11 +398,13 @@ router.post('/proposals/:proposalId/reject', auth, requireAdmin, async (req, res
     const { data: proposal } = await supabase.from('sale_proposals')
       .select('store_id, sale_event_id').eq('id', req.params.proposalId).single();
 
+    const { data: reviewer2 } = await supabase.from('users').select('id').eq('id', req.user.id).single();
+
     await supabase.from('sale_proposals').update({
       status: 'rejected',
       him_notes: him_notes || null,
       reviewed_at: new Date().toISOString(),
-      reviewed_by: req.user.id,
+      reviewed_by: reviewer2 ? req.user.id : null,
       updated_at: new Date().toISOString()
     }).eq('id', req.params.proposalId);
 
@@ -679,6 +684,30 @@ async function assignStoresToEvent(ev, storeIds) {
     }
   }
 }
+
+// POST /api/sale-events/proposals/:proposalId/apply — manually apply Clover discounts now (admin)
+router.post('/proposals/:proposalId/apply', auth, requireAdmin, async (req, res) => {
+  try {
+    const { data: proposal } = await supabase
+      .from('sale_proposals')
+      .select('*, sale_events(start_date, end_date, name), stores(id, merchant_id, api_token)')
+      .eq('id', req.params.proposalId)
+      .single();
+
+    if (!proposal) return res.status(404).json({ error: 'Proposal not found' });
+    if (proposal.status !== 'approved') return res.status(400).json({ error: 'Proposal must be approved first' });
+    if (proposal.clover_applied) return res.status(400).json({ error: 'Already applied to Clover' });
+
+    const store = proposal.stores;
+    if (!store?.merchant_id) return res.status(400).json({ error: 'Store has no Clover merchant ID' });
+
+    await applyProposalToClover(proposal, store);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[apply proposal]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // GET /api/sale-events/:id/report — sales performance report for a sale event
 router.get('/:id/report', auth, async (req, res) => {
