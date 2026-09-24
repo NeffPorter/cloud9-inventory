@@ -91,7 +91,7 @@ router.get('/', auth, async (req, res) => {
         .eq('sale_event_id', ev.id);
       const { data: proposals } = await supabase
         .from('sale_proposals')
-        .select('id, store_id, status')
+        .select('id, store_id, status, clover_applied')
         .eq('sale_event_id', ev.id);
       return { ...ev, assigned_stores: (ses || []).map(s => s.stores), proposals: proposals || [] };
     }));
