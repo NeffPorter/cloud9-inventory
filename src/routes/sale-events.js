@@ -203,23 +203,34 @@ router.put('/:id', auth, requireAdmin, async (req, res) => {
 router.delete('/:id', auth, requireAdmin, async (req, res) => {
   try {
     const evId = req.params.id;
-    // Get all proposals for this event so we can cascade-delete tasks
-    const { data: proposals } = await supabase.from('sale_proposals').select('id').eq('sale_event_id', evId);
+
+    // Fetch full proposal data before deleting so we can revert Clover prices
+    const { data: proposals } = await supabase
+      .from('sale_proposals')
+      .select('*, stores(id, merchant_id, api_token)')
+      .eq('sale_event_id', evId);
+
     const proposalIds = (proposals || []).map(p => p.id);
 
+    // Revert any proposals that were applied to Clover
+    for (const proposal of (proposals || [])) {
+      if (proposal.clover_applied && proposal.stores?.merchant_id) {
+        try {
+          await removeProposalFromClover(proposal, proposal.stores);
+        } catch (err) {
+          console.error(`[delete event] failed to revert Clover for proposal ${proposal.id}:`, err.message);
+        }
+      }
+    }
+
     if (proposalIds.length) {
-      // Delete store tasks tied to these proposals
       await supabase.from('store_tasks').delete().in('reference_id', proposalIds).eq('task_type', 'sale_proposal');
-      // Delete proposal items
       await supabase.from('sale_proposal_items').delete().in('proposal_id', proposalIds);
-      // Delete proposals
       await supabase.from('sale_proposals').delete().eq('sale_event_id', evId);
     }
 
-    // Delete store assignments
     await supabase.from('sale_event_stores').delete().eq('sale_event_id', evId);
 
-    // Delete the event itself
     const { error } = await supabase.from('sale_events').delete().eq('id', evId);
     if (error) throw error;
 
