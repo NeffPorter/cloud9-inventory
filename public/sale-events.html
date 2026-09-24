@@ -424,8 +424,9 @@ async function approveProposal() {
     method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
     body: JSON.stringify({ him_notes })
   });
-  if (res.ok) { closeReviewModal(); loadEvents(); }
-  else { const d = await res.json(); alert('Error: ' + d.error); }
+  const d = await res.json();
+  if (res.ok && d.success) { closeReviewModal(); await loadEvents(); }
+  else { alert('Error approving proposal: ' + (d.error || 'Unknown error — check Railway logs')); }
 }
 
 async function rejectProposal() {

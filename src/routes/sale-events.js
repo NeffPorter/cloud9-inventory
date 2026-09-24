@@ -370,16 +370,19 @@ router.post('/proposals/:proposalId/submit', auth, async (req, res) => {
 router.post('/proposals/:proposalId/approve', auth, requireAdmin, async (req, res) => {
   try {
     const { him_notes } = req.body;
-    await supabase.from('sale_proposals').update({
+    const { data, error } = await supabase.from('sale_proposals').update({
       status: 'approved',
       him_notes: him_notes || null,
       reviewed_at: new Date().toISOString(),
       reviewed_by: req.user.id,
       updated_at: new Date().toISOString()
-    }).eq('id', req.params.proposalId);
+    }).eq('id', req.params.proposalId).select('id, status').single();
 
-    res.json({ success: true });
+    if (error) throw error;
+    console.log('[approve] updated proposal:', data?.id, '→', data?.status);
+    res.json({ success: true, proposal: data });
   } catch (err) {
+    console.error('[approve proposal]', err.message);
     res.status(500).json({ error: err.message });
   }
 });
