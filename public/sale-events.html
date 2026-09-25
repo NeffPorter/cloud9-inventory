@@ -364,7 +364,7 @@ async function saveEvent() {
   if (editingEventId) {
     res = await fetch(`/api/sale-events/${editingEventId}`, { method: 'PUT', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     data = await res.json();
-    if (res.ok && store_ids.length) {
+    if (res.ok) {
       await fetch(`/api/sale-events/${editingEventId}/stores`, { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ store_ids }) });
     }
   } else {

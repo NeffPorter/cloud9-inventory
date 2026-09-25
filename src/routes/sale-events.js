@@ -240,16 +240,48 @@ router.delete('/:id', auth, requireAdmin, async (req, res) => {
   }
 });
 
-// POST /api/sale-events/:id/stores — assign stores to event
+// POST /api/sale-events/:id/stores — sync store assignments (adds new, removes unchecked)
 router.post('/:id/stores', auth, requireAdmin, async (req, res) => {
   try {
     const { store_ids } = req.body;
-    const { data: ev } = await supabase.from('sale_events').select('*').eq('id', req.params.id).single();
+    const evId = req.params.id;
+    const { data: ev } = await supabase.from('sale_events').select('*').eq('id', evId).single();
     if (!ev) return res.status(404).json({ error: 'Event not found' });
 
-    await assignStoresToEvent(ev, store_ids);
+    // Find stores currently assigned
+    const { data: current } = await supabase.from('sale_event_stores').select('store_id').eq('sale_event_id', evId);
+    const currentIds = (current || []).map(r => r.store_id);
+    const newIds = store_ids || [];
+
+    // Remove stores that were unchecked
+    const toRemove = currentIds.filter(id => !newIds.includes(id));
+    for (const storeId of toRemove) {
+      await supabase.from('sale_event_stores').delete().eq('sale_event_id', evId).eq('store_id', storeId);
+      // Also clean up the proposal + task for that store
+      const { data: proposal } = await supabase.from('sale_proposals').select('id, clover_applied, original_prices, applied_item_ids, group_renames').eq('sale_event_id', evId).eq('store_id', storeId).single();
+      if (proposal) {
+        // Revert Clover prices if applied
+        if (proposal.clover_applied) {
+          const { data: storeData } = await supabase.from('stores').select('merchant_id, api_token').eq('id', storeId).single();
+          if (storeData?.merchant_id) {
+            removeProposalFromClover({ ...proposal, sale_events: ev }, storeData).catch(err =>
+              console.error(`[sync stores] revert Clover for removed store ${storeId}:`, err.message)
+            );
+          }
+        }
+        await supabase.from('store_tasks').delete().eq('reference_id', proposal.id).eq('task_type', 'sale_proposal');
+        await supabase.from('sale_proposal_items').delete().eq('proposal_id', proposal.id);
+        await supabase.from('sale_proposals').delete().eq('id', proposal.id);
+      }
+    }
+
+    // Add any newly checked stores
+    const toAdd = newIds.filter(id => !currentIds.includes(id));
+    if (toAdd.length) await assignStoresToEvent(ev, toAdd);
+
     res.json({ success: true });
   } catch (err) {
+    console.error('[sync stores]', err.message);
     res.status(500).json({ error: err.message });
   }
 });
