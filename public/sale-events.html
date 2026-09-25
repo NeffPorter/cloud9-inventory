@@ -266,7 +266,7 @@ async function loadEvents() {
               <div class="proposal-actions">
                 ${isAdminOrHim && (p.status === 'submitted' || p.status === 'under_review') ? `<button class="btn btn-primary btn-sm" onclick="openReview('${p.id}')">Review</button>` : ''}
                 ${isAdminOrHim && p.status === 'approved' && !p.clover_applied ? `<button class="btn btn-success btn-sm" onclick="applyNow('${p.id}', this)">⚡ Apply to Clover</button>` : ''}
-                ${isAdminOrHim && p.status === 'approved' && p.clover_applied ? `<span style="font-size:12px;color:#16a34a;font-weight:600">✅ Live on Clover</span>` : ''}
+                ${isAdminOrHim && p.status === 'approved' && p.clover_applied ? `<span style="font-size:12px;color:#16a34a;font-weight:600">✅ Live on Clover</span><button class="btn btn-warning btn-sm" onclick="revertNow('${p.id}', this)" style="margin-left:4px">↩ Revert</button>` : ''}
                 ${isAdminOrHim && p.status === 'approved' ? `<button class="btn btn-ghost btn-sm" onclick="openReview('${p.id}')">View</button>` : ''}
                 ${isAdminOrHim && p.status === 'pending' ? `<span style="font-size:12px;color:#888">Awaiting submission</span>` : ''}
                 ${isAdminOrHim && p.status === 'rejected' ? `<span style="font-size:12px;color:#d97706;font-weight:600">⚠️ Sent back for revision</span>` : ''}
@@ -451,6 +451,17 @@ async function applyNow(proposalId, btn) {
   const d = await res.json();
   if (res.ok) { alert('✅ Discounts applied to Clover successfully!'); loadEvents(); }
   else { btn.disabled = false; btn.textContent = '⚡ Apply to Clover'; alert('Error: ' + (d.error || 'Unknown')); }
+}
+
+async function revertNow(proposalId, btn) {
+  if (!confirm('Revert Clover prices back to original? This will undo the applied discounts.')) return;
+  btn.disabled = true; btn.textContent = '⏳ Reverting...';
+  const res = await fetch(`/api/sale-events/proposals/${proposalId}/revert`, {
+    method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }
+  });
+  const d = await res.json();
+  if (res.ok) { alert('✅ Prices reverted on Clover successfully!'); loadEvents(); }
+  else { btn.disabled = false; btn.textContent = '↩ Revert'; alert('Error: ' + (d.error || 'Unknown')); }
 }
 
 async function deleteEvent(id, name) {

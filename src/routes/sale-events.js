@@ -720,6 +720,29 @@ router.post('/proposals/:proposalId/apply', auth, requireAdmin, async (req, res)
   }
 });
 
+// POST /api/sale-events/proposals/:proposalId/revert — revert Clover prices back to original (admin)
+router.post('/proposals/:proposalId/revert', auth, requireAdmin, async (req, res) => {
+  try {
+    const { data: proposal } = await supabase
+      .from('sale_proposals')
+      .select('*, sale_events(start_date, end_date, name), stores(id, merchant_id, api_token)')
+      .eq('id', req.params.proposalId)
+      .single();
+
+    if (!proposal) return res.status(404).json({ error: 'Proposal not found' });
+    if (!proposal.clover_applied) return res.status(400).json({ error: 'Proposal is not currently applied to Clover' });
+
+    const store = proposal.stores;
+    if (!store?.merchant_id) return res.status(400).json({ error: 'Store has no Clover merchant ID' });
+
+    await removeProposalFromClover(proposal, store);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[revert proposal]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/sale-events/:id/report — sales performance report for a sale event
 router.get('/:id/report', auth, async (req, res) => {
   try {
