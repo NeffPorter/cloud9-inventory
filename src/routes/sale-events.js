@@ -637,11 +637,19 @@ async function applyProposalToClover(proposal, store) {
 async function removeProposalFromClover(proposal, store) {
   try {
     const apiToken = await getValidApiToken(store);
-    const appliedIds = proposal.applied_item_ids || [];
-    if (!appliedIds.length) return;
-
     const snapshotPrices = proposal.original_prices || {};
     const groupRenames = proposal.group_renames || {};
+
+    // Use applied_item_ids if available, otherwise fall back to original_prices keys
+    const appliedIds = (proposal.applied_item_ids?.length)
+      ? proposal.applied_item_ids
+      : Object.keys(snapshotPrices);
+
+    if (!appliedIds.length) {
+      console.log(`removeProposalFromClover: no items to restore for proposal ${proposal.id}`);
+      await supabase.from('sale_proposals').update({ clover_applied: false, updated_at: new Date().toISOString() }).eq('id', proposal.id);
+      return;
+    }
 
     for (const [originalName, groupInfo] of Object.entries(groupRenames)) {
       if (!groupInfo.cloverGroupId) continue;
@@ -658,26 +666,30 @@ async function removeProposalFromClover(proposal, store) {
       .in('id', appliedIds)
       .eq('store_id', proposal.store_id);
 
-    for (const item of items || []) {
-      const restorePrice = snapshotPrices[item.id] != null
-        ? parseFloat(snapshotPrices[item.id])
-        : parseFloat(item.price);
+    // Build a map of DB items for name restoration; fall back to price-only restore for any item not in DB
+    const itemMap = {};
+    for (const item of items || []) itemMap[item.id] = item;
+
+    const idsToRestore = appliedIds.length ? appliedIds : Object.keys(snapshotPrices);
+    for (const itemId of idsToRestore) {
+      const restorePrice = snapshotPrices[itemId] != null ? parseFloat(snapshotPrices[itemId]) : null;
       if (!restorePrice) continue;
-      const restoreName = item.group_name ? null : (item.variant_name || null);
+      const dbItem = itemMap[itemId];
+      const restoreName = dbItem ? (dbItem.group_name ? null : (dbItem.variant_name || null)) : null;
       try {
-        await setCloverItem(store.merchant_id, apiToken, item.id, restoreName, restorePrice);
+        await setCloverItem(store.merchant_id, apiToken, itemId, restoreName, restorePrice);
         await sleep(300);
       } catch (err) {
         if (err.response?.status === 429) {
           await sleep(2000);
           try {
-            await setCloverItem(store.merchant_id, apiToken, item.id, restoreName, restorePrice);
+            await setCloverItem(store.merchant_id, apiToken, itemId, restoreName, restorePrice);
             await sleep(300);
           } catch (retryErr) {
-            console.error(`Failed after retry restoring item ${item.id}:`, retryErr.message);
+            console.error(`Failed after retry restoring item ${itemId}:`, retryErr.message);
           }
         } else {
-          console.error(`Failed to restore item ${item.id}:`, err.message);
+          console.error(`Failed to restore item ${itemId}:`, err.message);
         }
       }
     }
