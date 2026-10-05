@@ -280,6 +280,7 @@
         <button class="btn btn-gray" onclick="toggleAllCategories()" id="collapseBtn">📂 Expand All</button>
         <button class="btn btn-orange" onclick="toggleEditMode()" id="editBtn">✏️ Edit</button>
         <button class="btn btn-blue" onclick="loadInventory()" id="refreshBtn">🔄 Refresh</button>
+        <button class="btn btn-gray" onclick="syncFromClover()" id="syncBtn" style="display:none" title="Pull latest prices, names, and quantities from Clover into the site">☁️ Sync from Clover</button>
       </div>
     </div>
 
@@ -404,6 +405,34 @@
         storeName = store.name;
         document.getElementById('pageTitle').textContent = `📦 ${store.name} — Inventory`;
         document.getElementById('pageSubtitle').textContent = 'Live Clover inventory levels';
+        document.getElementById('syncBtn').style.display = '';
+      }
+    }
+
+    async function syncFromClover() {
+      if (!storeId) return alert('Select a store first.');
+      const btn = document.getElementById('syncBtn');
+      btn.disabled = true;
+      btn.textContent = '⏳ Syncing...';
+      try {
+        const res = await fetch(`/api/inventory/sync/${storeId}`, {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        const d = await res.json();
+        if (res.ok) {
+          btn.textContent = '✅ Synced!';
+          setTimeout(() => { btn.textContent = '☁️ Sync from Clover'; btn.disabled = false; }, 3000);
+          loadInventory();
+        } else {
+          alert('Sync failed: ' + (d.error || 'Unknown error'));
+          btn.textContent = '☁️ Sync from Clover';
+          btn.disabled = false;
+        }
+      } catch (e) {
+        alert('Sync failed: ' + e.message);
+        btn.textContent = '☁️ Sync from Clover';
+        btn.disabled = false;
       }
     }
 
