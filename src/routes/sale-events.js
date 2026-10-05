@@ -427,6 +427,13 @@ router.post('/proposals/:proposalId/approve', auth, requireAdmin, async (req, re
     // Verify reviewer exists in users table (JWT may outlive the user record)
     const { data: reviewer } = await supabase.from('users').select('id').eq('id', req.user.id).single();
 
+    // Fetch proposal + sale event + store so we can auto-apply if the sale is active right now
+    const { data: proposalFull } = await supabase
+      .from('sale_proposals')
+      .select('*, sale_events(start_date, end_date, name), stores(merchant_id, api_token)')
+      .eq('id', req.params.proposalId)
+      .single();
+
     const { data, error } = await supabase.from('sale_proposals').update({
       status: 'approved',
       him_notes: him_notes || null,
@@ -438,6 +445,18 @@ router.post('/proposals/:proposalId/approve', auth, requireAdmin, async (req, re
     if (error) throw error;
     console.log('[approve] updated proposal:', data?.id, '→', data?.status);
     res.json({ success: true, proposal: data });
+
+    // Auto-apply to Clover if the sale is currently active (fire-and-forget)
+    if (proposalFull && !proposalFull.clover_applied) {
+      const today = new Date().toISOString().split('T')[0];
+      const ev = proposalFull.sale_events;
+      const store = proposalFull.stores;
+      if (ev && ev.start_date <= today && ev.end_date >= today && store?.merchant_id) {
+        console.log(`[approve] sale is active — auto-applying proposal ${proposalFull.id} to Clover`);
+        applyProposalToClover({ ...proposalFull, status: 'approved' }, store)
+          .catch(err => console.error(`[approve] auto-apply failed for ${proposalFull.id}:`, err.message));
+      }
+    }
   } catch (err) {
     console.error('[approve proposal]', err.message);
     res.status(500).json({ error: err.message });
