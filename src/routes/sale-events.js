@@ -509,21 +509,55 @@ async function runSaleEventCron() {
     await applyProposalToClover(proposal, store);
   }
 
-  // Remove discounts for events that ended yesterday
+  // Remove discounts for events that have ended
+  // Catch both: properly tracked (clover_applied=true) AND mis-tracked (clover_applied=false but has original_prices)
   const { data: toRemove } = await supabase
     .from('sale_proposals')
     .select('*, sale_events(end_date, name), stores(merchant_id, api_token)')
-    .eq('status', 'approved')
-    .eq('clover_applied', true);
+    .eq('status', 'approved');
 
   for (const proposal of (toRemove || [])) {
     const ev = proposal.sale_events;
     if (!ev || ev.end_date >= today) continue; // still active
+
+    // Skip if nothing to revert
+    const hasApplied = proposal.clover_applied;
+    const hasOriginalPrices = proposal.original_prices && Object.keys(proposal.original_prices).length > 0;
+    if (!hasApplied && !hasOriginalPrices) continue;
+
     const store = proposal.stores;
     if (!store?.merchant_id || !store?.api_token) continue;
     await removeProposalFromClover(proposal, store);
   }
 }
+
+// POST /api/sale-events/run-revert — admin trigger to immediately revert all ended sale events
+router.post('/run-revert', auth, requireAdmin, async (req, res) => {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const { data: proposals } = await supabase
+      .from('sale_proposals')
+      .select('*, sale_events(end_date, name), stores(id, merchant_id, api_token)')
+      .eq('status', 'approved');
+
+    let reverted = 0;
+    for (const proposal of (proposals || [])) {
+      const ev = proposal.sale_events;
+      if (!ev || ev.end_date >= today) continue;
+      const hasApplied = proposal.clover_applied;
+      const hasOriginalPrices = proposal.original_prices && Object.keys(proposal.original_prices).length > 0;
+      if (!hasApplied && !hasOriginalPrices) continue;
+      const store = proposal.stores;
+      if (!store?.merchant_id) continue;
+      await removeProposalFromClover(proposal, store);
+      reverted++;
+    }
+    res.json({ success: true, reverted });
+  } catch (err) {
+    console.error('[run-revert]', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 async function applyProposalToClover(proposal, store) {
   try {

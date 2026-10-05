@@ -153,7 +153,10 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 <div class="page">
   <div class="page-header">
     <h1 class="page-title">🎯 Promotions</h1>
-    <button class="btn btn-primary" id="mainAddBtn" onclick="handleAddBtn()">+ New</button>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn btn-ghost btn-sm" id="revertEndedBtn" onclick="revertEnded()" style="display:none">↩ Revert Ended Sales</button>
+      <button class="btn btn-primary" id="mainAddBtn" onclick="handleAddBtn()">+ New</button>
+    </div>
   </div>
 
   <!-- Tab bar — Discount Schedules tab only shown for HIM/admin/RM -->
@@ -442,6 +445,8 @@ async function loadEvents() {
               <span class="badge badge-${p.status}">${p.status}</span>
               <div class="proposal-actions">
                 ${(p.status === 'submitted' || p.status === 'under_review') && canManageDiscounts ? `<button class="btn btn-primary btn-sm" onclick="openReview('${p.id}')">Review</button>` : ''}
+                ${canManageDiscounts && p.status === 'approved' && !p.clover_applied ? `<button class="btn btn-success btn-sm" onclick="applyNow('${p.id}', this)">⚡ Apply to Clover</button>` : ''}
+                ${canManageDiscounts && p.status === 'approved' && p.clover_applied ? `<span style="font-size:12px;color:#16a34a;font-weight:600">✅ Live on Clover</span><button class="btn btn-warning btn-sm" onclick="revertNow('${p.id}', this)" style="margin-left:4px">↩ Revert</button>` : ''}
                 ${p.status === 'approved' ? `<button class="btn btn-ghost btn-sm" onclick="openReview('${p.id}')">View</button>` : ''}
                 ${p.status === 'pending' ? `<span style="font-size:12px;color:#888">Awaiting submission</span>` : ''}
                 ${p.status === 'rejected' ? `<span style="font-size:12px;color:#d97706;font-weight:600">⚠️ Sent back for revision</span>` : ''}
@@ -528,7 +533,7 @@ async function saveEvent() {
   if (editingEventId) {
     res = await fetch(`/api/sale-events/${editingEventId}`, { method: 'PUT', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     data = await res.json();
-    if (res.ok && store_ids.length) {
+    if (res.ok) {
       await fetch(`/api/sale-events/${editingEventId}/stores`, { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ store_ids }) });
     }
   } else {
@@ -596,6 +601,28 @@ async function rejectProposal() {
   });
   if (res.ok) { closeReviewModal(); loadEvents(); }
   else { const d = await res.json(); alert('Error: ' + d.error); }
+}
+
+async function applyNow(proposalId, btn) {
+  if (!confirm('Apply discounts to Clover now? This will update item prices immediately.')) return;
+  btn.disabled = true; btn.textContent = '⏳ Applying...';
+  const res = await fetch(`/api/sale-events/proposals/${proposalId}/apply`, {
+    method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }
+  });
+  const d = await res.json();
+  if (res.ok) { alert('✅ Discounts applied to Clover successfully!'); loadEvents(); }
+  else { btn.disabled = false; btn.textContent = '⚡ Apply to Clover'; alert('Error: ' + (d.error || 'Unknown')); }
+}
+
+async function revertNow(proposalId, btn) {
+  if (!confirm('Revert Clover prices back to original? This will undo the applied discounts.')) return;
+  btn.disabled = true; btn.textContent = '⏳ Reverting...';
+  const res = await fetch(`/api/sale-events/proposals/${proposalId}/revert`, {
+    method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }
+  });
+  const d = await res.json();
+  if (res.ok) { alert('✅ Prices reverted on Clover successfully!'); loadEvents(); }
+  else { btn.disabled = false; btn.textContent = '↩ Revert'; alert('Error: ' + (d.error || 'Unknown')); }
 }
 
 async function deleteEvent(id, name) {
@@ -945,11 +972,29 @@ async function init() {
   }
   if (defaultStore) { dsCurrentStoreId = defaultStore; }
 
+  // Show admin-only buttons
+  if (canManageDiscounts) {
+    document.getElementById('revertEndedBtn').style.display = '';
+  }
+
   // Load sale events
   await loadEvents();
 
   // Update the main add button label
   document.getElementById('mainAddBtn').textContent = '+ New Sale Event';
+}
+
+async function revertEnded() {
+  if (!confirm('Revert all ended sale events back to original prices on Clover?')) return;
+  const btn = document.getElementById('revertEndedBtn');
+  btn.disabled = true; btn.textContent = '⏳ Reverting...';
+  const res = await fetch('/api/sale-events/run-revert', {
+    method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }
+  });
+  const d = await res.json();
+  btn.disabled = false; btn.textContent = '↩ Revert Ended Sales';
+  if (res.ok) { alert(`✅ Done! Reverted ${d.reverted} proposal(s) on Clover.`); loadEvents(); }
+  else { alert('Error: ' + (d.error || 'Unknown')); }
 }
 
 // Close modals on overlay click
