@@ -215,7 +215,7 @@ router.delete('/:id', auth, requireAdmin, async (req, res) => {
   try {
     const evId = req.params.id;
 
-    // Fetch full proposal data before deleting so we can revert Clover prices
+    // Fetch full proposal data BEFORE deleting so we can revert Clover prices in the background
     const { data: proposals } = await supabase
       .from('sale_proposals')
       .select('*, stores(id, merchant_id, api_token)')
@@ -223,30 +223,40 @@ router.delete('/:id', auth, requireAdmin, async (req, res) => {
 
     const proposalIds = (proposals || []).map(p => p.id);
 
-    // Revert any proposals that were applied to Clover
-    for (const proposal of (proposals || [])) {
-      if (proposal.clover_applied && proposal.stores?.merchant_id) {
-        try {
-          await removeProposalFromClover(proposal, proposal.stores);
-        } catch (err) {
-          console.error(`[delete event] failed to revert Clover for proposal ${proposal.id}:`, err.message);
-        }
-      }
-    }
-
+    // Delete all child DB records first (fast — no waiting on Clover)
     if (proposalIds.length) {
-      await supabase.from('store_tasks').delete().in('reference_id', proposalIds).eq('task_type', 'sale_proposal');
-      await supabase.from('sale_proposal_items').delete().in('proposal_id', proposalIds);
-      await supabase.from('sale_proposals').delete().eq('sale_event_id', evId);
+      const { error: e1 } = await supabase.from('store_tasks').delete().in('reference_id', proposalIds).eq('task_type', 'sale_proposal');
+      if (e1) console.error('[delete event] store_tasks delete error:', e1.message);
+      const { error: e2 } = await supabase.from('sale_proposal_items').delete().in('proposal_id', proposalIds);
+      if (e2) console.error('[delete event] sale_proposal_items delete error:', e2.message);
+      const { error: e3 } = await supabase.from('sale_proposals').delete().eq('sale_event_id', evId);
+      if (e3) console.error('[delete event] sale_proposals delete error:', e3.message);
     }
 
-    await supabase.from('sale_event_stores').delete().eq('sale_event_id', evId);
+    const { error: e4 } = await supabase.from('sale_event_stores').delete().eq('sale_event_id', evId);
+    if (e4) console.error('[delete event] sale_event_stores delete error:', e4.message);
 
     const { error } = await supabase.from('sale_events').delete().eq('id', evId);
     if (error) throw error;
 
+    // Respond immediately — Clover revert runs in the background
     res.json({ success: true });
+
+    // Fire-and-forget: revert any proposals that were applied to Clover
+    const toRevert = (proposals || []).filter(p => p.clover_applied && p.stores?.merchant_id);
+    if (toRevert.length) {
+      (async () => {
+        for (const proposal of toRevert) {
+          try {
+            await removeProposalFromClover(proposal, proposal.stores);
+          } catch (err) {
+            console.error(`[delete event] failed to revert Clover for proposal ${proposal.id}:`, err.message);
+          }
+        }
+      })();
+    }
   } catch (err) {
+    console.error('[delete event]', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -612,8 +622,9 @@ async function applyProposalToClover(proposal, store) {
     const { data: ev } = await supabase.from('sale_events').select('name').eq('id', proposal.sale_event_id).single();
     const saleName = ev?.name || 'Sale';
 
-    // Snapshot original prices before touching anything (same pattern as discount_schedules)
+    // Snapshot original prices + names before touching anything
     const originalPrices = { ...(proposal.original_prices || {}) };
+    const originalNames = { ...(proposal.original_names || {}) };
     let snapshotChanged = false;
 
     // Collect all inventory items we'll need
@@ -630,9 +641,17 @@ async function applyProposalToClover(proposal, store) {
         originalPrices[itemId] = parseFloat(invMap[itemId].price);
         snapshotChanged = true;
       }
+      // Also snapshot the original display name for non-grouped items
+      if (originalNames[itemId] === undefined && !invMap[itemId]?.group_name) {
+        const displayName = invMap[itemId]?.variant_name || propItem.item_name || null;
+        if (displayName) {
+          originalNames[itemId] = displayName;
+          snapshotChanged = true;
+        }
+      }
     }
     if (snapshotChanged) {
-      await supabase.from('sale_proposals').update({ original_prices: originalPrices }).eq('id', proposal.id);
+      await supabase.from('sale_proposals').update({ original_prices: originalPrices, original_names: originalNames }).eq('id', proposal.id);
     }
 
     // Rename item groups (same approach as discount_schedules)
@@ -699,12 +718,13 @@ async function applyProposalToClover(proposal, store) {
       }
     }
 
-    await supabase.from('sale_proposals').update({
+    const { error: updateErr } = await supabase.from('sale_proposals').update({
       clover_applied: true,
       applied_item_ids: applied,
       group_renames: groupRenames,
       updated_at: new Date().toISOString()
     }).eq('id', proposal.id);
+    if (updateErr) console.error(`applyProposalToClover: failed to save tracking data for ${proposal.id}:`, updateErr.message);
 
     console.log(`Applied sale "${saleName}" — ${applied.length} items + ${uniqueGroups.length} groups updated on Clover for store ${store.merchant_id}`);
   } catch (err) {
@@ -716,6 +736,7 @@ async function removeProposalFromClover(proposal, store) {
   try {
     const apiToken = await getValidApiToken(store);
     const snapshotPrices = proposal.original_prices || {};
+    const snapshotNames = proposal.original_names || {};
     const groupRenames = proposal.group_renames || {};
 
     const appliedIds = (proposal.applied_item_ids?.length)
@@ -774,25 +795,30 @@ async function removeProposalFromClover(proposal, store) {
     }
 
     // ── 2. Restore item prices + names ─────────────────────────────────────
-    const { data: invItems } = await supabase.from('inventory_items')
+    // Build a name lookup: prefer snapshotNames (saved at apply time), fall back to inventory_items
+    const { data: invItemsForRestore } = await supabase.from('inventory_items')
       .select('id, variant_name, group_name')
-      .in('id', appliedIds)
-      .eq('store_id', proposal.store_id);
-    const itemMap = Object.fromEntries((invItems || []).map(i => [i.id, i]));
+      .in('id', appliedIds);
+    const invRestoreMap = Object.fromEntries((invItemsForRestore || []).map(i => [i.id, i]));
 
-    // Also load proposal items for item_name fallback
     const { data: propItemsFull } = await supabase.from('sale_proposal_items').select('inventory_item_id, item_name').eq('proposal_id', proposal.id);
     const propItemMap = Object.fromEntries((propItemsFull || []).map(p => [p.inventory_item_id, p]));
 
     for (const itemId of appliedIds) {
       const restorePrice = snapshotPrices[itemId] != null ? parseFloat(snapshotPrices[itemId]) : null;
       if (!restorePrice) continue;
-      const dbItem = itemMap[itemId];
-      // For grouped items the group rename handles the name; for individual items restore the original name
+
+      const dbItem = invRestoreMap[itemId];
+      const isGrouped = dbItem?.group_name ? true : false;
+
+      // For grouped items: group rename handled the name above; just restore price (name not needed)
+      // For non-grouped items: restore the original name
       let restoreName = null;
-      if (dbItem && !dbItem.group_name) {
-        restoreName = dbItem.variant_name || propItemMap[itemId]?.item_name || null;
+      if (!isGrouped) {
+        // Best source: snapshot taken at apply time; fallback: current inventory name; fallback: proposal item_name
+        restoreName = snapshotNames[itemId] || dbItem?.variant_name || propItemMap[itemId]?.item_name || null;
       }
+
       try {
         await setCloverItemFull(store.merchant_id, apiToken, itemId, restoreName, restorePrice);
         await sleep(500);
@@ -807,12 +833,14 @@ async function removeProposalFromClover(proposal, store) {
       }
     }
 
-    await supabase.from('sale_proposals').update({
+    const { error: revertUpdateErr } = await supabase.from('sale_proposals').update({
       clover_applied: false,
       applied_item_ids: [],
       group_renames: {},
+      original_names: {},
       updated_at: new Date().toISOString()
     }).eq('id', proposal.id);
+    if (revertUpdateErr) console.error(`removeProposalFromClover: failed to clear tracking for ${proposal.id}:`, revertUpdateErr.message);
 
     console.log(`Restored prices + group names on Clover for proposal ${proposal.id}`);
   } catch (err) {
