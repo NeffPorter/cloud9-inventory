@@ -36,6 +36,17 @@ async function setCloverItem(merchantId, apiToken, cloverItemId, name, priceDoll
   );
 }
 
+// Like setCloverItem but always sends the name field (used when reverting to clear sale-prefixed names)
+async function setCloverItemFull(merchantId, apiToken, cloverItemId, name, priceDollars) {
+  const body = { price: Math.round(priceDollars * 100) };
+  if (name !== null && name !== undefined) body.name = name;
+  await axios.post(
+    `${CLOVER_BASE}${merchantId}/items/${cloverItemId}`,
+    body,
+    { headers: cloverHeaders(apiToken) }
+  );
+}
+
 async function getCloverItemGroupId(merchantId, apiToken, cloverItemId) {
   const res = await axios.get(
     `${CLOVER_BASE}${merchantId}/items/${cloverItemId}?expand=itemGroup`,
@@ -531,7 +542,7 @@ async function runSaleEventCron() {
   }
 }
 
-// POST /api/sale-events/run-revert — admin trigger to immediately revert all ended sale events
+// POST /api/sale-events/run-revert — admin trigger to immediately revert all ended sale events (fire-and-forget)
 router.post('/run-revert', auth, requireAdmin, async (req, res) => {
   try {
     const today = new Date().toISOString().split('T')[0];
@@ -540,19 +551,33 @@ router.post('/run-revert', auth, requireAdmin, async (req, res) => {
       .select('*, sale_events(end_date, name), stores(id, merchant_id, api_token)')
       .eq('status', 'approved');
 
-    let reverted = 0;
-    for (const proposal of (proposals || [])) {
+    const toRevert = (proposals || []).filter(proposal => {
       const ev = proposal.sale_events;
-      if (!ev || ev.end_date >= today) continue;
+      if (!ev || ev.end_date >= today) return false;
       const hasApplied = proposal.clover_applied;
       const hasOriginalPrices = proposal.original_prices && Object.keys(proposal.original_prices).length > 0;
-      if (!hasApplied && !hasOriginalPrices) continue;
-      const store = proposal.stores;
-      if (!store?.merchant_id) continue;
-      await removeProposalFromClover(proposal, store);
-      reverted++;
-    }
-    res.json({ success: true, reverted });
+      return hasApplied || hasOriginalPrices;
+    });
+
+    if (!toRevert.length) return res.json({ success: true, reverted: 0, message: 'Nothing to revert' });
+
+    // Respond immediately — revert runs in background
+    res.json({ success: true, reverted: toRevert.length, message: `Reverting ${toRevert.length} proposal(s) in background. This may take a few minutes.` });
+
+    // Fire-and-forget
+    (async () => {
+      for (const proposal of toRevert) {
+        const store = proposal.stores;
+        if (!store?.merchant_id) continue;
+        try {
+          await removeProposalFromClover(proposal, store);
+          console.log(`[run-revert] reverted proposal ${proposal.id}`);
+        } catch (err) {
+          console.error(`[run-revert] failed proposal ${proposal.id}:`, err.message);
+        }
+      }
+      console.log('[run-revert] all done');
+    })();
   } catch (err) {
     console.error('[run-revert]', err.message);
     res.status(500).json({ error: err.message });
@@ -638,14 +663,14 @@ async function applyProposalToClover(proposal, store) {
       try {
         await setCloverItem(store.merchant_id, apiToken, itemId, newName, discountedPrice);
         applied.push(itemId);
-        await sleep(300);
+        await sleep(500);
       } catch (err) {
         if (err.response?.status === 429) {
-          await sleep(2000);
+          await sleep(8000);
           try {
             await setCloverItem(store.merchant_id, apiToken, itemId, newName, discountedPrice);
             applied.push(itemId);
-            await sleep(300);
+            await sleep(500);
           } catch (retryErr) {
             console.error(`Failed after retry for item ${itemId}:`, retryErr.message);
           }
@@ -674,7 +699,6 @@ async function removeProposalFromClover(proposal, store) {
     const snapshotPrices = proposal.original_prices || {};
     const groupRenames = proposal.group_renames || {};
 
-    // Use applied_item_ids if available, otherwise fall back to original_prices keys
     const appliedIds = (proposal.applied_item_ids?.length)
       ? proposal.applied_item_ids
       : Object.keys(snapshotPrices);
@@ -685,43 +709,79 @@ async function removeProposalFromClover(proposal, store) {
       return;
     }
 
-    for (const [originalName, groupInfo] of Object.entries(groupRenames)) {
-      if (!groupInfo.cloverGroupId) continue;
-      try {
-        await renameCloverItemGroup(store.merchant_id, apiToken, groupInfo.cloverGroupId, originalName);
-        await sleep(300);
-      } catch (err) {
-        console.error(`Failed to restore group "${originalName}":`, err.message);
+    // ── 1. Restore group names ─────────────────────────────────────────────
+    if (Object.keys(groupRenames).length) {
+      // Use saved group_renames map
+      for (const [originalName, groupInfo] of Object.entries(groupRenames)) {
+        if (!groupInfo.cloverGroupId) continue;
+        try {
+          await renameCloverItemGroup(store.merchant_id, apiToken, groupInfo.cloverGroupId, originalName);
+          await sleep(500);
+        } catch (err) {
+          if (err.response?.status === 429) { await sleep(8000); try { await renameCloverItemGroup(store.merchant_id, apiToken, groupInfo.cloverGroupId, originalName); } catch {} }
+          else { console.error(`Failed to restore group "${originalName}":`, err.message); }
+        }
+      }
+    } else {
+      // group_renames wasn't saved — re-look up group IDs from proposal items
+      const { data: propItems } = await supabase.from('sale_proposal_items').select('inventory_item_id').eq('proposal_id', proposal.id);
+      if (propItems?.length) {
+        const { data: invItems } = await supabase.from('inventory_items')
+          .select('id, group_name').in('id', propItems.map(p => p.inventory_item_id).filter(Boolean));
+        const invMap = Object.fromEntries((invItems || []).map(i => [i.id, i]));
+        const uniqueGroups = [...new Set(propItems.map(p => invMap[p.inventory_item_id]?.group_name).filter(Boolean))];
+
+        for (const groupName of uniqueGroups) {
+          const sampleItem = propItems.find(p => invMap[p.inventory_item_id]?.group_name === groupName);
+          if (!sampleItem) continue;
+          await sleep(500);
+          let cloverGroupId = null;
+          try {
+            cloverGroupId = await getCloverItemGroupId(store.merchant_id, apiToken, sampleItem.inventory_item_id);
+          } catch (err) {
+            if (err.response?.status === 429) { await sleep(8000); try { cloverGroupId = await getCloverItemGroupId(store.merchant_id, apiToken, sampleItem.inventory_item_id); } catch {} }
+          }
+          if (cloverGroupId) {
+            try {
+              await renameCloverItemGroup(store.merchant_id, apiToken, cloverGroupId, groupName);
+              await sleep(500);
+            } catch (err) {
+              if (err.response?.status === 429) { await sleep(8000); try { await renameCloverItemGroup(store.merchant_id, apiToken, cloverGroupId, groupName); } catch {} }
+              else { console.error(`Failed to restore group "${groupName}":`, err.message); }
+            }
+          }
+        }
       }
     }
 
-    const { data: items } = await supabase.from('inventory_items')
-      .select('id, price, variant_name, group_name')
+    // ── 2. Restore item prices + names ─────────────────────────────────────
+    const { data: invItems } = await supabase.from('inventory_items')
+      .select('id, variant_name, group_name')
       .in('id', appliedIds)
       .eq('store_id', proposal.store_id);
+    const itemMap = Object.fromEntries((invItems || []).map(i => [i.id, i]));
 
-    // Build a map of DB items for name restoration; fall back to price-only restore for any item not in DB
-    const itemMap = {};
-    for (const item of items || []) itemMap[item.id] = item;
+    // Also load proposal items for item_name fallback
+    const { data: propItemsFull } = await supabase.from('sale_proposal_items').select('inventory_item_id, item_name').eq('proposal_id', proposal.id);
+    const propItemMap = Object.fromEntries((propItemsFull || []).map(p => [p.inventory_item_id, p]));
 
-    const idsToRestore = appliedIds.length ? appliedIds : Object.keys(snapshotPrices);
-    for (const itemId of idsToRestore) {
+    for (const itemId of appliedIds) {
       const restorePrice = snapshotPrices[itemId] != null ? parseFloat(snapshotPrices[itemId]) : null;
       if (!restorePrice) continue;
       const dbItem = itemMap[itemId];
-      const restoreName = dbItem ? (dbItem.group_name ? null : (dbItem.variant_name || null)) : null;
+      // For grouped items the group rename handles the name; for individual items restore the original name
+      let restoreName = null;
+      if (dbItem && !dbItem.group_name) {
+        restoreName = dbItem.variant_name || propItemMap[itemId]?.item_name || null;
+      }
       try {
-        await setCloverItem(store.merchant_id, apiToken, itemId, restoreName, restorePrice);
-        await sleep(300);
+        await setCloverItemFull(store.merchant_id, apiToken, itemId, restoreName, restorePrice);
+        await sleep(500);
       } catch (err) {
         if (err.response?.status === 429) {
-          await sleep(2000);
-          try {
-            await setCloverItem(store.merchant_id, apiToken, itemId, restoreName, restorePrice);
-            await sleep(300);
-          } catch (retryErr) {
-            console.error(`Failed after retry restoring item ${itemId}:`, retryErr.message);
-          }
+          await sleep(8000);
+          try { await setCloverItemFull(store.merchant_id, apiToken, itemId, restoreName, restorePrice); await sleep(500); }
+          catch (retryErr) { console.error(`Failed after retry restoring item ${itemId}:`, retryErr.message); }
         } else {
           console.error(`Failed to restore item ${itemId}:`, err.message);
         }
