@@ -89,7 +89,7 @@
   let allInventory = [];
   let priceMap = {};     // item_id -> unit_cost (from DB)
   let pendingChanges = {}; // groupKey -> unit_cost  (key = 'g:cat:grp' or 'i:itemId')
-  let taxRules = [];     // [{ category, tax_pct, label }] for selected store
+  let taxRule = null;    // { tax_type, tax_value } for selected store + this distributor
   const isAdmin = ['admin', 'him', 'regional_manager'].includes(user.role);
 
   let allStores = [];
@@ -158,7 +158,8 @@
       priceMap = {};
       (priceData.prices || []).forEach(p => { priceMap[p.item_id] = p.unit_cost; });
       allInventory = (invData.items || []).filter(i => i.status !== 'Not Tracking');
-      taxRules = taxData.rules || [];
+      // Find the tax rule for this distributor at this store (single rule)
+      taxRule = (taxData.rules || []).find(r => r.distributor_id === distId) || null;
 
       renderPrices();
     } catch (err) {
@@ -213,10 +214,24 @@
     return '<span style="color:#999;font-size:11px">Same</span>';
   }
 
-  function taxCell(price, taxPct) {
-    if (!taxPct || price === '' || price === null) return '<td style="color:#aaa">—</td>';
-    const effective = (parseFloat(price) * (1 + taxPct / 100)).toFixed(2);
-    return `<td style="color:#856404;font-weight:600">$${effective}</td>`;
+  function calcEffective(price) {
+    if (!taxRule || price === '' || price === null || parseFloat(price) <= 0) return null;
+    const p = parseFloat(price);
+    if (taxRule.tax_type === 'flat') return (p + parseFloat(taxRule.tax_value)).toFixed(2);
+    return (p * (1 + parseFloat(taxRule.tax_value) / 100)).toFixed(2);
+  }
+
+  function taxCell(price) {
+    const eff = calcEffective(price);
+    if (!eff) return '<td style="color:#aaa">—</td>';
+    return `<td style="color:#856404;font-weight:600">$${eff}</td>`;
+  }
+
+  function taxHeaderLabel() {
+    if (!taxRule) return '';
+    return taxRule.tax_type === 'flat'
+      ? `Effective Cost (+$${parseFloat(taxRule.tax_value).toFixed(2)})`
+      : `Effective Cost (+${taxRule.tax_value}%)`;
   }
 
   function renderPrices() {
@@ -240,8 +255,6 @@
       const { groups, standalone } = cats[cat];
       const groupNames = Object.keys(groups).sort();
       const totalGroups = groupNames.length + standalone.length;
-      const taxRule = taxRules.find(r => r.category === cat);
-      const taxPct = taxRule?.tax_pct || 0;
       const cols = taxRule ? 5 : 4;
 
       const pricedGroups = groupNames.filter(g => {
@@ -267,7 +280,7 @@
           <td style="color:#666">$${invCost.toFixed(2)}</td>
           <td><span style="color:#888;margin-right:2px">$</span><input type="number" step="0.01" min="0" class="price-input ${changed ? 'changed' : ''}"
             value="${price}" placeholder="—" id="pi_${k.replace(/[^a-zA-Z0-9]/g,'_')}" ${inputAttrs} /></td>
-          ${taxRule ? taxCell(price, taxPct) : ''}
+          ${taxRule ? taxCell(price) : ''}
           <td>${savingsBadge(price, invCost)}</td>
         </tr>`;
       });
@@ -288,19 +301,15 @@
             <td style="color:#666">$${(item.cost || 0).toFixed(2)}</td>
             <td><span style="color:#888;margin-right:2px">$</span><input type="number" step="0.01" min="0" class="price-input ${changed ? 'changed' : ''}"
               value="${price}" placeholder="—" id="pi_i_${item.id}" ${inputAttrs} /></td>
-            ${taxRule ? taxCell(price, taxPct) : ''}
+            ${taxRule ? taxCell(price) : ''}
             <td>${savingsBadge(price, item.cost || 0)}</td>
           </tr>`;
         });
       }
 
-      const taxBadge = taxRule
-        ? `<span style="background:#fff3cd;color:#856404;font-size:11px;font-weight:700;padding:2px 7px;border-radius:8px;margin-left:8px">${taxRule.label || taxRule.tax_pct + '% tax'}</span>`
-        : '';
-
       html += `<div class="cat-section">
         <div class="cat-header" onclick="toggleCat('catbody_${cat.replace(/[^a-zA-Z0-9]/g,'_')}', this)">
-          <span>${cat}${taxBadge}</span>
+          <span>${cat}</span>
           <span style="font-size:12px;opacity:0.8">${pricedGroups}/${totalGroups} priced ▼</span>
         </div>
         <div class="cat-body" id="catbody_${cat.replace(/[^a-zA-Z0-9]/g,'_')}">
@@ -309,7 +318,7 @@
               <th>Variant Group / Item</th>
               <th>Inventory Cost</th>
               <th>${distributor.name} Price</th>
-              ${taxRule ? `<th style="color:#856404">Effective Cost (+${taxRule.tax_pct}%)</th>` : ''}
+              ${taxRule ? `<th style="color:#856404">${taxHeaderLabel()}</th>` : ''}
               <th>vs. Inventory</th>
             </tr></thead>
             <tbody>${rows}</tbody>
@@ -318,7 +327,12 @@
       </div>`;
     });
 
-    el.innerHTML = html || '<div style="padding:40px;text-align:center;color:#999">No inventory items found for this store.</div>';
+    const taxBanner = taxRule
+      ? `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:10px 16px;margin-bottom:16px;font-size:13px;color:#92400e;font-weight:600">
+           🧾 Tax applied: ${taxRule.tax_type === 'flat' ? `$${parseFloat(taxRule.tax_value).toFixed(2)} flat per unit` : `${taxRule.tax_value}% of price`} — shown as Effective Cost column
+         </div>`
+      : '';
+    el.innerHTML = taxBanner + (html || '<div style="padding:40px;text-align:center;color:#999">No inventory items found for this store.</div>');
   }
 
   function toggleCat(bodyId, header) {

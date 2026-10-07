@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cloud 9 – Store Tax Rules</title>
+  <title>Cloud 9 – Distributor Tax Rules</title>
   <script src="/navbar.js?v=6"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -16,21 +16,23 @@
     .form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 8px; }
     .form-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 140px; }
     label { font-size: 12px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 0.4px; }
-    select, input[type="text"], input[type="number"], input[list] {
+    select, input[type="number"] {
       padding: 9px 12px; border: 1.5px solid #ddd; border-radius: 8px;
       font-size: 14px; outline: none; background: white; width: 100%;
     }
     select:focus, input:focus { border-color: #2f5597; }
+    .type-toggle { display: flex; gap: 0; border: 1.5px solid #ddd; border-radius: 8px; overflow: hidden; }
+    .type-toggle button { flex: 1; padding: 9px 12px; border: none; background: white; font-size: 13px; font-weight: 600; color: #555; cursor: pointer; transition: all .15s; }
+    .type-toggle button.active { background: #2f5597; color: white; }
     .btn { border: none; padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all .2s; }
     .btn-blue { background: #2f5597; color: white; } .btn-blue:hover { background: #1e3a6e; }
-    .btn-red { background: #fee2e2; color: #c00; } .btn-red:hover { background: #fca5a5; }
-    .btn-green { background: #d1fae5; color: #065f46; } .btn-green:hover { background: #a7f3d0; }
+    .btn-red { background: #fee2e2; color: #c00; border-radius: 6px; padding: 6px 14px; font-size: 12px; } .btn-red:hover { background: #fca5a5; }
     table { width: 100%; border-collapse: collapse; }
     th { text-align: left; font-size: 11px; font-weight: 700; color: #999; text-transform: uppercase; letter-spacing: 0.5px; padding: 9px 14px; background: #f8f9fa; border-bottom: 2px solid #f0f0f0; }
     td { padding: 12px 14px; border-bottom: 1px solid #f5f5f5; font-size: 14px; vertical-align: middle; }
     tr:last-child td { border-bottom: none; }
     .store-badge { background: #eff6ff; color: #1d4ed8; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 10px; }
-    .tax-pct { font-size: 18px; font-weight: 800; color: #856404; }
+    .tax-val { font-size: 17px; font-weight: 800; color: #856404; }
     .empty { padding: 32px; text-align: center; color: #aaa; font-size: 14px; }
     .info-box { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 10px; padding: 14px 18px; font-size: 13px; color: #92400e; margin-bottom: 24px; }
     .info-box strong { display: block; margin-bottom: 4px; }
@@ -39,41 +41,41 @@
 <body>
 
 <div class="container">
-  <h1>🧾 Store Tax Rules</h1>
-  <p class="subtitle">Set per-store excise or category tax rates. These show as "Effective Cost" on distributor price sheets.</p>
+  <h1>🧾 Distributor Tax Rules</h1>
+  <p class="subtitle">Set a tax rate per distributor per store. Applied as effective cost on distributor price sheets.</p>
 
   <div class="info-box">
     <strong>How it works:</strong>
-    Tax rules apply to a specific category at a specific location. For example, Nevada stores may have a ~30% excise tax on vapeable products.
-    When viewing a distributor's price list for that store, the effective cost (price + tax) is shown alongside the base price.
+    Some distributors have an excise or state tax applied on top of their cost — either a flat $ amount per unit or a % of the price.
+    Set one rule per distributor per store. The effective cost (price + tax) is shown on the distributor prices page.
   </div>
 
   <!-- Add New Rule -->
   <div class="card">
-    <div class="card-title">Add Tax Rule</div>
+    <div class="card-title">Add / Update Rule</div>
     <div class="form-row">
       <div class="form-group">
         <label>Store</label>
-        <select id="fStore">
-          <option value="">— Select store —</option>
-        </select>
+        <select id="fStore"><option value="">— Select store —</option></select>
       </div>
       <div class="form-group">
-        <label>Category</label>
-        <input list="catList" id="fCategory" placeholder="e.g. All Disposables (21+)" autocomplete="off">
-        <datalist id="catList"></datalist>
+        <label>Distributor</label>
+        <select id="fDistributor"><option value="">— Select distributor —</option></select>
+      </div>
+      <div class="form-group" style="max-width:160px">
+        <label>Tax Type</label>
+        <div class="type-toggle">
+          <button id="btnPct" class="active" onclick="setType('percent')">% Percent</button>
+          <button id="btnFlat" onclick="setType('flat')">$ Flat</button>
+        </div>
       </div>
       <div class="form-group" style="max-width:130px">
-        <label>Tax % Rate</label>
-        <input type="number" id="fTaxPct" step="0.01" min="0" max="200" placeholder="e.g. 30">
-      </div>
-      <div class="form-group">
-        <label>Label (optional)</label>
-        <input type="text" id="fLabel" placeholder="e.g. NV Excise Tax">
+        <label id="valueLabel">Tax % Rate</label>
+        <input type="number" id="fValue" step="0.01" min="0" placeholder="e.g. 30">
       </div>
       <div class="form-group" style="max-width:120px">
         <label>&nbsp;</label>
-        <button class="btn btn-blue" onclick="addRule()">+ Add Rule</button>
+        <button class="btn btn-blue" onclick="addRule()">+ Save Rule</button>
       </div>
     </div>
   </div>
@@ -81,7 +83,7 @@
   <!-- Existing Rules -->
   <div class="card">
     <div class="card-title">
-      <span>Existing Rules</span>
+      <span>Current Rules</span>
       <span id="ruleCount" style="font-size:13px;color:#888;font-weight:400"></span>
     </div>
     <div id="rulesContainer"><div class="empty">Loading...</div></div>
@@ -95,49 +97,46 @@ if (!token || !['admin', 'him', 'regional_manager', 'owner'].includes(user.role)
   window.location.href = '/';
 }
 
-let stores = [], rules = [];
+let stores = [], distributors = [], rules = [];
+let selectedType = 'percent';
 
-const CATEGORIES = [
-  "All Disposables","All Disposables (21+)","All Freebase Juice","All Freebase Juice (21+)",
-  "All Salt Nic Juice","All Salt Nic Juice (21+)","All Salt Nicotine Juice",
-  "All Pods","All Pods (21+)","All Pod Systems","All Pod Systems (21+)",
-  "All Mods","All Mods (21+)","All Vape Hardware","All Vape Hardware (21+)",
-  "All Coils","All Coils (21+)","All Hemp","All Hemp Products (21+)",
-  "All Alternatives","All Alternatives (21+)","All CBD","CBD",
-  "All THC","All Kratom (21+)","All Mushroom (21+)",
-  "Accessories","Accessories (21+)","All Smoke Shop Accessories",
-  "Cartridge Batteries","Cartridge Batteries (21+)","All Cartridge Batteries (21+)",
-  "All Glass","All Glass (21+)","All Tanks (21+)","Alternative Nicotine Products",
-  "All Pouches/Gum (21+)"
-];
+function setType(t) {
+  selectedType = t;
+  document.getElementById('btnPct').classList.toggle('active', t === 'percent');
+  document.getElementById('btnFlat').classList.toggle('active', t === 'flat');
+  document.getElementById('valueLabel').textContent = t === 'percent' ? 'Tax % Rate' : 'Flat $ Per Unit';
+  document.getElementById('fValue').placeholder = t === 'percent' ? 'e.g. 30' : 'e.g. 0.50';
+}
 
 async function init() {
   try {
-  const [sRes, rRes] = await Promise.all([
-    fetch('/api/inventory/stores', { headers: { Authorization: 'Bearer ' + token } }),
-    fetch('/api/tax-rules', { headers: { Authorization: 'Bearer ' + token } })
-  ]);
-  const sData = await sRes.json();
-  const rData = await rRes.json();
-  stores = sData.stores || [];
-  rules = rData.rules || [];
-  if (rData.error) console.error('Tax rules error:', rData.error);
+    const [sRes, dRes, rRes] = await Promise.all([
+      fetch('/api/inventory/stores', { headers: { Authorization: 'Bearer ' + token } }),
+      fetch('/api/distributors', { headers: { Authorization: 'Bearer ' + token } }),
+      fetch('/api/tax-rules', { headers: { Authorization: 'Bearer ' + token } })
+    ]);
+    const sData = await sRes.json();
+    const dData = await dRes.json();
+    const rData = await rRes.json();
+    stores = sData.stores || [];
+    distributors = (dData.distributors || []).sort((a, b) => a.name.localeCompare(b.name));
+    rules = rData.rules || [];
 
-  // Populate store select
-  const sel = document.getElementById('fStore');
-  stores.forEach(s => {
-    const opt = document.createElement('option');
-    opt.value = s.id; opt.textContent = s.name;
-    sel.appendChild(opt);
-  });
+    const sel = document.getElementById('fStore');
+    stores.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.id; opt.textContent = s.name;
+      sel.appendChild(opt);
+    });
 
-  // Populate category datalist
-  const dl = document.getElementById('catList');
-  CATEGORIES.forEach(c => {
-    const opt = document.createElement('option'); opt.value = c; dl.appendChild(opt);
-  });
+    const dsel = document.getElementById('fDistributor');
+    distributors.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d.id; opt.textContent = d.name;
+      dsel.appendChild(opt);
+    });
 
-  renderRules();
+    renderRules();
   } catch (err) {
     document.getElementById('rulesContainer').innerHTML = `<div class="empty" style="color:#c00">Failed to load: ${err.message}</div>`;
   }
@@ -148,11 +147,10 @@ function renderRules() {
   document.getElementById('ruleCount').textContent = rules.length + ' rule' + (rules.length !== 1 ? 's' : '');
 
   if (!rules.length) {
-    el.innerHTML = '<div class="empty">No tax rules yet. Add one above.</div>';
+    el.innerHTML = '<div class="empty">No rules yet. Add one above.</div>';
     return;
   }
 
-  // Group by store
   const byStore = {};
   rules.forEach(r => {
     const name = r.store_name || stores.find(s => s.id === r.store_id)?.name || r.store_id;
@@ -160,14 +158,16 @@ function renderRules() {
     byStore[name].push(r);
   });
 
-  let html = '<table><thead><tr><th>Store</th><th>Category</th><th>Tax Rate</th><th>Label</th><th></th></tr></thead><tbody>';
+  let html = '<table><thead><tr><th>Store</th><th>Distributor</th><th>Tax</th><th></th></tr></thead><tbody>';
   Object.entries(byStore).forEach(([storeName, storeRules]) => {
     storeRules.forEach((r, i) => {
+      const taxLabel = r.tax_type === 'flat'
+        ? `<span class="tax-val">+$${parseFloat(r.tax_value).toFixed(2)}/unit</span>`
+        : `<span class="tax-val">+${r.tax_value}%</span>`;
       html += `<tr>
         <td>${i === 0 ? `<span class="store-badge">${storeName}</span>` : ''}</td>
-        <td style="font-weight:600">${r.category}</td>
-        <td><span class="tax-pct">+${r.tax_pct}%</span></td>
-        <td style="color:#888">${r.label || '—'}</td>
+        <td style="font-weight:600">${r.distributor_name || r.distributor_id}</td>
+        <td>${taxLabel}</td>
         <td><button class="btn btn-red" onclick="deleteRule('${r.id}')">Remove</button></td>
       </tr>`;
     });
@@ -178,40 +178,35 @@ function renderRules() {
 
 async function addRule() {
   const store_id = document.getElementById('fStore').value;
-  const category = document.getElementById('fCategory').value.trim();
-  const tax_pct = parseFloat(document.getElementById('fTaxPct').value);
-  const label = document.getElementById('fLabel').value.trim();
+  const distributor_id = document.getElementById('fDistributor').value;
+  const tax_value = parseFloat(document.getElementById('fValue').value);
 
   if (!store_id) { alert('Please select a store.'); return; }
-  if (!category) { alert('Please enter a category.'); return; }
-  if (isNaN(tax_pct) || tax_pct <= 0) { alert('Please enter a valid tax percentage greater than 0.'); return; }
+  if (!distributor_id) { alert('Please select a distributor.'); return; }
+  if (isNaN(tax_value) || tax_value <= 0) { alert('Please enter a tax value greater than 0.'); return; }
 
   const res = await fetch('/api/tax-rules', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-    body: JSON.stringify({ store_id, category, tax_pct, label: label || null })
+    body: JSON.stringify({ store_id, distributor_id, tax_type: selectedType, tax_value })
   });
   const data = await res.json();
   if (!res.ok) { alert('Error: ' + data.error); return; }
 
-  // Upsert into local list
-  const idx = rules.findIndex(r => r.store_id === store_id && r.category === category);
-  if (idx >= 0) rules[idx] = data.rule; else rules.push(data.rule);
+  const idx = rules.findIndex(r => r.store_id === store_id && r.distributor_id === distributor_id);
+  if (idx >= 0) rules[idx] = { ...data.rule, store_name: rules[idx].store_name };
+  else rules.push({ ...data.rule, store_name: stores.find(s => s.id === store_id)?.name });
 
-  // Reset form
   document.getElementById('fStore').value = '';
-  document.getElementById('fCategory').value = '';
-  document.getElementById('fTaxPct').value = '';
-  document.getElementById('fLabel').value = '';
-
+  document.getElementById('fDistributor').value = '';
+  document.getElementById('fValue').value = '';
   renderRules();
 }
 
 async function deleteRule(id) {
   if (!confirm('Remove this tax rule?')) return;
   const res = await fetch(`/api/tax-rules/${id}`, {
-    method: 'DELETE',
-    headers: { Authorization: 'Bearer ' + token }
+    method: 'DELETE', headers: { Authorization: 'Bearer ' + token }
   });
   if (!res.ok) { alert('Failed to delete rule'); return; }
   rules = rules.filter(r => r.id !== id);
